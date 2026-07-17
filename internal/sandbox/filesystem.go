@@ -249,6 +249,9 @@ func (f *FileSystem) Copy(source, destination string, recursive bool) error {
 	if !f.IsDir(path.Dir(destination)) {
 		return fmt.Errorf("%s: no such directory", path.Dir(destination))
 	}
+	if existing, exists := f.entries[destination]; exists && existing.Kind != src.Kind {
+		return fmt.Errorf("cannot overwrite %s with %s", existing.Kind, src.Kind)
+	}
 	if src.Kind == Regular {
 		clone := *src
 		f.entries[destination] = &clone
@@ -282,8 +285,10 @@ func (f *FileSystem) Move(source, destination string) error {
 		return fmt.Errorf("cannot move %s to %s", source, destination)
 	}
 	if f.Exists(destination) {
-		if f.IsDir(destination) {
-			return fmt.Errorf("%s: directory already exists", destination)
+		sourceEntry, _ := f.Entry(source)
+		destinationEntry, _ := f.Entry(destination)
+		if sourceEntry.Kind != destinationEntry.Kind || destinationEntry.Kind == Directory {
+			return fmt.Errorf("cannot replace %s with %s", destinationEntry.Kind, sourceEntry.Kind)
 		}
 		delete(f.entries, destination)
 	}

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
@@ -37,6 +38,48 @@ func New(in io.Reader, out, errOut io.Writer) (*App, error) {
 
 func NewWithDependencies(in io.Reader, out, errOut io.Writer, catalog mission.Catalog, store profile.Store) *App {
 	return &App{in: in, out: out, errOut: errOut, catalog: catalog, store: store}
+}
+
+func (a *App) loadPlayer() (profile.Profile, error) {
+	player, err := a.store.Load()
+	if err != nil {
+		return profile.Profile{}, err
+	}
+	now := time.Now()
+	changed := false
+	unlock := func(id string) {
+		if _, added := player.UnlockAchievement(id, now); added {
+			changed = true
+		}
+	}
+	if len(player.Completed) > 0 {
+		unlock("first-fix")
+	}
+	if len(player.Commands) >= 10 {
+		unlock("command-collector")
+	}
+	if player.HintFreeCompletions() >= 5 {
+		unlock("self-reliant")
+	}
+	knownCompleted := 0
+	for _, item := range a.catalog.All() {
+		if !player.IsComplete(item.ID) {
+			continue
+		}
+		knownCompleted++
+		if item.Difficulty == "advanced" {
+			unlock("boss-slayer")
+		}
+	}
+	if knownCompleted == len(a.catalog.All()) && knownCompleted > 0 {
+		unlock("linux-completionist")
+	}
+	if changed {
+		if err := a.store.Save(player); err != nil {
+			return profile.Profile{}, err
+		}
+	}
+	return player, nil
 }
 
 func (a *App) Run(args []string) error {
@@ -87,7 +130,7 @@ func (a *App) runPlay(args []string) error {
 	if flags.NArg() > 1 {
 		return fmt.Errorf("usage: opsquest play [MISSION]")
 	}
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return err
 	}
@@ -138,7 +181,7 @@ func (a *App) runList(args []string) error {
 	if *completedOnly && *remainingOnly {
 		return fmt.Errorf("--completed and --remaining cannot be combined")
 	}
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return err
 	}
@@ -195,7 +238,7 @@ func (a *App) runProfile(args []string) error {
 			nameProvided = true
 		}
 	})
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return err
 	}
@@ -247,7 +290,7 @@ func (a *App) runProfile(args []string) error {
 	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(player.Commands))
 	fmt.Fprintf(a.out, "Missions completed: %d\n", completed)
 	fmt.Fprintf(a.out, "Hints used: %d\n", player.HintsUsed())
-	fmt.Fprintf(a.out, "Achievements: %d/%d\n", len(player.Unlocked), len(profile.AchievementDefinitions()))
+	fmt.Fprintf(a.out, "Achievements: %d/%d\n", player.AchievementCount(), len(profile.AchievementDefinitions()))
 	return nil
 }
 
@@ -264,7 +307,7 @@ func (a *App) runCommands(args []string) error {
 	if flags.NArg() > 0 {
 		return fmt.Errorf("commands does not accept positional arguments")
 	}
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return err
 	}
@@ -293,7 +336,7 @@ func (a *App) runAchievements(args []string) error {
 	if flags.NArg() > 0 {
 		return fmt.Errorf("achievements does not accept positional arguments")
 	}
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return err
 	}
@@ -306,7 +349,7 @@ func (a *App) runAchievements(args []string) error {
 			fmt.Fprintf(a.out, "  ☆ %-22s %s\n", achievement.Title, achievement.Description)
 		}
 	}
-	fmt.Fprintf(a.out, "\n%d/%d unlocked\n", len(player.Unlocked), len(profile.AchievementDefinitions()))
+	fmt.Fprintf(a.out, "\n%d/%d unlocked\n", player.AchievementCount(), len(profile.AchievementDefinitions()))
 	return nil
 }
 
@@ -323,7 +366,7 @@ func (a *App) runShow(args []string) error {
 	if flags.NArg() > 1 {
 		return fmt.Errorf("usage: opsquest show [MISSION]")
 	}
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return err
 	}
@@ -368,7 +411,7 @@ func (a *App) runDoctor(args []string) error {
 	if flags.NArg() > 0 {
 		return fmt.Errorf("doctor does not accept positional arguments")
 	}
-	player, err := a.store.Load()
+	player, err := a.loadPlayer()
 	if err != nil {
 		return fmt.Errorf("profile check failed: %w", err)
 	}
@@ -420,7 +463,7 @@ func (a *App) runReset(args []string) error {
 }
 
 func (a *App) runHelp(args []string) error {
-	if len(args) == 0 {
+	if len(args) == 0 || len(args) == 1 && (args[0] == "--help" || args[0] == "-h") {
 		a.printUsage()
 		return nil
 	}

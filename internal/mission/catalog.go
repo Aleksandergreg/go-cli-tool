@@ -103,7 +103,7 @@ func validateMission(item Mission) error {
 		return err
 	}
 	if item.Rewards.XP <= 0 || item.Rewards.HintPenalty < 0 {
-		return fmt.Errorf("rewards cannot be negative")
+		return fmt.Errorf("XP must be positive and hint penalty cannot be negative")
 	}
 	for index, hint := range item.Hints {
 		if strings.TrimSpace(hint) == "" {
@@ -202,10 +202,21 @@ func validateSetup(setup Setup, startDir string) error {
 		}
 		pids[process.PID] = true
 	}
-	if startDir != "/" {
-		if kind, exists := entries[startDir]; exists && kind != "directory" {
+	startExists := startDir == "/"
+	if kind, exists := entries[startDir]; exists {
+		if kind != "directory" {
 			return fmt.Errorf("start_dir %s is not a directory", startDir)
 		}
+		startExists = true
+	}
+	for entryPath := range entries {
+		if strings.HasPrefix(entryPath, startDir+"/") {
+			startExists = true
+			break
+		}
+	}
+	if !startExists {
+		return fmt.Errorf("start_dir %s is not created by setup", startDir)
 	}
 	return nil
 }
@@ -222,19 +233,32 @@ func validateCondition(condition Condition) error {
 		}
 	}
 	switch condition.Type {
-	case "output_equals", "output_contains", "output_not_contains":
+	case "output_equals":
 		return nil
+	case "output_contains", "output_not_contains":
+		if condition.Value == "" {
+			return fmt.Errorf("value cannot be empty")
+		}
 	case "output_contains_all":
 		if len(condition.Values) == 0 {
 			return fmt.Errorf("values cannot be empty")
 		}
 	case "cwd_equals":
 		return validateAbsolutePath("cwd_equals", condition.Value, true)
-	case "file_exists", "dir_exists", "path_missing", "file_content_equals", "file_content_contains":
+	case "file_exists", "dir_exists", "path_missing", "file_content_equals":
 		return nil
+	case "file_content_contains":
+		if condition.Value == "" {
+			return fmt.Errorf("value cannot be empty")
+		}
 	case "file_lines_equal":
 		if len(condition.Values) == 0 {
 			return fmt.Errorf("values cannot be empty")
+		}
+		for _, value := range condition.Values {
+			if strings.TrimSpace(value) == "" {
+				return fmt.Errorf("line values cannot be empty")
+			}
 		}
 	case "file_mode_equals":
 		return validateMode(condition.Value)

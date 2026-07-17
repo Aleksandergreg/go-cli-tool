@@ -142,17 +142,15 @@ func applySedSubstitution(content string, substitution sedSubstitution) (string,
 	lines := strings.Split(trimmed, "\n")
 	selected := make([]string, 0)
 	for index, line := range lines {
-		changed := false
+		matched := substitution.pattern.MatchString(line)
 		if substitution.global {
 			updated := substitution.pattern.ReplaceAllString(line, substitution.replacement)
-			changed = updated != line
 			lines[index] = updated
 		} else if match := substitution.pattern.FindStringSubmatchIndex(line); match != nil {
 			replacement := substitution.pattern.ExpandString(nil, substitution.replacement, line, match)
 			lines[index] = line[:match[0]] + string(replacement) + line[match[1]:]
-			changed = true
 		}
-		if changed && substitution.printMatch {
+		if matched && substitution.printMatch {
 			selected = append(selected, lines[index])
 		}
 	}
@@ -182,7 +180,7 @@ func (s *Sandbox) cmdTr(args []string, stdin string) (string, error) {
 			operands = append(operands, arg)
 		}
 	}
-	if len(operands) == 0 || (!deleteSet && len(operands) < 2) || len(operands) > 2 {
+	if len(operands) == 0 || (!deleteSet && !squeeze && len(operands) < 2) || len(operands) > 2 {
 		return "", fmt.Errorf("usage: tr [-ds] SET1 [SET2]")
 	}
 	set1, err := expandCharacterSet(operands[0])

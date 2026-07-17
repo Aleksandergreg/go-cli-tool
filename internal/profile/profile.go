@@ -86,6 +86,9 @@ func (p Profile) IsComplete(missionID string) bool {
 }
 
 func (p *Profile) RecordCommands(commands []string) {
+	if p.Commands == nil {
+		p.Commands = make(map[string]int)
+	}
 	for _, command := range commands {
 		command = strings.TrimSpace(command)
 		if command != "" {
@@ -99,6 +102,9 @@ func (p Profile) MissionHints(missionID string) int {
 }
 
 func (p *Profile) RecordHint(missionID string) int {
+	if p.Hints == nil {
+		p.Hints = make(map[string]int)
+	}
 	p.Hints[missionID]++
 	return p.Hints[missionID]
 }
@@ -106,6 +112,9 @@ func (p *Profile) RecordHint(missionID string) int {
 func (p *Profile) Complete(missionID string, xp, hints int, now time.Time) bool {
 	if p.IsComplete(missionID) {
 		return false
+	}
+	if p.Completed == nil {
+		p.Completed = make(map[string]Completion)
 	}
 	p.Completed[missionID] = Completion{XP: xp, HintsUsed: hints, CompletedAt: now}
 	delete(p.Hints, missionID)
@@ -145,6 +154,9 @@ func (p *Profile) UnlockAchievement(id string, now time.Time) (Achievement, bool
 	if !exists {
 		return Achievement{}, false
 	}
+	if p.Unlocked == nil {
+		p.Unlocked = make(map[string]time.Time)
+	}
 	if _, unlocked := p.Unlocked[id]; unlocked {
 		return definition, false
 	}
@@ -155,6 +167,16 @@ func (p *Profile) UnlockAchievement(id string, now time.Time) (Achievement, bool
 func (p Profile) HasAchievement(id string) bool {
 	_, unlocked := p.Unlocked[id]
 	return unlocked
+}
+
+func (p Profile) AchievementCount() int {
+	total := 0
+	for _, achievement := range achievements {
+		if p.HasAchievement(achievement.ID) {
+			total++
+		}
+	}
+	return total
 }
 
 func AchievementDefinitions() []Achievement {

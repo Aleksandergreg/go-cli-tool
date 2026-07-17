@@ -192,6 +192,9 @@ func (s *Sandbox) cmdCopy(args []string) (string, error) {
 	}
 	for _, source := range operands[:len(operands)-1] {
 		sourcePath := s.Resolve(source)
+		if sourcePath == s.CWD || strings.HasPrefix(s.CWD, sourcePath+"/") {
+			return "", fmt.Errorf("cannot move the current directory or one of its parents")
+		}
 		finalDestination := s.finalDestination(sourcePath, destination)
 		if err := s.FS.Copy(sourcePath, destination, recursive); err != nil {
 			return "", err
@@ -222,14 +225,14 @@ func (s *Sandbox) cmdMove(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdRemove(command string, args []string) (string, error) {
-	recursive, force := command == "rmdir", false
-	if command == "rmdir" {
-		recursive = false
-	}
+	recursive, force := false, false
 	var names []string
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") && arg != "-" {
 			for _, option := range strings.TrimPrefix(arg, "-") {
+				if command == "rmdir" {
+					return "", fmt.Errorf("rmdir does not support -%c in this lab", option)
+				}
 				switch option {
 				case 'r', 'R':
 					recursive = true
@@ -248,6 +251,9 @@ func (s *Sandbox) cmdRemove(command string, args []string) (string, error) {
 	}
 	for _, name := range names {
 		resolved := s.Resolve(name)
+		if resolved == s.CWD || strings.HasPrefix(s.CWD, resolved+"/") {
+			return "", fmt.Errorf("cannot remove the current directory or one of its parents")
+		}
 		if command == "rmdir" && !s.FS.IsDir(resolved) {
 			return "", fmt.Errorf("%s: not a directory", name)
 		}

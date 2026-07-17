@@ -39,12 +39,12 @@ func (s Session) Run() (SessionResult, error) {
 		s.Now = time.Now
 	}
 
-	printMission(s.Out, s.Mission)
+	hintsUsed := s.Player.MissionHints(s.Mission.ID)
+	printMission(s.Out, s.Mission, hintsUsed)
 	reader := bufio.NewScanner(s.In)
 	// Commands are intentionally bounded: this is a teaching shell, not a place
 	// to paste generated megabytes into memory.
 	reader.Buffer(make([]byte, 1024), 64*1024)
-	hintsUsed := s.Player.MissionHints(s.Mission.ID)
 	discovered := make([]string, 0)
 	discoveredSet := make(map[string]bool)
 	lastOutput := ""
@@ -141,11 +141,7 @@ func (s Session) Run() (SessionResult, error) {
 			continue
 		}
 
-		xp := s.Mission.Rewards.XP - hintsUsed*s.Mission.Rewards.HintPenalty
-		minimum := s.Mission.Rewards.XP / 4
-		if xp < minimum {
-			xp = minimum
-		}
+		xp := currentReward(s.Mission, hintsUsed)
 		completedAt := s.Now()
 		firstCompletion := s.Player.Complete(s.Mission.ID, xp, hintsUsed, completedAt)
 		if !firstCompletion {
@@ -172,11 +168,24 @@ func (s Session) Run() (SessionResult, error) {
 	}
 }
 
-func printMission(out io.Writer, item mission.Mission) {
+func printMission(out io.Writer, item mission.Mission, hintsUsed int) {
 	fmt.Fprintf(out, "\nMISSION %02d: %s\n", item.Number, item.Title)
 	fmt.Fprintln(out, strings.Repeat("=", len(item.Title)+12))
+	fmt.Fprintf(out, "Campaign: %s · Difficulty: %s · Reward: %d XP\n", item.Campaign, item.Difficulty, currentReward(item, hintsUsed))
+	if hintsUsed > 0 {
+		fmt.Fprintf(out, "Hints already used: %d/%d\n", hintsUsed, len(item.Hints))
+	}
 	fmt.Fprintf(out, "\n%s\n\n%s\n\n", item.Story, item.Objective)
 	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type help for lab commands.")
+}
+
+func currentReward(item mission.Mission, hintsUsed int) int {
+	xp := item.Rewards.XP - hintsUsed*item.Rewards.HintPenalty
+	minimum := item.Rewards.XP / 4
+	if xp < minimum {
+		return minimum
+	}
+	return xp
 }
 
 func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, commands, discovered []string, unlocked []profile.Achievement) {

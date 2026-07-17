@@ -102,3 +102,107 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 		t.Fatalf("profile output = %s", out.String())
 	}
 }
+
+func TestSubcommandHelpIsSuccessful(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, _, errOut := testApp(t, "", store)
+	if err := app.Run([]string{"play", "--help"}); err != nil {
+		t.Fatalf("play --help returned error: %v", err)
+	}
+	if !strings.Contains(errOut.String(), "Usage: opsquest play") {
+		t.Fatalf("help output = %s", errOut.String())
+	}
+}
+
+func TestProfileRenameShowAndDoctor(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, _ := testApp(t, "", store)
+	if err := app.Run([]string{"profile", "--name", "casey"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Operator: casey") {
+		t.Fatalf("profile output = %s", out.String())
+	}
+
+	app, out, _ = testApp(t, "", store)
+	if err := app.Run([]string{"show", "16"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Production Friday") || !strings.Contains(out.String(), "Reward: 160 XP") {
+		t.Fatalf("show output = %s", out.String())
+	}
+
+	app, out, _ = testApp(t, "", store)
+	if err := app.Run([]string{"doctor"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "16 missions") || !strings.Contains(out.String(), "host command execution disabled") {
+		t.Fatalf("doctor output = %s", out.String())
+	}
+}
+
+func TestPipelineAndBossAchievementsUnlock(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	command := "grep ERROR incidents.log | awk '{print $3}' | sort | uniq > /reports/error-services.txt\n"
+	app, out, errOut := testApp(t, command, store)
+	if err := app.Run([]string{"play", "10"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	player, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range []string{"first-fix", "pipe-dream", "boss-slayer"} {
+		if !player.HasAchievement(id) {
+			t.Errorf("achievement %s was not unlocked", id)
+		}
+	}
+	if !strings.Contains(out.String(), "Achievement unlocked: Pipe Dream") {
+		t.Fatalf("completion output = %s", out.String())
+	}
+
+	app, out, _ = testApp(t, "", store)
+	if err := app.Run([]string{"achievements"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "3/6 unlocked") {
+		t.Fatalf("achievements output = %s", out.String())
+	}
+}
+
+func TestListFiltersMissions(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	play, _, _ := testApp(t, "pwd\n", store)
+	if err := play.Run([]string{"play", "1"}); err != nil {
+		t.Fatal(err)
+	}
+	app, out, _ := testApp(t, "", store)
+	if err := app.Run([]string{"list", "--completed"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "Where Am I?") || strings.Contains(out.String(), "Configuration Crawl") {
+		t.Fatalf("filtered list output = %s", out.String())
+	}
+}
+
+func TestMissionStatusAndRestart(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	input := strings.Join([]string{
+		"mkdir -p reports/daily",
+		"status",
+		"restart",
+		"status",
+		"mkdir -p reports/daily",
+		"touch reports/daily/summary.txt",
+	}, "\n") + "\n"
+	app, out, errOut := testApp(t, input, store)
+	if err := app.Run([]string{"play", "3"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Outcome checks satisfied: 1/2") || !strings.Contains(out.String(), "Outcome checks satisfied: 0/2") {
+		t.Fatalf("status output = %s", out.String())
+	}
+	if !strings.Contains(out.String(), "Mission environment restarted") || !strings.Contains(out.String(), "✓ Mission complete!") {
+		t.Fatalf("restart output = %s", out.String())
+	}
+}

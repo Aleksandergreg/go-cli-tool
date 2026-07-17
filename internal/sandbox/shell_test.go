@@ -54,6 +54,55 @@ func TestFindExecSupportsTheTeachingExample(t *testing.T) {
 	if result.Output != "./events.log\n" {
 		t.Errorf("output = %q, want matching log only", result.Output)
 	}
+	if strings.Join(result.Commands, ",") != "find,grep,grep" {
+		t.Errorf("nested command trace = %v", result.Commands)
+	}
+}
+
+func TestQuotedGlobRemainsLiteral(t *testing.T) {
+	box := testSandbox(t)
+	if _, err := box.Execute(`cat "*.log"`); err == nil {
+		t.Fatal("quoted glob unexpectedly expanded")
+	}
+	result, err := box.Execute(`cat *.log`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(result.Output, "ERROR worker stuck") || !strings.Contains(result.Output, "INFO all good") {
+		t.Errorf("unquoted glob output = %q", result.Output)
+	}
+}
+
+func TestGlobCanReachAParentDirectory(t *testing.T) {
+	box := testSandbox(t)
+	if err := box.FS.EnsureDir("/shared", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := box.FS.WriteFile("/shared/note.txt", "outside cwd\n", 0o644); err != nil {
+		t.Fatal(err)
+	}
+	result, err := box.Execute(`cat ../shared/*.txt`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output != "outside cwd\n" {
+		t.Errorf("output = %q", result.Output)
+	}
+}
+
+func TestRedirectionBelongsToItsPipelineStage(t *testing.T) {
+	box := testSandbox(t)
+	result, err := box.Execute(`echo alpha > /out/middle.txt | wc -c`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output != "0\n" {
+		t.Errorf("pipeline output = %q, want empty input byte count", result.Output)
+	}
+	content, _ := box.FS.ReadFile("/out/middle.txt")
+	if content != "alpha\n" {
+		t.Errorf("redirected content = %q", content)
+	}
 }
 
 func TestVariablesQuotesAndAppendRedirection(t *testing.T) {
@@ -78,6 +127,33 @@ func TestHostCommandsAndRootRemovalAreRejected(t *testing.T) {
 	if _, err := box.Execute(`rm -rf /`); err == nil {
 		t.Fatal("removing virtual root unexpectedly succeeded")
 	}
+	if _, err := box.Execute(`rm -rf .`); err == nil {
+		t.Fatal("removing current directory unexpectedly succeeded")
+	}
+}
+
+func TestCopyDoesNotReplaceDirectoriesWithFiles(t *testing.T) {
+	box := testSandbox(t)
+	if _, err := box.Execute(`mkdir /out/events.log`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Execute(`cp events.log /out`); err == nil {
+		t.Fatal("copy replaced a directory with a regular file")
+	}
+	if !box.FS.IsDir("/out/events.log") {
+		t.Fatal("destination directory was corrupted")
+	}
+}
+
+func TestWCCountsNewlineCharacters(t *testing.T) {
+	box := testSandbox(t)
+	result, err := box.Execute(`printf no-newline | wc -l`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if result.Output != "0\n" {
+		t.Errorf("wc -l output = %q, want 0", result.Output)
+	}
 }
 
 func TestUnterminatedInputIsRejected(t *testing.T) {
@@ -87,5 +163,78 @@ func TestUnterminatedInputIsRejected(t *testing.T) {
 	}
 	if _, err := box.Execute(`echo ok |`); err == nil {
 		t.Fatal("trailing pipeline unexpectedly succeeded")
+	}
+}
+
+func TestTarMetadataFollowsFilesAndRejectsUnsafeEntries(t *testing.T) {
+	box := testSandbox(t)
+	if _, err := box.Execute(`tar -cfbundle.tar events.log`); err != nil {
+		t.Fatalf("create attached archive: %v", err)
+	}
+	if _, err := box.Execute(`cp bundle.tar /out/copy.tar`); err != nil {
+		t.Fatal(err)
+	}
+	result, err := box.Execute(`tar -tf /out/copy.tar`)
+	if err != nil || result.Output != "events.log\n" {
+		t.Fatalf("copied archive list = %q, %v", result.Output, err)
+	}
+	if _, err := box.Execute(`mv /out/copy.tar /out/moved.tar`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Execute(`tar -tf /out/moved.tar`); err != nil {
+		t.Fatalf("moved archive lost metadata: %v", err)
+	}
+	if _, err := box.Execute(`echo broken > /out/moved.tar`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Execute(`tar -tf /out/moved.tar`); err == nil {
+		t.Fatal("overwritten archive retained stale metadata")
+	}
+
+	if err := box.FS.WriteFile("/work/unsafe.tar", "virtual\n", 0o644); err != nil {
+		t.Fatal(err)
+	}
+	box.Archives["/work/unsafe.tar"] = Archive{Entries: []mission.ArchiveEntry{{Path: "../escaped", Content: "bad"}}}
+	if _, err := box.Execute(`tar -xf unsafe.tar -C /out`); err == nil {
+		t.Fatal("unsafe archive path unexpectedly extracted")
+	}
+	if box.FS.Exists("/escaped") {
+		t.Fatal("unsafe archive escaped extraction directory")
+	}
+}
+
+func TestSedTrDuStatAndNavigationEnhancements(t *testing.T) {
+	box := testSandbox(t)
+	if _, err := box.Execute(`sed -i 's/INFO/NOTICE/g' quiet.log`); err != nil {
+		t.Fatal(err)
+	}
+	content, _ := box.FS.ReadFile("/work/quiet.log")
+	if content != "NOTICE all good\n" {
+		t.Errorf("sed content = %q", content)
+	}
+	result, err := box.Execute(`printf 'a   b' | tr -s ' '`)
+	if err != nil || result.Output != "a b" {
+		t.Errorf("tr output = %q, %v", result.Output, err)
+	}
+	result, err = box.Execute(`du -b *.log | sort -n | tail -n 1`)
+	if err != nil || !strings.Contains(result.Output, "events.log") {
+		t.Errorf("du pipeline output = %q, %v", result.Output, err)
+	}
+	result, err = box.Execute(`stat quiet.log`)
+	if err != nil || !strings.Contains(result.Output, "Access: (0644/-rw-r--r--)") {
+		t.Errorf("stat output = %q, %v", result.Output, err)
+	}
+	if _, err := box.Execute(`cd /out`); err != nil {
+		t.Fatal(err)
+	}
+	result, err = box.Execute(`cd -`)
+	if err != nil || result.Output != "/work\n" || box.CWD != "/work" {
+		t.Errorf("cd - = %q, cwd %s, %v", result.Output, box.CWD, err)
+	}
+	if err := box.FS.EnsureDir("/home/operator", 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Execute(`cd ~/`); err != nil {
+		t.Fatalf("tilde navigation: %v", err)
 	}
 }

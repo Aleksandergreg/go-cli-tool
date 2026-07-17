@@ -26,23 +26,24 @@ The game validates the result, not a prescribed command. For example, the file-m
 
 ## What is included
 
-Version 0.1 is a complete Linux foundations campaign:
+Version 0.2 is an expanded Linux campaign:
 
-- 10 hand-written missions across two story chapters
+- 16 hand-written missions across three story chapters
 - An isolated, in-memory filesystem and process table
-- Individual commands, pipelines, quoting, variables, and redirection
+- Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
-- Hints with XP penalties
-- Persistent XP, ranks, mission completion, and command mastery
+- Hints with persistent XP penalties, plus mission status and environment restart controls
+- Persistent XP, ranks, mission completion, command mastery, and six learning achievements
 - Replayable missions without duplicate XP
-- `play`, `list`, `profile`, `commands`, and `reset` commands
+- Mission previews, campaign filters, profile naming, and built-in diagnostics
+- A multi-step **Production Friday** boss incident
 
 The sandbox implements a focused teaching subset of:
 
 ```text
-awk cat cd chmod chown cp cut echo env export find grep gzip gunzip
-head kill less ls mkdir mv printf ps pwd rm rmdir sort tail tar touch
-uniq wc whoami
+awk basename cat cd chmod chown cp cut dirname du echo env export find
+grep gzip gunzip head history kill less ls mkdir mv printf ps pwd rm
+rmdir sed sort stat tail tar touch tr uniq wc whoami
 ```
 
 It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
@@ -75,16 +76,33 @@ Useful commands:
 $ opsquest list
 $ opsquest play 4
 $ opsquest play linux-find-logs
+$ opsquest show 16
+$ opsquest list --campaign "Production Friday"
 $ opsquest profile
+$ opsquest profile --name alex
 $ opsquest commands
+$ opsquest achievements
+$ opsquest doctor
 $ opsquest reset
 ```
 
-Inside a mission, use `hint`, `objective`, or `quit`. Type `help` to see the available lab commands.
+Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples.
+
+`status` reports how many outcome checks currently pass without prescribing a solution. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
+
+## Campaigns
+
+- **First Day** — navigation, directories, and basic file operations
+- **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
+- **Production Friday** — logs, aggregation, text transformation, ownership, disk usage, and a multi-fault boss incident
+
+Achievements reward learning behavior rather than decoration: completing a first fix, building a three-command pipeline, practicing ten commands, solving missions without hints, beating an advanced incident, and finishing Linux.
 
 ## Safety model
 
 Player input is parsed by OpsQuest itself. It is never passed to `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Unsupported commands return a teaching-shell error.
+
+The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory.
 
 This makes the introductory campaign safe and portable, with two intentional tradeoffs:
 
@@ -113,7 +131,7 @@ internal/profile/   XP, ranks, mastery, and atomic JSON persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
 ```
 
-Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps v0.1 dependency-free while retaining the proposed declarative setup/validation design. A future external mission-pack loader can add YAML support without coupling content to the game engine.
+Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown validators, and non-contiguous numbering. A future external mission-pack loader can add YAML support without coupling content to the game engine.
 
 Each mission defines:
 
@@ -129,12 +147,14 @@ validation: one or more observable outcome conditions
 ```console
 $ make test
 $ make vet
+$ make race
+$ make check
 ```
 
-The tests run canonical solutions for all ten missions, exercise alternative outcome-based solutions, cover profile persistence and CLI behavior, and verify that attempts to invoke a host shell or remove the virtual root are rejected.
+The tests run canonical solutions for all 16 missions, exercise alternative outcome-based solutions, cover profile migrations, achievements, persistence, filters, previews, diagnostics, and mission controls, and verify parser, archive, filesystem, and host-isolation invariants.
 
 ## Roadmap
 
-- v0.2: disposable Docker labs, container troubleshooting, ports, volumes, builds, networking, and Compose
+- v0.3: disposable Docker labs, container troubleshooting, ports, volumes, builds, networking, and Compose
 - Later: Kubernetes missions backed by an isolated local cluster
-- Mission packs, achievements, streaks, boss incidents, and generated daily challenges
+- External mission packs, streaks, efficiency medals, and generated daily incidents

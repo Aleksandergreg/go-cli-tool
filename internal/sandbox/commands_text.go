@@ -356,9 +356,6 @@ func (s *Sandbox) cmdWC(args []string, stdin string) (string, error) {
 		switch mode {
 		case "lines":
 			count = strings.Count(input.text, "\n")
-			if input.text != "" && !strings.HasSuffix(input.text, "\n") {
-				count++
-			}
 		case "words":
 			count = len(strings.Fields(input.text))
 		case "bytes":

@@ -39,3 +39,37 @@ func TestNextReturnsFirstIncompleteMission(t *testing.T) {
 		t.Fatalf("Next() = %#v, %v; want mission 3", item, found)
 	}
 }
+
+func TestMissionDecoderRejectsUnknownFields(t *testing.T) {
+	_, err := decodeMission([]byte(`{"id":"test","surprise":true}`))
+	if err == nil {
+		t.Fatal("unknown mission field was accepted")
+	}
+}
+
+func TestMissionValidationRejectsUnsafeArchiveEntries(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, found := catalog.Find("9")
+	if !found {
+		t.Fatal("archive mission missing")
+	}
+	item.Setup.Archives[0].Entries[0].Path = "../../outside"
+	if err := validateMission(item); err == nil {
+		t.Fatal("unsafe archive entry was accepted")
+	}
+}
+
+func TestMissionValidationRejectsConflictingSetupPaths(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("1")
+	item.Setup.Files = append(item.Setup.Files, FileSpec{Path: "/home/operator", Content: "conflict"})
+	if err := validateMission(item); err == nil {
+		t.Fatal("directory/file path conflict was accepted")
+	}
+}

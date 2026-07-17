@@ -133,7 +133,11 @@ func (s *Sandbox) copyArchiveMetadata(source, destination string) {
 			copies[destination+strings.TrimPrefix(archivePath, source)] = archive
 		}
 	}
-	s.removeArchiveMetadata(destination)
+	paths, _ := s.FS.Descendants(source, true)
+	for _, sourcePath := range paths {
+		relative := strings.TrimPrefix(sourcePath, source)
+		delete(s.Archives, destination+relative)
+	}
 	for archivePath, archive := range copies {
 		s.Archives[archivePath] = archive
 	}
