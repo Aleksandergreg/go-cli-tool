@@ -1,0 +1,31 @@
+{
+  "id": "linux-tail-trouble",
+  "number": 11,
+  "title": "Tail of Trouble",
+  "campaign": "Production Friday",
+  "difficulty": "beginner",
+  "story": "The gateway stopped during a deploy. Its log is long, the incident channel is impatient, and the useful part is usually where the story ends.",
+  "objective": "Print exactly the final three lines of /var/log/gateway.log.",
+  "start_dir": "/var/log",
+  "hints": [
+    "tail reads from the end of a file.",
+    "The -n option controls how many lines are printed.",
+    "Try: tail -n 3 gateway.log"
+  ],
+  "explanation": "tail is ideal for inspecting the newest part of an append-only log. Use -n to keep the output focused when a file is large.",
+  "setup": {
+    "directories": [
+      {"path": "/var/log"}
+    ],
+    "files": [
+      {"path": "/var/log/gateway.log", "content": "12:31 INFO gateway starting\n12:32 INFO config loaded\n12:33 INFO listening on 8080\n12:35 INFO health check passed\n12:37 WARN latency elevated\n12:39 INFO deploy received\n12:40 INFO stopping listeners\n12:41 WARN drain started\n12:42 ERROR upstream unavailable\n12:43 INFO gateway stopped\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_equals", "value": "12:41 WARN drain started\n12:42 ERROR upstream unavailable\n12:43 INFO gateway stopped"}
+    ]
+  },
+  "rewards": {"xp": 70, "hint_penalty": 10}
+}
+

@@ -214,7 +214,7 @@ func validateCondition(condition Condition) error {
 	pathTypes := map[string]bool{
 		"file_exists": true, "dir_exists": true, "path_missing": true,
 		"file_content_equals": true, "file_content_contains": true,
-		"file_mode_equals": true, "file_owner_equals": true,
+		"file_lines_equal": true, "file_mode_equals": true, "file_owner_equals": true,
 	}
 	if pathTypes[condition.Type] {
 		if err := validateAbsolutePath(condition.Type, condition.Path, condition.Type == "dir_exists"); err != nil {
@@ -232,6 +232,10 @@ func validateCondition(condition Condition) error {
 		return validateAbsolutePath("cwd_equals", condition.Value, true)
 	case "file_exists", "dir_exists", "path_missing", "file_content_equals", "file_content_contains":
 		return nil
+	case "file_lines_equal":
+		if len(condition.Values) == 0 {
+			return fmt.Errorf("values cannot be empty")
+		}
 	case "file_mode_equals":
 		return validateMode(condition.Value)
 	case "file_owner_equals":

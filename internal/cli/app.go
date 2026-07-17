@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ import (
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 )
 
-const version = "0.1.0"
+const version = "0.2.0"
 
 type App struct {
 	in      io.Reader
@@ -52,6 +53,12 @@ func (a *App) Run(args []string) error {
 		return a.runProfile(args[1:])
 	case "commands":
 		return a.runCommands(args[1:])
+	case "achievements":
+		return a.runAchievements(args[1:])
+	case "show", "mission":
+		return a.runShow(args[1:])
+	case "doctor":
+		return a.runDoctor(args[1:])
 	case "reset":
 		return a.runReset(args[1:])
 	case "version", "--version", "-v":
@@ -61,8 +68,7 @@ func (a *App) Run(args []string) error {
 		fmt.Fprintf(a.out, "OpsQuest %s\n", version)
 		return nil
 	case "help", "--help", "-h":
-		a.printUsage()
-		return nil
+		return a.runHelp(args[1:])
 	default:
 		return fmt.Errorf("unknown command %q; run 'opsquest help'", args[0])
 	}
@@ -71,7 +77,11 @@ func (a *App) Run(args []string) error {
 func (a *App) runPlay(args []string) error {
 	flags := flag.NewFlagSet("play", flag.ContinueOnError)
 	flags.SetOutput(a.errOut)
+	flags.Usage = func() { a.printPlayUsage(a.errOut) }
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	if flags.NArg() > 1 {
@@ -97,20 +107,36 @@ func (a *App) runPlay(args []string) error {
 		}
 	}
 	session := game.Session{
-		Mission: item,
-		Player:  &player,
-		Store:   a.store,
-		In:      a.in,
-		Out:     a.out,
-		Err:     a.errOut,
+		Mission:      item,
+		MissionCount: len(a.catalog.All()),
+		Player:       &player,
+		Store:        a.store,
+		In:           a.in,
+		Out:          a.out,
+		Err:          a.errOut,
 	}
 	_, err = session.Run()
 	return err
 }
 
 func (a *App) runList(args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("list does not accept arguments")
+	flags := flag.NewFlagSet("list", flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	completedOnly := flags.Bool("completed", false, "show completed missions only")
+	remainingOnly := flags.Bool("remaining", false, "show incomplete missions only")
+	campaign := flags.String("campaign", "", "filter by campaign name")
+	flags.Usage = func() { a.printListUsage(a.errOut) }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("list does not accept positional arguments")
+	}
+	if *completedOnly && *remainingOnly {
+		return fmt.Errorf("--completed and --remaining cannot be combined")
 	}
 	player, err := a.store.Load()
 	if err != nil {
@@ -119,6 +145,13 @@ func (a *App) runList(args []string) error {
 	fmt.Fprintln(a.out, "LINUX CAMPAIGN")
 	lastCampaign := ""
 	for _, item := range a.catalog.All() {
+		isComplete := player.IsComplete(item.ID)
+		if *completedOnly && !isComplete || *remainingOnly && isComplete {
+			continue
+		}
+		if *campaign != "" && !strings.EqualFold(item.Campaign, *campaign) {
+			continue
+		}
 		if item.Campaign != lastCampaign {
 			if lastCampaign != "" {
 				fmt.Fprintln(a.out)
@@ -127,7 +160,7 @@ func (a *App) runList(args []string) error {
 			lastCampaign = item.Campaign
 		}
 		status := "○"
-		if player.IsComplete(item.ID) {
+		if isComplete {
 			status = "✓"
 		}
 		fmt.Fprintf(a.out, "  %s %02d  %-38s %-12s %3d XP  %s\n", status, item.Number, item.Title, item.Difficulty, item.Rewards.XP, item.ID)
@@ -143,35 +176,93 @@ func (a *App) runList(args []string) error {
 }
 
 func (a *App) runProfile(args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("profile does not accept arguments")
+	flags := flag.NewFlagSet("profile", flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	name := flags.String("name", "", "update the operator display name")
+	flags.Usage = func() { a.printProfileUsage(a.errOut) }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
 	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("profile does not accept positional arguments")
+	}
+	nameProvided := false
+	flags.Visit(func(item *flag.Flag) {
+		if item.Name == "name" {
+			nameProvided = true
+		}
+	})
 	player, err := a.store.Load()
 	if err != nil {
 		return err
 	}
+	if nameProvided {
+		player.Name = strings.TrimSpace(*name)
+		if player.Name == "" {
+			return fmt.Errorf("profile name cannot be blank")
+		}
+		if err := a.store.Save(player); err != nil {
+			return err
+		}
+		fmt.Fprintln(a.out, "Profile name updated.")
+	}
 	total := len(a.catalog.All())
 	completed := 0
+	type campaignProgress struct {
+		name      string
+		completed int
+		total     int
+	}
+	campaigns := make([]campaignProgress, 0)
+	campaignIndex := make(map[string]int)
 	for _, item := range a.catalog.All() {
+		index, exists := campaignIndex[item.Campaign]
+		if !exists {
+			index = len(campaigns)
+			campaignIndex[item.Campaign] = index
+			campaigns = append(campaigns, campaignProgress{name: item.Campaign})
+		}
+		campaigns[index].total++
 		if player.IsComplete(item.ID) {
 			completed++
+			campaigns[index].completed++
 		}
 	}
 	fmt.Fprintf(a.out, "Operator: %s\n", player.Name)
 	fmt.Fprintf(a.out, "Rank: %s\n", player.Rank())
-	fmt.Fprintf(a.out, "Level: %d · %d XP\n\n", player.Level(), player.XP)
+	fmt.Fprintf(a.out, "Level: %d · %d XP\n", player.Level(), player.XP)
+	if nextRank, needed, exists := player.NextRank(); exists {
+		fmt.Fprintf(a.out, "Next rank: %s in %d XP\n", nextRank, needed)
+	}
+	fmt.Fprintln(a.out)
 	fmt.Fprintf(a.out, "Linux  %s %3d%%\n", progressBar(completed, total, 20), percentage(completed, total))
+	for _, campaign := range campaigns {
+		fmt.Fprintf(a.out, "  %-19s %s %3d%%\n", campaign.name, progressBar(campaign.completed, campaign.total, 10), percentage(campaign.completed, campaign.total))
+	}
 	fmt.Fprintf(a.out, "Docker %s  locked\n", progressBar(0, 20, 20))
 	fmt.Fprintf(a.out, "K8s    %s  locked\n\n", progressBar(0, 20, 20))
 	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(player.Commands))
 	fmt.Fprintf(a.out, "Missions completed: %d\n", completed)
 	fmt.Fprintf(a.out, "Hints used: %d\n", player.HintsUsed())
+	fmt.Fprintf(a.out, "Achievements: %d/%d\n", len(player.Unlocked), len(profile.AchievementDefinitions()))
 	return nil
 }
 
 func (a *App) runCommands(args []string) error {
-	if len(args) > 0 {
-		return fmt.Errorf("commands does not accept arguments")
+	flags := flag.NewFlagSet("commands", flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest commands") }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("commands does not accept positional arguments")
 	}
 	player, err := a.store.Load()
 	if err != nil {
@@ -189,11 +280,115 @@ func (a *App) runCommands(args []string) error {
 	return nil
 }
 
+func (a *App) runAchievements(args []string) error {
+	flags := flag.NewFlagSet("achievements", flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest achievements") }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("achievements does not accept positional arguments")
+	}
+	player, err := a.store.Load()
+	if err != nil {
+		return err
+	}
+	fmt.Fprintln(a.out, "ACHIEVEMENTS")
+	for _, achievement := range profile.AchievementDefinitions() {
+		unlockedAt, unlocked := player.Unlocked[achievement.ID]
+		if unlocked {
+			fmt.Fprintf(a.out, "  ★ %-22s %s  [%s]\n", achievement.Title, achievement.Description, unlockedAt.Local().Format("2006-01-02"))
+		} else {
+			fmt.Fprintf(a.out, "  ☆ %-22s %s\n", achievement.Title, achievement.Description)
+		}
+	}
+	fmt.Fprintf(a.out, "\n%d/%d unlocked\n", len(player.Unlocked), len(profile.AchievementDefinitions()))
+	return nil
+}
+
+func (a *App) runShow(args []string) error {
+	flags := flag.NewFlagSet("show", flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest show [MISSION]") }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() > 1 {
+		return fmt.Errorf("usage: opsquest show [MISSION]")
+	}
+	player, err := a.store.Load()
+	if err != nil {
+		return err
+	}
+	var item mission.Mission
+	var found bool
+	if flags.NArg() == 1 {
+		item, found = a.catalog.Find(flags.Arg(0))
+	} else {
+		item, found = a.catalog.Next(player.IsComplete)
+		if !found {
+			items := a.catalog.All()
+			if len(items) > 0 {
+				item, found = items[len(items)-1], true
+			}
+		}
+	}
+	if !found {
+		return fmt.Errorf("mission not found")
+	}
+	status := "not completed"
+	if player.IsComplete(item.ID) {
+		status = "completed"
+	}
+	fmt.Fprintf(a.out, "MISSION %02d: %s\n", item.Number, item.Title)
+	fmt.Fprintf(a.out, "Campaign: %s · Difficulty: %s · Reward: %d XP\n", item.Campaign, item.Difficulty, item.Rewards.XP)
+	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints available: %d\n\n", status, len(item.Validation.All), len(item.Hints))
+	fmt.Fprintf(a.out, "%s\n\n%s\n", item.Story, item.Objective)
+	fmt.Fprintf(a.out, "\nPlay with: opsquest play %d\n", item.Number)
+	return nil
+}
+
+func (a *App) runDoctor(args []string) error {
+	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest doctor") }
+	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
+		return err
+	}
+	if flags.NArg() > 0 {
+		return fmt.Errorf("doctor does not accept positional arguments")
+	}
+	player, err := a.store.Load()
+	if err != nil {
+		return fmt.Errorf("profile check failed: %w", err)
+	}
+	fmt.Fprintln(a.out, "OpsQuest diagnostics")
+	fmt.Fprintf(a.out, "  ✓ embedded catalog: %d missions\n", len(a.catalog.All()))
+	fmt.Fprintf(a.out, "  ✓ profile: version %d, %d completed missions\n", player.Version, len(player.Completed))
+	fmt.Fprintf(a.out, "  ✓ profile path: %s\n", a.store.Path())
+	fmt.Fprintln(a.out, "  ✓ sandbox: in-memory; host command execution disabled")
+	return nil
+}
+
 func (a *App) runReset(args []string) error {
 	flags := flag.NewFlagSet("reset", flag.ContinueOnError)
 	flags.SetOutput(a.errOut)
 	yes := flags.Bool("yes", false, "reset without confirmation")
+	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest reset [--yes]") }
 	if err := flags.Parse(args); err != nil {
+		if errors.Is(err, flag.ErrHelp) {
+			return nil
+		}
 		return err
 	}
 	if flags.NArg() > 0 {
@@ -224,6 +419,52 @@ func (a *App) runReset(args []string) error {
 	return nil
 }
 
+func (a *App) runHelp(args []string) error {
+	if len(args) == 0 {
+		a.printUsage()
+		return nil
+	}
+	if len(args) > 1 {
+		return fmt.Errorf("usage: opsquest help [COMMAND]")
+	}
+	switch args[0] {
+	case "play":
+		a.printPlayUsage(a.out)
+	case "list", "campaign":
+		a.printListUsage(a.out)
+	case "profile":
+		a.printProfileUsage(a.out)
+	case "commands":
+		fmt.Fprintln(a.out, "Usage: opsquest commands")
+	case "achievements":
+		fmt.Fprintln(a.out, "Usage: opsquest achievements")
+	case "show", "mission":
+		fmt.Fprintln(a.out, "Usage: opsquest show [MISSION]")
+	case "doctor":
+		fmt.Fprintln(a.out, "Usage: opsquest doctor")
+	case "reset":
+		fmt.Fprintln(a.out, "Usage: opsquest reset [--yes]")
+	case "version":
+		fmt.Fprintln(a.out, "Usage: opsquest version")
+	default:
+		return fmt.Errorf("unknown command %q", args[0])
+	}
+	return nil
+}
+
+func (a *App) printPlayUsage(out io.Writer) {
+	fmt.Fprintln(out, "Usage: opsquest play [MISSION]")
+	fmt.Fprintln(out, "Play the next incomplete mission, or select one by number or ID.")
+}
+
+func (a *App) printListUsage(out io.Writer) {
+	fmt.Fprintln(out, "Usage: opsquest list [--completed|--remaining] [--campaign NAME]")
+}
+
+func (a *App) printProfileUsage(out io.Writer) {
+	fmt.Fprintln(out, "Usage: opsquest profile [--name NAME]")
+}
+
 func (a *App) printUsage() {
 	fmt.Fprintln(a.out, `OpsQuest — learn operations by fixing fictional production
 
@@ -232,6 +473,9 @@ Usage:
   opsquest list            List the Linux campaign and completion status
   opsquest profile         Show rank, XP, and campaign progress
   opsquest commands        Show commands practiced successfully
+  opsquest achievements    Show learning achievements
+  opsquest show [MISSION]  Preview a mission without starting it
+  opsquest doctor          Check the catalog, profile, and safety mode
   opsquest reset [--yes]   Reset local progress
   opsquest version         Print the version
 

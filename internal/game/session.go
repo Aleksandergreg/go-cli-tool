@@ -13,13 +13,14 @@ import (
 )
 
 type Session struct {
-	Mission mission.Mission
-	Player  *profile.Profile
-	Store   profile.Store
-	In      io.Reader
-	Out     io.Writer
-	Err     io.Writer
-	Now     func() time.Time
+	Mission      mission.Mission
+	MissionCount int
+	Player       *profile.Profile
+	Store        profile.Store
+	In           io.Reader
+	Out          io.Writer
+	Err          io.Writer
+	Now          func() time.Time
 }
 
 type SessionResult struct {
@@ -46,6 +47,7 @@ func (s Session) Run() (SessionResult, error) {
 	hintsUsed := s.Player.MissionHints(s.Mission.ID)
 	discovered := make([]string, 0)
 	discoveredSet := make(map[string]bool)
+	lastOutput := ""
 
 	for {
 		fmt.Fprintf(s.Out, "opsquest:%s$ ", box.CWD)
@@ -80,8 +82,23 @@ func (s Session) Run() (SessionResult, error) {
 		case "objective":
 			fmt.Fprintln(s.Out, s.Mission.Objective)
 			continue
+		case "status":
+			met, total, err := Progress(s.Mission.Validation, box, lastOutput)
+			if err != nil {
+				return SessionResult{}, fmt.Errorf("check mission status: %w", err)
+			}
+			fmt.Fprintf(s.Out, "Outcome checks satisfied: %d/%d.\n", met, total)
+			continue
+		case "restart":
+			box, err = sandbox.New(s.Mission.Setup, s.Mission.StartDir)
+			if err != nil {
+				return SessionResult{}, fmt.Errorf("restart mission: %w", err)
+			}
+			lastOutput = ""
+			fmt.Fprintln(s.Out, "Mission environment restarted. Hints and command mastery are retained.")
+			continue
 		case "?":
-			fmt.Fprintln(s.Out, "Mission controls: hint, objective, quit. Type help for available shell commands.")
+			fmt.Fprintln(s.Out, "Mission controls: hint, objective, status, restart, quit. Type help for available shell commands.")
 			continue
 		}
 
@@ -96,6 +113,7 @@ func (s Session) Run() (SessionResult, error) {
 				fmt.Fprintln(s.Out)
 			}
 		}
+		lastOutput = result.Output
 		for _, command := range result.Commands {
 			if s.Player.Commands[command] == 0 && !discoveredSet[command] {
 				discovered = append(discovered, command)
@@ -103,6 +121,13 @@ func (s Session) Run() (SessionResult, error) {
 			}
 		}
 		s.Player.RecordCommands(result.Commands)
+		unlocked := make([]profile.Achievement, 0)
+		if result.PipelineWidth >= 3 {
+			unlocked = unlock(s.Player, "pipe-dream", s.Now(), unlocked)
+		}
+		if len(s.Player.Commands) >= 10 {
+			unlocked = unlock(s.Player, "command-collector", s.Now(), unlocked)
+		}
 		if err := s.Store.Save(*s.Player); err != nil {
 			return SessionResult{}, err
 		}
@@ -112,6 +137,7 @@ func (s Session) Run() (SessionResult, error) {
 			return SessionResult{}, fmt.Errorf("validate mission: %w", err)
 		}
 		if !complete {
+			printAchievements(s.Out, unlocked)
 			continue
 		}
 
@@ -120,14 +146,28 @@ func (s Session) Run() (SessionResult, error) {
 		if xp < minimum {
 			xp = minimum
 		}
-		firstCompletion := s.Player.Complete(s.Mission.ID, xp, hintsUsed, s.Now())
+		completedAt := s.Now()
+		firstCompletion := s.Player.Complete(s.Mission.ID, xp, hintsUsed, completedAt)
 		if !firstCompletion {
 			xp = 0
+		} else {
+			if len(s.Player.Completed) == 1 {
+				unlocked = unlock(s.Player, "first-fix", completedAt, unlocked)
+			}
+			if s.Player.HintFreeCompletions() >= 5 {
+				unlocked = unlock(s.Player, "self-reliant", completedAt, unlocked)
+			}
+			if s.Mission.Difficulty == "advanced" {
+				unlocked = unlock(s.Player, "boss-slayer", completedAt, unlocked)
+			}
+			if s.MissionCount > 0 && len(s.Player.Completed) >= s.MissionCount {
+				unlocked = unlock(s.Player, "linux-completionist", completedAt, unlocked)
+			}
 		}
 		if err := s.Store.Save(*s.Player); err != nil {
 			return SessionResult{}, err
 		}
-		printCompletion(s.Out, s.Mission, xp, firstCompletion, result.Commands, discovered)
+		printCompletion(s.Out, s.Mission, xp, firstCompletion, result.Commands, discovered, unlocked)
 		return SessionResult{Completed: true, XPAwarded: xp, HintsUsed: hintsUsed}, nil
 	}
 }
@@ -136,10 +176,10 @@ func printMission(out io.Writer, item mission.Mission) {
 	fmt.Fprintf(out, "\nMISSION %02d: %s\n", item.Number, item.Title)
 	fmt.Fprintln(out, strings.Repeat("=", len(item.Title)+12))
 	fmt.Fprintf(out, "\n%s\n\n%s\n\n", item.Story, item.Objective)
-	fmt.Fprintln(out, "Mission controls: hint, objective, quit. Type help for lab commands.")
+	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type help for lab commands.")
 }
 
-func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, commands, discovered []string) {
+func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, commands, discovered []string, unlocked []profile.Achievement) {
 	fmt.Fprintln(out, "\n✓ Mission complete!")
 	if first {
 		fmt.Fprintf(out, "+%d XP\n", xp)
@@ -153,5 +193,19 @@ func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, co
 	} else if len(commands) > 0 {
 		fmt.Fprintf(out, "Command practiced: %s\n", strings.Join(commands, ", "))
 	}
+	printAchievements(out, unlocked)
 	fmt.Fprintf(out, "\n%s\n", item.Explanation)
+}
+
+func unlock(player *profile.Profile, id string, now time.Time, unlocked []profile.Achievement) []profile.Achievement {
+	if achievement, added := player.UnlockAchievement(id, now); added {
+		return append(unlocked, achievement)
+	}
+	return unlocked
+}
+
+func printAchievements(out io.Writer, unlocked []profile.Achievement) {
+	for _, achievement := range unlocked {
+		fmt.Fprintf(out, "★ Achievement unlocked: %s — %s\n", achievement.Title, achievement.Description)
+	}
 }

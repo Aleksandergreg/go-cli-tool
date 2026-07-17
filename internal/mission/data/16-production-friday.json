@@ -1,0 +1,46 @@
+{
+  "id": "linux-production-friday",
+  "number": 16,
+  "title": "Boss Battle: Production Friday",
+  "campaign": "Production Friday",
+  "difficulty": "advanced",
+  "story": "The release archive arrived with debug logging, a non-executable deploy script, and a stale watcher holding the old release open. Naturally, the change calendar says this should take five minutes.",
+  "objective": "Restore /backups/release.tar into /deploy. In the restored app, set LOG_LEVEL to info, set deploy.sh to mode 750, and stop stale release-watcher PID 9001 without stopping metrics-agent PID 9002.",
+  "start_dir": "/backups",
+  "hints": [
+    "Break the incident into outcomes: extract, edit, set permissions, then stop the stale process.",
+    "Use tar -xf with -C /deploy. sed -i can update app.env, and chmod changes deploy.sh.",
+    "A complete route is: tar -xf release.tar -C /deploy; sed -i 's/LOG_LEVEL=debug/LOG_LEVEL=info/' /deploy/app/app.env; chmod 750 /deploy/app/deploy.sh; kill 9001. Enter each command separately."
+  ],
+  "explanation": "Real incidents combine independent faults. Work from observable outcomes, verify each change, and avoid collateral damage: restore the files, make the narrow config edit, grant only needed permissions, and terminate only the stale process.",
+  "setup": {
+    "directories": [
+      {"path": "/backups"},
+      {"path": "/deploy"}
+    ],
+    "processes": [
+      {"pid": 9001, "command": "release-watcher --release old", "running": true},
+      {"pid": 9002, "command": "metrics-agent", "running": true}
+    ],
+    "archives": [
+      {
+        "path": "/backups/release.tar",
+        "entries": [
+          {"path": "app/app.env", "content": "SERVICE=checkout\nLOG_LEVEL=debug\n", "mode": "0640"},
+          {"path": "app/deploy.sh", "content": "#!/bin/sh\necho deploying checkout\n", "mode": "0644"},
+          {"path": "app/README", "content": "ByteWorks checkout release\n", "mode": "0644"}
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_equals", "path": "/deploy/app/app.env", "value": "SERVICE=checkout\nLOG_LEVEL=info"},
+      {"type": "file_mode_equals", "path": "/deploy/app/deploy.sh", "value": "0750"},
+      {"type": "process_stopped", "pid": 9001},
+      {"type": "process_running", "pid": 9002}
+    ]
+  },
+  "rewards": {"xp": 160, "hint_penalty": 25}
+}
+

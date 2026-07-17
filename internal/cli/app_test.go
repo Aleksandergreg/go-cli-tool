@@ -90,7 +90,7 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	if err := app.Run([]string{"list"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "0/10 missions complete") {
+	if !strings.Contains(out.String(), "0/16 missions complete") {
 		t.Fatalf("list output = %s", out.String())
 	}
 

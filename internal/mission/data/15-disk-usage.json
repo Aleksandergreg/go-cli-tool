@@ -1,0 +1,35 @@
+{
+  "id": "linux-disk-usage",
+  "number": 15,
+  "title": "Space Invaders",
+  "campaign": "Production Friday",
+  "difficulty": "intermediate",
+  "story": "A cache volume is filling up. Three files deny everything, but one of them is visibly avoiding eye contact.",
+  "objective": "Print the size and name of only the largest file in /var/cache/byteworks.",
+  "start_dir": "/var/cache/byteworks",
+  "hints": [
+    "du -b reports virtual sizes in bytes.",
+    "sort -n compares the leading numbers numerically.",
+    "Try: du -b * | sort -n | tail -n 1"
+  ],
+  "explanation": "du measures storage use, numeric sort orders sizes correctly, and tail selects the largest result. This pattern scales from a tiny lab to real disk investigations.",
+  "setup": {
+    "directories": [
+      {"path": "/var/cache/byteworks"}
+    ],
+    "files": [
+      {"path": "/var/cache/byteworks/session.tmp", "content": "small\n"},
+      {"path": "/var/cache/byteworks/access.log", "content": "GET /health 200\nGET /api 200\n"},
+      {"path": "/var/cache/byteworks/cache.dump", "content": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_contains", "value": "cache.dump"},
+      {"type": "output_not_contains", "value": "session.tmp"},
+      {"type": "output_not_contains", "value": "access.log"}
+    ]
+  },
+  "rewards": {"xp": 85, "hint_penalty": 15}
+}
+

@@ -8,8 +8,9 @@ import (
 )
 
 type Result struct {
-	Output   string
-	Commands []string
+	Output        string
+	Commands      []string
+	PipelineWidth int
 }
 
 type tokenKind int
@@ -45,6 +46,12 @@ type commandLine struct {
 }
 
 func (s *Sandbox) Execute(line string) (Result, error) {
+	if strings.TrimSpace(line) != "" {
+		s.History = append(s.History, line)
+		if len(s.History) > 100 {
+			s.History = append([]string(nil), s.History[len(s.History)-100:]...)
+		}
+	}
 	tokens, err := lex(line, s.Env)
 	if err != nil {
 		return Result{}, err
@@ -56,6 +63,7 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 	if len(parsed.stages) == 0 {
 		return Result{}, nil
 	}
+	pipelineWidth := len(parsed.stages)
 
 	s.commandTrace = nil
 	stdin := ""
@@ -63,14 +71,14 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 		if stage.inputPath != "" {
 			stdin, err = s.FS.ReadFile(s.Resolve(stage.inputPath))
 			if err != nil {
-				return Result{Commands: s.trace()}, fmt.Errorf("redirect: %w", err)
+				return Result{Commands: s.trace(), PipelineWidth: pipelineWidth}, fmt.Errorf("redirect: %w", err)
 			}
 		}
 		args := s.expandWords(stage.args)
 		name := args[0]
 		stdin, err = s.run(args, stdin)
 		if err != nil {
-			return Result{Commands: s.trace()}, fmt.Errorf("%s: %w", name, err)
+			return Result{Commands: s.trace(), PipelineWidth: pipelineWidth}, fmt.Errorf("%s: %w", name, err)
 		}
 		if stage.outputPath != "" {
 			target := s.Resolve(stage.outputPath)
@@ -80,13 +88,13 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 				err = s.FS.WriteFile(target, stdin, 0)
 			}
 			if err != nil {
-				return Result{Commands: s.trace()}, fmt.Errorf("redirect: %w", err)
+				return Result{Commands: s.trace(), PipelineWidth: pipelineWidth}, fmt.Errorf("redirect: %w", err)
 			}
 			s.removeArchiveMetadata(target)
 			stdin = ""
 		}
 	}
-	return Result{Output: stdin, Commands: s.trace()}, nil
+	return Result{Output: stdin, Commands: s.trace(), PipelineWidth: pipelineWidth}, nil
 }
 
 func parseCommandLine(tokens []token) (commandLine, error) {
@@ -285,6 +293,8 @@ func (s *Sandbox) run(args []string, stdin string) (string, error) {
 		return s.cmdHeadTail(args[1:], stdin, true)
 	case "tail":
 		return s.cmdHeadTail(args[1:], stdin, false)
+	case "history":
+		return s.cmdHistory(args[1:])
 	case "grep":
 		return s.cmdGrep(args[1:], stdin)
 	case "find":
@@ -353,7 +363,7 @@ func shellHelp(args []string) (string, error) {
 	}
 	commands := []string{
 		"awk", "basename", "cat", "cd", "chmod", "chown", "cp", "cut", "dirname", "du", "echo", "env", "export",
-		"find", "grep", "gzip", "gunzip", "head", "kill", "less", "ls", "mkdir", "mv",
+		"find", "grep", "gzip", "gunzip", "head", "history", "kill", "less", "ls", "mkdir", "mv",
 		"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "wc", "whoami",
 	}
 	sort.Strings(commands)
@@ -361,30 +371,30 @@ func shellHelp(args []string) (string, error) {
 }
 
 var commandManuals = map[string]string{
-	"awk":      "awk '{print $N}' [FILE] — print a whitespace-separated field",
-	"cat":      "cat [FILE...] — concatenate files or pipeline input",
-	"cd":       "cd [DIR] — change directory; cd - returns to the previous directory",
-	"chmod":    "chmod MODE FILE... — change octal permissions, for example chmod 750 deploy.sh",
-	"chown":    "chown OWNER FILE... — change a file owner",
-	"cp":       "cp [-r] SOURCE... DEST — copy files or directory trees",
-	"cut":      "cut -d DELIMITER -f FIELD [FILE] — select a delimited field",
-	"du":       "du [-a|-s] [-b|-h] [PATH...] — show virtual file sizes",
-	"find":     "find [PATH] [-name GLOB] [-type f|d] [-exec COMMAND {} \\;]",
-	"grep":     "grep [-rilnvcF] PATTERN [FILE...] — print lines matching a pattern",
-	"head":     "head [-n COUNT] [FILE...] — print the first lines",
-	"ls":       "ls [-la] [PATH...] — list directory contents",
-	"mkdir":    "mkdir [-p] DIR... — create directories",
-	"mv":       "mv SOURCE... DEST — move or rename paths",
-	"ps":       "ps — list the mission's running processes",
-	"rm":       "rm [-rf] PATH... — remove paths inside the virtual filesystem",
-	"sed":      "sed [-i] 's/REGEX/REPLACEMENT/g' [FILE] — transform text",
-	"sort":     "sort [-nru] [FILE...] — sort lines",
-	"stat":     "stat PATH... — inspect type, size, owner, and mode",
-	"tail":     "tail [-n COUNT] [FILE...] — print the last lines",
-	"tar":      "tar -xf ARCHIVE [-C DIR] — extract; -cf creates and -tf lists",
-	"tr":       "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
-	"uniq":     "uniq [-c] [FILE] — collapse adjacent duplicate lines",
-	"wc":       "wc [-l|-w|-c] [FILE...] — count lines, words, or bytes",
+	"awk":   "awk '{print $N}' [FILE] — print a whitespace-separated field",
+	"cat":   "cat [FILE...] — concatenate files or pipeline input",
+	"cd":    "cd [DIR] — change directory; cd - returns to the previous directory",
+	"chmod": "chmod MODE FILE... — change octal permissions, for example chmod 750 deploy.sh",
+	"chown": "chown OWNER FILE... — change a file owner",
+	"cp":    "cp [-r] SOURCE... DEST — copy files or directory trees",
+	"cut":   "cut -d DELIMITER -f FIELD [FILE] — select a delimited field",
+	"du":    "du [-a|-s] [-b|-h] [PATH...] — show virtual file sizes",
+	"find":  "find [PATH] [-name GLOB] [-type f|d] [-exec COMMAND {} \\;]",
+	"grep":  "grep [-rilnvcF] PATTERN [FILE...] — print lines matching a pattern",
+	"head":  "head [-n COUNT] [FILE...] — print the first lines",
+	"ls":    "ls [-la] [PATH...] — list directory contents",
+	"mkdir": "mkdir [-p] DIR... — create directories",
+	"mv":    "mv SOURCE... DEST — move or rename paths",
+	"ps":    "ps — list the mission's running processes",
+	"rm":    "rm [-rf] PATH... — remove paths inside the virtual filesystem",
+	"sed":   "sed [-i] 's/REGEX/REPLACEMENT/g' [FILE] — transform text",
+	"sort":  "sort [-nru] [FILE...] — sort lines",
+	"stat":  "stat PATH... — inspect type, size, owner, and mode",
+	"tail":  "tail [-n COUNT] [FILE...] — print the last lines",
+	"tar":   "tar -xf ARCHIVE [-C DIR] — extract; -cf creates and -tf lists",
+	"tr":    "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
+	"uniq":  "uniq [-c] [FILE] — collapse adjacent duplicate lines",
+	"wc":    "wc [-l|-w|-c] [FILE...] — count lines, words, or bytes",
 }
 
 func (s *Sandbox) expandWords(words []shellWord) []string {

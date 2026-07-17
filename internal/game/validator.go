@@ -22,6 +22,20 @@ func Validate(validation mission.Validation, box *sandbox.Sandbox, output string
 	return true, nil
 }
 
+func Progress(validation mission.Validation, box *sandbox.Sandbox, output string) (int, int, error) {
+	met := 0
+	for _, condition := range validation.All {
+		valid, err := validateCondition(condition, box, output)
+		if err != nil {
+			return 0, len(validation.All), err
+		}
+		if valid {
+			met++
+		}
+	}
+	return met, len(validation.All), nil
+}
+
 func validateCondition(condition mission.Condition, box *sandbox.Sandbox, output string) (bool, error) {
 	switch condition.Type {
 	case "output_equals":
@@ -58,6 +72,21 @@ func validateCondition(condition mission.Condition, box *sandbox.Sandbox, output
 			return false, nil
 		}
 		return strings.Contains(content, condition.Value), nil
+	case "file_lines_equal":
+		content, err := box.FS.ReadFile(condition.Path)
+		if err != nil {
+			return false, nil
+		}
+		actual := normalizedLines(content)
+		if len(actual) != len(condition.Values) {
+			return false, nil
+		}
+		for index := range actual {
+			if actual[index] != strings.Join(strings.Fields(condition.Values[index]), " ") {
+				return false, nil
+			}
+		}
+		return true, nil
 	case "file_mode_equals":
 		entry, exists := box.FS.Entry(condition.Path)
 		if !exists || entry.Kind != sandbox.Regular {
@@ -92,4 +121,17 @@ func validateCondition(condition mission.Condition, box *sandbox.Sandbox, output
 func normalizeText(value string) string {
 	value = strings.ReplaceAll(value, "\r\n", "\n")
 	return strings.TrimSpace(value)
+}
+
+func normalizedLines(value string) []string {
+	value = strings.ReplaceAll(value, "\r\n", "\n")
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return nil
+	}
+	lines := strings.Split(value, "\n")
+	for index := range lines {
+		lines[index] = strings.Join(strings.Fields(lines[index]), " ")
+	}
+	return lines
 }

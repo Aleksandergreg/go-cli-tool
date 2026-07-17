@@ -1,0 +1,32 @@
+{
+  "id": "linux-config-surgery",
+  "number": 13,
+  "title": "Configuration Surgery",
+  "campaign": "Production Friday",
+  "difficulty": "intermediate",
+  "story": "Debug logging made it into the Friday release. It is producing one gigabyte of confidence-destroying detail every few minutes.",
+  "objective": "Change LOG_LEVEL=debug to LOG_LEVEL=info inside /etc/byteworks/app.env while preserving every other line.",
+  "start_dir": "/etc/byteworks",
+  "hints": [
+    "sed performs text substitutions.",
+    "The -i option writes the transformed text back to the file.",
+    "Try: sed -i 's/LOG_LEVEL=debug/LOG_LEVEL=info/' app.env"
+  ],
+  "explanation": "sed can apply a targeted substitution without rebuilding a whole configuration file. A narrow match reduces the chance of modifying unrelated settings.",
+  "setup": {
+    "directories": [
+      {"path": "/etc/byteworks"}
+    ],
+    "files": [
+      {"path": "/etc/byteworks/app.env", "content": "SERVICE=api\nPORT=8080\nLOG_LEVEL=debug\nFEATURE_X=true\n", "mode": "0640"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_equals", "path": "/etc/byteworks/app.env", "value": "SERVICE=api\nPORT=8080\nLOG_LEVEL=info\nFEATURE_X=true"},
+      {"type": "file_mode_equals", "path": "/etc/byteworks/app.env", "value": "0640"}
+    ]
+  },
+  "rewards": {"xp": 80, "hint_penalty": 15}
+}
+

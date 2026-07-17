@@ -64,6 +64,7 @@ func (s *Sandbox) cmdSed(args []string, stdin string) (string, error) {
 			if err := s.FS.WriteFile(s.Resolve(input.name), transformed, 0); err != nil {
 				return "", err
 			}
+			s.removeArchiveMetadata(s.Resolve(input.name))
 		}
 		if quiet {
 			if substitution.printMatch {

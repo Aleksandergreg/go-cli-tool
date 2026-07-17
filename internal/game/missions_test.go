@@ -23,6 +23,17 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 		8:  {"ps", "kill 4242"},
 		9:  {"tar -xf status-site.tar -C /restore"},
 		10: {`grep ERROR incidents.log | awk '{print $3}' | sort | uniq > /reports/error-services.txt`},
+		11: {"tail -n 3 gateway.log"},
+		12: {"sort raw.txt | uniq -c > /reports/alert-counts.txt"},
+		13: {`sed -i 's/LOG_LEVEL=debug/LOG_LEVEL=info/' app.env`},
+		14: {"chown web secrets.env", "chmod 640 secrets.env"},
+		15: {"du -b * | sort -n | tail -n 1"},
+		16: {
+			"tar -xf release.tar -C /deploy",
+			`sed -i 's/LOG_LEVEL=debug/LOG_LEVEL=info/' /deploy/app/app.env`,
+			"chmod 750 /deploy/app/deploy.sh",
+			"kill 9001",
+		},
 	}
 
 	for _, item := range catalog.All() {

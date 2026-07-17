@@ -1,0 +1,32 @@
+{
+  "id": "linux-ownership",
+  "number": 14,
+  "title": "Whose Secret Is It Anyway?",
+  "campaign": "Production Friday",
+  "difficulty": "intermediate",
+  "story": "The web service cannot read its own environment file because root owns it. Giving everyone access would work, in the same sense that removing the front door fixes a lost key.",
+  "objective": "Make /srv/web/secrets.env owned by web with mode 640: owner read/write, group read, and no access for others.",
+  "start_dir": "/srv/web",
+  "hints": [
+    "stat shows the current owner and permission mode.",
+    "chown changes ownership; chmod changes permissions.",
+    "Use chown web secrets.env and chmod 640 secrets.env."
+  ],
+  "explanation": "Ownership and permissions solve different parts of access control. chown assigns responsibility; mode 640 grants the owner read/write, the group read-only, and everyone else nothing.",
+  "setup": {
+    "directories": [
+      {"path": "/srv/web"}
+    ],
+    "files": [
+      {"path": "/srv/web/secrets.env", "content": "DATABASE_URL=postgres://db/app\n", "mode": "0600", "owner": "root"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_owner_equals", "path": "/srv/web/secrets.env", "value": "web"},
+      {"type": "file_mode_equals", "path": "/srv/web/secrets.env", "value": "0640"}
+    ]
+  },
+  "rewards": {"xp": 80, "hint_penalty": 15}
+}
+

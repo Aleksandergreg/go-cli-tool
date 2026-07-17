@@ -1,0 +1,32 @@
+{
+  "id": "linux-alert-counts",
+  "number": 12,
+  "title": "Alert Echo Chamber",
+  "campaign": "Production Friday",
+  "difficulty": "intermediate",
+  "story": "The alert router sent the same pages repeatedly. Before tuning it, the team needs a count by service instead of six identical screenshots.",
+  "objective": "Create /reports/alert-counts.txt from /alerts/raw.txt. It must contain each service alphabetically with its occurrence count: database, gateway, then worker.",
+  "start_dir": "/alerts",
+  "hints": [
+    "uniq counts adjacent duplicates, so arrange equal lines next to each other first.",
+    "sort orders the service names; uniq -c counts each group.",
+    "Try: sort raw.txt | uniq -c > /reports/alert-counts.txt"
+  ],
+  "explanation": "sort groups identical lines and uniq -c counts adjacent groups. This combination is a fast way to summarize repeated values without changing the source.",
+  "setup": {
+    "directories": [
+      {"path": "/alerts"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/alerts/raw.txt", "content": "gateway\ndatabase\ngateway\nworker\ndatabase\ngateway\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_lines_equal", "path": "/reports/alert-counts.txt", "values": ["2 database", "3 gateway", "1 worker"]}
+    ]
+  },
+  "rewards": {"xp": 85, "hint_penalty": 15}
+}
+

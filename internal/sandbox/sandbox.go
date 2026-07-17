@@ -26,6 +26,7 @@ type Sandbox struct {
 	Env       map[string]string
 	Processes map[int]*Process
 	Archives  map[string]Archive
+	History   []string
 
 	commandTrace []string
 }
