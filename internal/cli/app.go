@@ -187,6 +187,7 @@ func (a *App) runList(args []string) error {
 	}
 	fmt.Fprintln(a.out, "LINUX CAMPAIGN")
 	lastCampaign := ""
+	shown := 0
 	for _, item := range a.catalog.All() {
 		isComplete := player.IsComplete(item.ID)
 		if *completedOnly && !isComplete || *remainingOnly && isComplete {
@@ -207,6 +208,10 @@ func (a *App) runList(args []string) error {
 			status = "✓"
 		}
 		fmt.Fprintf(a.out, "  %s %02d  %-38s %-12s %3d XP  %s\n", status, item.Number, item.Title, item.Difficulty, item.Rewards.XP, item.ID)
+		shown++
+	}
+	if shown == 0 {
+		fmt.Fprintln(a.out, "  No missions match these filters.")
 	}
 	completed := 0
 	for _, item := range a.catalog.All() {
