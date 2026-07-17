@@ -82,6 +82,7 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 			if err != nil {
 				return Result{Commands: s.trace()}, fmt.Errorf("redirect: %w", err)
 			}
+			s.removeArchiveMetadata(target)
 			stdin = ""
 		}
 	}

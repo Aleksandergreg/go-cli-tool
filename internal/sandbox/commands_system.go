@@ -313,10 +313,7 @@ func (s *Sandbox) cmdGzip(command string, args []string) (string, error) {
 		if err := s.FS.Move(source, target); err != nil {
 			return "", err
 		}
-		if archive, exists := s.Archives[source]; exists {
-			s.Archives[target] = archive
-			delete(s.Archives, source)
-		}
+		s.moveArchiveMetadata(source, target)
 	}
 	return "", nil
 }

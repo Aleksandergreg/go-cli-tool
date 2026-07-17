@@ -85,6 +85,7 @@ func New(setup mission.Setup, startDir string) (*Sandbox, error) {
 	if !box.FS.IsDir(box.CWD) {
 		return nil, fmt.Errorf("start directory %s does not exist", box.CWD)
 	}
+	box.Env["PWD"] = box.CWD
 	return box, nil
 }
 
@@ -112,4 +113,46 @@ func (s *Sandbox) trace() []string {
 	commands := make([]string, len(s.commandTrace))
 	copy(commands, s.commandTrace)
 	return commands
+}
+
+func (s *Sandbox) finalDestination(source, destination string) string {
+	if s.FS.IsDir(destination) {
+		return path.Join(destination, path.Base(source))
+	}
+	return destination
+}
+
+func (s *Sandbox) copyArchiveMetadata(source, destination string) {
+	copies := make(map[string]Archive)
+	for archivePath, archive := range s.Archives {
+		if archivePath == source || strings.HasPrefix(archivePath, source+"/") {
+			copies[destination+strings.TrimPrefix(archivePath, source)] = archive
+		}
+	}
+	s.removeArchiveMetadata(destination)
+	for archivePath, archive := range copies {
+		s.Archives[archivePath] = archive
+	}
+}
+
+func (s *Sandbox) moveArchiveMetadata(source, destination string) {
+	moves := make(map[string]Archive)
+	for archivePath, archive := range s.Archives {
+		if archivePath == source || strings.HasPrefix(archivePath, source+"/") {
+			moves[destination+strings.TrimPrefix(archivePath, source)] = archive
+		}
+	}
+	s.removeArchiveMetadata(destination)
+	s.removeArchiveMetadata(source)
+	for archivePath, archive := range moves {
+		s.Archives[archivePath] = archive
+	}
+}
+
+func (s *Sandbox) removeArchiveMetadata(target string) {
+	for archivePath := range s.Archives {
+		if archivePath == target || strings.HasPrefix(archivePath, target+"/") {
+			delete(s.Archives, archivePath)
+		}
+	}
 }

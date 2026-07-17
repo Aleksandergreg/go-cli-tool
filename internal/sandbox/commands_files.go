@@ -20,8 +20,16 @@ func (s *Sandbox) cmdCD(args []string) (string, error) {
 		return "", fmt.Errorf("too many arguments")
 	}
 	target := s.Env["HOME"]
+	printTarget := false
 	if len(args) == 1 {
 		target = args[0]
+		if target == "-" {
+			if s.Previous == "" {
+				return "", fmt.Errorf("OLDPWD is not set")
+			}
+			target = s.Previous
+			printTarget = true
+		}
 	}
 	resolved := s.Resolve(target)
 	entry, exists := s.FS.Entry(resolved)
@@ -31,7 +39,14 @@ func (s *Sandbox) cmdCD(args []string) (string, error) {
 	if entry.Kind != Directory {
 		return "", fmt.Errorf("%s: not a directory", target)
 	}
+	old := s.CWD
 	s.CWD = resolved
+	s.Previous = old
+	s.Env["OLDPWD"] = old
+	s.Env["PWD"] = resolved
+	if printTarget {
+		return resolved + "\n", nil
+	}
 	return "", nil
 }
 
@@ -57,7 +72,6 @@ func (s *Sandbox) cmdLS(args []string) (string, error) {
 	if len(names) == 0 {
 		names = []string{"."}
 	}
-	names = expandGlobs(s.FS, s.CWD, names)
 	var output strings.Builder
 	for index, name := range names {
 		resolved := s.Resolve(name)
@@ -142,7 +156,7 @@ func (s *Sandbox) cmdTouch(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing file operand")
 	}
-	for _, name := range expandGlobs(s.FS, s.CWD, args) {
+	for _, name := range args {
 		resolved := s.Resolve(name)
 		if entry, exists := s.FS.Entry(resolved); exists {
 			if entry.Kind == Directory {
@@ -169,7 +183,6 @@ func (s *Sandbox) cmdCopy(args []string) (string, error) {
 			operands = append(operands, arg)
 		}
 	}
-	operands = expandGlobs(s.FS, s.CWD, operands)
 	if len(operands) < 2 {
 		return "", fmt.Errorf("missing source or destination")
 	}
@@ -178,15 +191,18 @@ func (s *Sandbox) cmdCopy(args []string) (string, error) {
 		return "", fmt.Errorf("destination must be a directory when copying multiple files")
 	}
 	for _, source := range operands[:len(operands)-1] {
-		if err := s.FS.Copy(s.Resolve(source), destination, recursive); err != nil {
+		sourcePath := s.Resolve(source)
+		finalDestination := s.finalDestination(sourcePath, destination)
+		if err := s.FS.Copy(sourcePath, destination, recursive); err != nil {
 			return "", err
 		}
+		s.copyArchiveMetadata(sourcePath, finalDestination)
 	}
 	return "", nil
 }
 
 func (s *Sandbox) cmdMove(args []string) (string, error) {
-	operands := expandGlobs(s.FS, s.CWD, args)
+	operands := args
 	if len(operands) < 2 {
 		return "", fmt.Errorf("missing source or destination")
 	}
@@ -195,9 +211,12 @@ func (s *Sandbox) cmdMove(args []string) (string, error) {
 		return "", fmt.Errorf("destination must be a directory when moving multiple files")
 	}
 	for _, source := range operands[:len(operands)-1] {
-		if err := s.FS.Move(s.Resolve(source), destination); err != nil {
+		sourcePath := s.Resolve(source)
+		finalDestination := s.finalDestination(sourcePath, destination)
+		if err := s.FS.Move(sourcePath, destination); err != nil {
 			return "", err
 		}
+		s.moveArchiveMetadata(sourcePath, finalDestination)
 	}
 	return "", nil
 }
@@ -227,7 +246,6 @@ func (s *Sandbox) cmdRemove(command string, args []string) (string, error) {
 	if len(names) == 0 {
 		return "", fmt.Errorf("missing operand")
 	}
-	names = expandGlobs(s.FS, s.CWD, names)
 	for _, name := range names {
 		resolved := s.Resolve(name)
 		if command == "rmdir" && !s.FS.IsDir(resolved) {
@@ -236,6 +254,7 @@ func (s *Sandbox) cmdRemove(command string, args []string) (string, error) {
 		if err := s.FS.Remove(resolved, recursive, force); err != nil {
 			return "", err
 		}
+		s.removeArchiveMetadata(resolved)
 	}
 	return "", nil
 }
@@ -248,7 +267,7 @@ func (s *Sandbox) cmdChmod(args []string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("invalid mode %q; use an octal mode such as 750", args[0])
 	}
-	for _, name := range expandGlobs(s.FS, s.CWD, args[1:]) {
+	for _, name := range args[1:] {
 		if err := s.FS.Chmod(s.Resolve(name), uint32(mode)); err != nil {
 			return "", err
 		}
@@ -264,7 +283,7 @@ func (s *Sandbox) cmdChown(args []string) (string, error) {
 	if owner == "" {
 		return "", fmt.Errorf("owner cannot be empty")
 	}
-	for _, name := range expandGlobs(s.FS, s.CWD, args[1:]) {
+	for _, name := range args[1:] {
 		if err := s.FS.Chown(s.Resolve(name), owner); err != nil {
 			return "", err
 		}

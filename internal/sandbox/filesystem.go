@@ -325,10 +325,11 @@ func (f *FileSystem) Glob(cwd, pattern string) []string {
 			if strings.HasPrefix(pattern, "/") {
 				matches = append(matches, candidate)
 			} else {
-				rel, ok := relativeTo(cwd, candidate)
-				if ok {
-					matches = append(matches, rel)
+				relative := relativePath(cwd, candidate)
+				if strings.HasPrefix(pattern, "./") && !strings.HasPrefix(relative, ".") {
+					relative = "./" + relative
 				}
+				matches = append(matches, relative)
 			}
 		}
 	}
@@ -336,16 +337,30 @@ func (f *FileSystem) Glob(cwd, pattern string) []string {
 	return matches
 }
 
-func relativeTo(base, target string) (string, bool) {
+func relativePath(base, target string) string {
 	base, target = path.Clean(base), path.Clean(target)
 	if target == base {
-		return ".", true
+		return "."
 	}
+	baseParts := strings.Split(strings.TrimPrefix(base, "/"), "/")
+	targetParts := strings.Split(strings.TrimPrefix(target, "/"), "/")
 	if base == "/" {
-		return strings.TrimPrefix(target, "/"), true
+		baseParts = nil
 	}
-	if !strings.HasPrefix(target, base+"/") {
-		return "", false
+	if target == "/" {
+		targetParts = nil
 	}
-	return strings.TrimPrefix(target, base+"/"), true
+	common := 0
+	for common < len(baseParts) && common < len(targetParts) && baseParts[common] == targetParts[common] {
+		common++
+	}
+	parts := make([]string, 0, len(baseParts)-common+len(targetParts)-common)
+	for range baseParts[common:] {
+		parts = append(parts, "..")
+	}
+	parts = append(parts, targetParts[common:]...)
+	if len(parts) == 0 {
+		return "."
+	}
+	return strings.Join(parts, "/")
 }

@@ -12,7 +12,6 @@ func (s *Sandbox) readInputs(args []string, stdin string) ([]namedText, error) {
 	if len(args) == 0 {
 		return []namedText{{text: stdin}}, nil
 	}
-	args = expandGlobs(s.FS, s.CWD, args)
 	inputs := make([]namedText, 0, len(args))
 	for _, name := range args {
 		content, err := s.FS.ReadFile(s.Resolve(name))
@@ -144,7 +143,6 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 	if len(fileArgs) == 0 {
 		inputs = append(inputs, namedText{text: stdin})
 	} else {
-		fileArgs = expandGlobs(s.FS, s.CWD, fileArgs)
 		for _, name := range fileArgs {
 			resolved := s.Resolve(name)
 			entry, exists := s.FS.Entry(resolved)
