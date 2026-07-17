@@ -19,7 +19,10 @@ import (
 
 const maxScriptedCommandBytes = 64 * 1024
 
-type commandLineReader interface {
+// CommandLineReader owns line-editing state across mission sessions. Reusing
+// one reader preserves buffered scripted input and interactive command history
+// when campaign play advances to the next mission.
+type CommandLineReader interface {
 	ReadLine(prompt string, box *sandbox.Sandbox) (string, error)
 }
 
@@ -66,7 +69,7 @@ type terminalLineReader struct {
 	outputFD int
 }
 
-func newCommandLineReader(in io.Reader, out io.Writer) commandLineReader {
+func NewCommandLineReader(in io.Reader, out io.Writer) CommandLineReader {
 	input, inputIsFile := in.(*os.File)
 	output, outputIsFile := out.(*os.File)
 	if !inputIsFile || !outputIsFile || !term.IsTerminal(int(input.Fd())) || !term.IsTerminal(int(output.Fd())) {

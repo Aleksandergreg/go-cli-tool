@@ -122,7 +122,7 @@ func TestCompletedQuotedPathsRemainValidSandboxCommands(t *testing.T) {
 
 func TestNonTerminalReaderKeepsScriptedInputPath(t *testing.T) {
 	output := &bytes.Buffer{}
-	reader := newCommandLineReader(strings.NewReader("pwd\n"), output)
+	reader := NewCommandLineReader(strings.NewReader("pwd\n"), output)
 	if _, ok := reader.(*scannerLineReader); !ok {
 		t.Fatalf("reader type = %T, want scanner fallback", reader)
 	}

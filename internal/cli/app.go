@@ -149,17 +149,35 @@ func (a *App) runPlay(args []string) error {
 			return nil
 		}
 	}
-	session := game.Session{
-		Mission:      item,
-		MissionCount: len(a.catalog.All()),
-		Player:       &player,
-		Store:        a.store,
-		In:           a.in,
-		Out:          a.out,
-		Err:          a.errOut,
+	continuous := flags.NArg() == 0
+	reader := game.NewCommandLineReader(a.in, a.out)
+	for {
+		session := game.Session{
+			Mission:      item,
+			MissionCount: len(a.catalog.All()),
+			Player:       &player,
+			Store:        a.store,
+			In:           a.in,
+			Out:          a.out,
+			Err:          a.errOut,
+			Reader:       reader,
+		}
+		result, err := session.Run()
+		if err != nil {
+			return err
+		}
+		if !continuous || !result.Completed {
+			return nil
+		}
+
+		next, found := a.catalog.Next(player.IsComplete)
+		if !found {
+			fmt.Fprintln(a.out, "\nCampaign complete! Every Linux mission is now complete.")
+			return nil
+		}
+		fmt.Fprintf(a.out, "\n→ Continuing to Mission %02d: %s\n", next.Number, next.Title)
+		item = next
 	}
-	_, err = session.Run()
-	return err
 }
 
 func (a *App) runList(args []string) error {
@@ -505,7 +523,8 @@ func (a *App) runHelp(args []string) error {
 
 func (a *App) printPlayUsage(out io.Writer) {
 	fmt.Fprintln(out, "Usage: opsquest play [MISSION]")
-	fmt.Fprintln(out, "Play the next incomplete mission, or select one by number or ID.")
+	fmt.Fprintln(out, "Without MISSION, continue through incomplete missions until you quit.")
+	fmt.Fprintln(out, "With a mission number or ID, play only that selected mission.")
 }
 
 func (a *App) printListUsage(out io.Writer) {

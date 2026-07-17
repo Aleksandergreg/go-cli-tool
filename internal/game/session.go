@@ -20,6 +20,7 @@ type Session struct {
 	In           io.Reader
 	Out          io.Writer
 	Err          io.Writer
+	Reader       CommandLineReader
 	Now          func() time.Time
 }
 
@@ -41,7 +42,10 @@ func (s Session) Run() (SessionResult, error) {
 
 	hintsUsed := s.Player.MissionHints(s.Mission.ID)
 	printMission(s.Out, s.Mission, hintsUsed)
-	reader := newCommandLineReader(s.In, s.Out)
+	reader := s.Reader
+	if reader == nil {
+		reader = NewCommandLineReader(s.In, s.Out)
+	}
 	discovered := make([]string, 0)
 	discoveredSet := make(map[string]bool)
 	practiced := make([]string, 0)
@@ -82,11 +86,11 @@ func (s Session) Run() (SessionResult, error) {
 			fmt.Fprintln(s.Out, s.Mission.Objective)
 			continue
 		case "status":
-			met, total, err := Progress(s.Mission.Validation, box, lastOutput)
+			outcomes, err := evaluateOutcomes(s.Mission.Validation, box, lastOutput)
 			if err != nil {
 				return SessionResult{}, fmt.Errorf("check mission status: %w", err)
 			}
-			fmt.Fprintf(s.Out, "Outcome checks satisfied: %d/%d.\n", met, total)
+			printOutcomeStatus(s.Out, outcomes)
 			continue
 		case "restart":
 			box, err = sandbox.New(s.Mission.Setup, s.Mission.StartDir)
@@ -135,12 +139,13 @@ func (s Session) Run() (SessionResult, error) {
 			return SessionResult{}, err
 		}
 
-		complete, err := Validate(s.Mission.Validation, box, result.Output)
+		outcomes, err := evaluateOutcomes(s.Mission.Validation, box, result.Output)
 		if err != nil {
 			return SessionResult{}, fmt.Errorf("validate mission: %w", err)
 		}
-		if !complete {
+		if !allOutcomesSatisfied(outcomes) {
 			printAchievements(s.Out, unlocked)
+			fmt.Fprintf(s.Out, "Not complete yet — %d/%d outcome checks satisfied. Type status to see what remains.\n", satisfiedOutcomeCount(outcomes), len(outcomes))
 			continue
 		}
 
@@ -183,8 +188,20 @@ func printMission(out io.Writer, item mission.Mission, hintsUsed int) {
 }
 
 func printMissionControls(out io.Writer) {
-	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type help for lab commands.")
+	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type status to see completed and missing outcomes.")
+	fmt.Fprintln(out, "Type help for lab commands; valid solutions are judged by their result, not by one command sequence.")
 	fmt.Fprintln(out, "Interactive keys: Tab completes lab commands and mission paths; Up/Down recall commands from this session.")
+}
+
+func printOutcomeStatus(out io.Writer, outcomes []outcomeResult) {
+	fmt.Fprintf(out, "Outcome checks satisfied: %d/%d.\n", satisfiedOutcomeCount(outcomes), len(outcomes))
+	for _, outcome := range outcomes {
+		marker := "○"
+		if outcome.Satisfied {
+			marker = "✓"
+		}
+		fmt.Fprintf(out, "  %s %s\n", marker, outcome.Description)
+	}
 }
 
 func currentReward(item mission.Mission, hintsUsed int) int {
