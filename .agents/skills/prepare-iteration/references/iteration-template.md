@@ -1,6 +1,6 @@
 # OpsQuest iteration {N}
 
-Date: {YYYY-MM-DD}  
+Date: {YYYY-MM-DD}
 Version: {version or unreleased}
 
 ## Summary

@@ -20,7 +20,7 @@ OpsQuest is a Go 1.22 CLI game that teaches Linux through 16 declarative mission
 3. Run `make check` before handing off ordinary changes. Run `make check-all` for release-sized, concurrency-sensitive, persistence, parser, or sandbox work.
 4. Review `git diff` and `git status`, then report the behavior changed and every validation command actually observed.
 
-Safe local edits, tests, builds, and documentation updates within the requested scope are authorized. Do not contact external services, publish changes, generate mission content, or begin Docker/Kubernetes gameplay without explicit scope. Never discard, overwrite, or reformat unrelated working-tree changes.
+Safe local edits, tests, builds, and documentation updates within the requested scope are authorized. Do not contact external services, publish changes, generate mission content, or begin Docker/Kubernetes gameplay without explicit scope.
 
 ## Project invariants
 

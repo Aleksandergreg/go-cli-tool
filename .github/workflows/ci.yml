@@ -20,5 +20,6 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+          cache-dependency-path: go.mod
       - name: Run comprehensive checks
         run: make check-all
