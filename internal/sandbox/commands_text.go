@@ -96,7 +96,8 @@ func (s *Sandbox) cmdHeadTail(args []string, stdin string, head bool) (string, e
 }
 
 func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
-	recursive, namesOnly, lineNumbers, insensitive, invert := false, false, false, false, false
+	recursive, namesOnly, lineNumbers := false, false, false
+	insensitive, invert, fixed, countOnly, wholeWord := false, false, false, false, false
 	var operands []string
 	optionsDone := false
 	for _, arg := range args {
@@ -117,6 +118,14 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 					insensitive = true
 				case 'v':
 					invert = true
+				case 'F':
+					fixed = true
+				case 'c':
+					countOnly = true
+				case 'w':
+					wholeWord = true
+				case 'E':
+					// Go regular expressions already use extended-style syntax.
 				default:
 					return "", fmt.Errorf("unknown option -%c", option)
 				}
@@ -130,6 +139,12 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 		return "", fmt.Errorf("missing search pattern")
 	}
 	pattern := operands[0]
+	if fixed {
+		pattern = regexp.QuoteMeta(pattern)
+	}
+	if wholeWord {
+		pattern = `\b(?:` + pattern + `)\b`
+	}
 	if insensitive {
 		pattern = "(?i)" + pattern
 	}
@@ -176,6 +191,7 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 	var output strings.Builder
 	for _, input := range inputs {
 		matchedFile := false
+		matchCount := 0
 		for index, line := range textLines(input.text) {
 			matched := matcher.MatchString(line)
 			if invert {
@@ -184,11 +200,15 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 			if !matched {
 				continue
 			}
+			matchCount++
 			if namesOnly {
 				if input.name != "" && !matchedFile {
 					output.WriteString(input.name + "\n")
 					matchedFile = true
 				}
+				continue
+			}
+			if countOnly {
 				continue
 			}
 			if showNames && input.name != "" {
@@ -199,12 +219,18 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 			}
 			output.WriteString(line + "\n")
 		}
+		if countOnly && !namesOnly {
+			if showNames && input.name != "" {
+				output.WriteString(input.name + ":")
+			}
+			output.WriteString(strconv.Itoa(matchCount) + "\n")
+		}
 	}
 	return output.String(), nil
 }
 
 func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
-	reverse, unique := false, false
+	reverse, unique, numeric := false, false, false
 	var files []string
 	for _, arg := range args {
 		if strings.HasPrefix(arg, "-") {
@@ -214,6 +240,8 @@ func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
 					reverse = true
 				case 'u':
 					unique = true
+				case 'n':
+					numeric = true
 				default:
 					return "", fmt.Errorf("unknown option -%c", option)
 				}
@@ -230,7 +258,17 @@ func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
 	for _, input := range inputs {
 		lines = append(lines, textLines(input.text)...)
 	}
-	sort.Strings(lines)
+	if numeric {
+		sort.SliceStable(lines, func(i, j int) bool {
+			left, right := leadingNumber(lines[i]), leadingNumber(lines[j])
+			if left == right {
+				return lines[i] < lines[j]
+			}
+			return left < right
+		})
+	} else {
+		sort.Strings(lines)
+	}
 	if reverse {
 		for left, right := 0, len(lines)-1; left < right; left, right = left+1, right-1 {
 			lines[left], lines[right] = lines[right], lines[left]
@@ -240,6 +278,15 @@ func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
 		lines = uniqueLines(lines)
 	}
 	return joinOutputLines(lines), nil
+}
+
+func leadingNumber(value string) float64 {
+	fields := strings.Fields(value)
+	if len(fields) == 0 {
+		return 0
+	}
+	number, _ := strconv.ParseFloat(fields[0], 64)
+	return number
 }
 
 func (s *Sandbox) cmdUniq(args []string, stdin string) (string, error) {
