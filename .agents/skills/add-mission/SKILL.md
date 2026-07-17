@@ -1,85 +1,49 @@
 ---
 name: add-mission
-description: [TODO: Complete and informative explanation of what the skill does and when to use it. Include WHEN to use this skill - specific scenarios, file types, or tasks that trigger it.]
+description: "Use when adding, modifying, renumbering, or reviewing OpsQuest mission JSON and its campaign coverage. Do not use for sandbox command semantics unless mission work also requires an engine change."
 ---
 
-# Add Mission
+# Add or modify an OpsQuest mission
 
-## Overview
+Read [references/mission-checklist.md](references/mission-checklist.md) before editing mission content. It records the current JSON schema, supported outcome conditions, and count-sensitive files.
 
-[TODO: 1-2 sentences explaining what this skill enables]
+## Workflow
 
-## Structuring This Skill
+1. Inspect the current state.
+   - Read `git status` and preserve unrelated changes.
+   - Read the missions immediately before and after the intended catalog position in `internal/mission/data/`.
+   - Read `internal/mission/mission.go`, `internal/mission/catalog.go`, `internal/game/validator.go`, `internal/mission/catalog_test.go`, and `internal/game/missions_test.go`.
+   - Check the campaign order, difficulty and XP progression, existing validators, and test patterns before choosing an implementation.
 
-[TODO: Choose the structure that best fits this skill's purpose. Common patterns:
+2. State the learning objective before writing JSON.
+   - Identify the Linux concept being practiced, the observable successful state or output, and the misconception an incorrect-solution test should catch.
+   - Decide whether multiple legitimate command routes exist. The validator must leave those routes open.
 
-**1. Workflow-Based** (best for sequential processes)
-- Works well when there are clear step-by-step procedures
-- Example: DOCX skill with "Workflow Decision Tree" -> "Reading" -> "Creating" -> "Editing"
-- Structure: ## Overview -> ## Workflow Decision Tree -> ## Step 1 -> ## Step 2...
+3. Model the lab declaratively.
+   - Put directories, files, virtual processes, environment values, and virtual archives in `setup`.
+   - Express success with existing `validation.all` conditions whenever they can describe the outcome accurately.
+   - Add or extend a Go validator only when the existing condition types cannot express the learning outcome; keep the mission JSON free of executable setup or command-history requirements.
+   - Do not relax catalog, sandbox, or validator behavior to accommodate malformed content.
 
-**2. Task-Based** (best for tool collections)
-- Works well when the skill offers different operations/capabilities
-- Example: PDF skill with "Quick Start" -> "Merge PDFs" -> "Split PDFs" -> "Extract Text"
-- Structure: ## Overview -> ## Quick Start -> ## Task Category 1 -> ## Task Category 2...
+4. Keep content consistent.
+   - Use a zero-padded numeric filename, a contiguous `number`, a stable lowercase hyphenated `id`, and the exact existing campaign name when joining a campaign.
+   - Make the story and objective describe the incident and outcome without prescribing the solution.
+   - Order hints from conceptual nudge to increasingly concrete syntax. Write an explanation that teaches why the solution works.
+   - Calibrate `difficulty`, `xp`, and `hint_penalty` against adjacent missions; keep boss missions and campaign numbering coherent.
 
-**3. Reference/Guidelines** (best for standards or specifications)
-- Works well for brand guidelines, coding standards, or requirements
-- Example: Brand styling with "Brand Guidelines" -> "Colors" -> "Typography" -> "Features"
-- Structure: ## Overview -> ## Guidelines -> ## Specifications -> ## Usage...
+5. Prove the mission behavior.
+   - Add the canonical command sequence to the table in `internal/game/missions_test.go` so every catalog entry has a working outcome.
+   - Add at least one alternative valid solution test when more than one meaningful route exists.
+   - Add an incomplete or incorrect solution test that demonstrates the validator does not award completion early.
+   - Add focused schema or loader coverage in `internal/mission` when introducing a new field or validation condition.
 
-**4. Capabilities-Based** (best for integrated systems)
-- Works well when the skill provides multiple interrelated features
-- Example: Product Management with "Core Capabilities" -> numbered capability list
-- Structure: ## Overview -> ## Core Capabilities -> ### 1. Feature -> ### 2. Feature...
+6. Update catalog-facing documentation.
+   - Adjust hard-coded mission counts and campaign descriptions in tests, README, smoke assertions, and iteration material when the catalog size or organization changes.
+   - Update command documentation only if the mission also introduces supported sandbox behavior.
 
-Patterns can be mixed and matched as needed. Most skills combine patterns (e.g., start with task-based, add workflow for complex operations).
+7. Validate in increasing scope.
+   - Run `go test ./internal/mission ./internal/game` first.
+   - Run `make validate-missions`, then `make check` after the focused tests pass.
+   - Run `make check-all` for release-sized work or changes to schema, validators, parser behavior, persistence, or isolation.
 
-Delete this entire "Structuring This Skill" section when done - it's just guidance.]
-
-## [TODO: Replace with the first main section based on chosen structure]
-
-[TODO: Add content here. See examples in existing skills:
-- Code samples for technical skills
-- Decision trees for complex workflows
-- Concrete examples with realistic user requests
-- References to scripts/templates/references as needed]
-
-## Resources (optional)
-
-Create only the resource directories this skill actually needs. Delete this section if no resources are required.
-
-### scripts/
-Executable code (Python/Bash/etc.) that can be run directly to perform specific operations.
-
-**Examples from other skills:**
-- PDF skill: `fill_fillable_fields.py`, `extract_form_field_info.py` - utilities for PDF manipulation
-- DOCX skill: `document.py`, `utilities.py` - Python modules for document processing
-
-**Appropriate for:** Python scripts, shell scripts, or any executable code that performs automation, data processing, or specific operations.
-
-**Note:** Scripts may be executed without loading into context, but can still be read by Codex for patching or environment adjustments.
-
-### references/
-Documentation and reference material intended to be loaded into context to inform Codex's process and thinking.
-
-**Examples from other skills:**
-- Product management: `communication.md`, `context_building.md` - detailed workflow guides
-- BigQuery: API reference documentation and query examples
-- Finance: Schema documentation, company policies
-
-**Appropriate for:** In-depth documentation, API references, database schemas, comprehensive guides, or any detailed information that Codex should reference while working.
-
-### assets/
-Files not intended to be loaded into context, but rather used within the output Codex produces.
-
-**Examples from other skills:**
-- Brand styling: PowerPoint template files (.pptx), logo files
-- Frontend builder: HTML/React boilerplate project directories
-- Typography: Font files (.ttf, .woff2)
-
-**Appropriate for:** Templates, boilerplate code, document templates, images, icons, fonts, or any files meant to be copied or used in the final output.
-
----
-
-**Not every skill requires all three types of resources.**
+In the handoff, name the learning objective, canonical and alternative routes tested, rejected incomplete route, documentation/count updates, and exact command results.

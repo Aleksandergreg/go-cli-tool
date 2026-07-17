@@ -1,10 +1,16 @@
-.PHONY: build test race vet check run clean
+.PHONY: build test race vet check-agent-docs validate-missions smoke-test check check-all run clean
 
 build:
+	mkdir -p bin
 	go build -o bin/opsquest ./cmd/opsquest
 
-test:
-	go test ./...
+check-agent-docs:
+	./scripts/check-agent-docs.sh
+
+validate-missions:
+	./scripts/validate-missions.sh
+
+test: validate-missions
 
 race:
 	go test -race ./...
@@ -12,7 +18,12 @@ race:
 vet:
 	go vet ./...
 
-check: test vet
+smoke-test:
+	./scripts/smoke-test.sh
+
+check: check-agent-docs test vet build smoke-test
+
+check-all: check race
 
 run:
 	go run ./cmd/opsquest play

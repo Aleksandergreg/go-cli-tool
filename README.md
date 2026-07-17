@@ -145,14 +145,31 @@ validation: one or more observable outcome conditions
 
 ## Development
 
+Codex reads [`AGENTS.md`](AGENTS.md) for the repository's scope, safety invariants, package boundaries, and definition of done. Task-specific skills live in [`.agents/skills`](.agents/skills):
+
+- `$add-mission` guides declarative mission content, outcome validation, and solution coverage.
+- `$extend-sandbox-command` guides changes to the simulated shell's teaching subset.
+- `$prepare-iteration` guides release-sized validation, documentation, and `iteration_N.md` reporting.
+
+Mention a skill by name in a Codex request (for example, “use `$add-mission`”) or ask for the matching task so Codex can discover it from its trigger description.
+
+The Makefile is the local source of truth for validation:
+
 ```console
 $ make test
+$ make validate-missions
+$ make check-agent-docs
+$ make smoke-test
 $ make vet
+$ make build
 $ make race
 $ make check
+$ make check-all
 ```
 
-The tests run canonical solutions for all 16 missions, exercise alternative outcome-based solutions, cover profile migrations, achievements, persistence, filters, previews, diagnostics, and mission controls, and verify parser, archive, filesystem, and host-isolation invariants.
+`make check` runs agent-document validation, all Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete local quality gate and adds race detection. GitHub Actions runs that same comprehensive target; validation logic remains in the repository scripts and Makefile rather than the workflow YAML.
+
+The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary and uses a temporary `OPSQUEST_HOME`, so it never writes to the developer's real profile.
 
 ## Roadmap
 
