@@ -31,6 +31,8 @@ Version 0.2 is an expanded Linux campaign:
 
 - 16 hand-written missions across three story chapters
 - An isolated, in-memory filesystem and process table
+- Interactive line editing with Tab completion and Up/Down command recall
+- Continuous campaign play with detailed feedback for incomplete outcomes
 - Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
 - Hints with persistent XP penalties, plus mission status and environment restart controls
@@ -42,8 +44,8 @@ Version 0.2 is an expanded Linux campaign:
 The sandbox implements a focused teaching subset of:
 
 ```text
-awk basename cat cd chmod chown cp cut dirname du echo env export find
-grep gzip gunzip head history kill less ls mkdir mv printf ps pwd rm
+awk basename cat cd chmod chown clear cp cut dirname du echo env export find
+grep gzip gunzip head help history kill less ls man mkdir mv printf ps pwd rm
 rmdir sed sort stat tail tar touch tr uniq wc whoami
 ```
 
@@ -51,7 +53,7 @@ It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
 
 ## Quick start
 
-OpsQuest requires Go 1.22 or newer and has no third-party dependencies.
+OpsQuest requires Go 1.22 or newer. It uses the Go project's small `x/term` module for portable interactive line editing; gameplay itself remains local and in memory.
 
 ```console
 $ go run ./cmd/opsquest play
@@ -87,9 +89,11 @@ $ opsquest doctor
 $ opsquest reset
 ```
 
-Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples.
+Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples. In an interactive terminal, press Tab to complete supported lab commands and paths in the mission filesystem; use Up/Down to browse commands entered during the current mission session.
 
-`status` reports how many outcome checks currently pass without prescribing a solution. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
+With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the campaign. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission.
+
+The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
 
 ## Campaigns
 
@@ -101,7 +105,7 @@ Achievements reward learning behavior rather than decoration: completing a first
 
 ## Safety model
 
-Player input is parsed by OpsQuest itself. It is never passed to `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Unsupported commands return a teaching-shell error.
+Player input is parsed by OpsQuest itself. It is never passed to `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Tab completion queries that same virtual filesystem and cannot expose host paths. Unsupported commands return a teaching-shell error.
 
 The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory.
 
@@ -170,6 +174,8 @@ $ make check-all
 `make check` runs agent-document validation, all Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete local quality gate and adds race detection. GitHub Actions runs that same comprehensive target; validation logic remains in the repository scripts and Makefile rather than the workflow YAML.
 
 The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary and uses a temporary `OPSQUEST_HOME`, so it never writes to the developer's real profile.
+
+Third-party module licenses are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 
 ## Roadmap
 

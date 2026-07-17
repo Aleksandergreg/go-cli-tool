@@ -9,31 +9,98 @@ import (
 	"github.com/aleksandergregersen/opsquest/internal/sandbox"
 )
 
+type outcomeResult struct {
+	Satisfied   bool
+	Description string
+}
+
 func Validate(validation mission.Validation, box *sandbox.Sandbox, output string) (bool, error) {
-	for _, condition := range validation.All {
-		valid, err := validateCondition(condition, box, output)
-		if err != nil {
-			return false, err
-		}
-		if !valid {
-			return false, nil
-		}
+	outcomes, err := evaluateOutcomes(validation, box, output)
+	if err != nil {
+		return false, err
 	}
-	return true, nil
+	return allOutcomesSatisfied(outcomes), nil
 }
 
 func Progress(validation mission.Validation, box *sandbox.Sandbox, output string) (int, int, error) {
-	met := 0
+	outcomes, err := evaluateOutcomes(validation, box, output)
+	if err != nil {
+		return 0, len(validation.All), err
+	}
+	return satisfiedOutcomeCount(outcomes), len(outcomes), nil
+}
+
+func evaluateOutcomes(validation mission.Validation, box *sandbox.Sandbox, output string) ([]outcomeResult, error) {
+	outcomes := make([]outcomeResult, 0, len(validation.All))
 	for _, condition := range validation.All {
-		valid, err := validateCondition(condition, box, output)
+		satisfied, err := validateCondition(condition, box, output)
 		if err != nil {
-			return 0, len(validation.All), err
+			return nil, err
 		}
-		if valid {
-			met++
+		outcomes = append(outcomes, outcomeResult{
+			Satisfied:   satisfied,
+			Description: describeCondition(condition),
+		})
+	}
+	return outcomes, nil
+}
+
+func allOutcomesSatisfied(outcomes []outcomeResult) bool {
+	for _, outcome := range outcomes {
+		if !outcome.Satisfied {
+			return false
 		}
 	}
-	return met, len(validation.All), nil
+	return true
+}
+
+func satisfiedOutcomeCount(outcomes []outcomeResult) int {
+	count := 0
+	for _, outcome := range outcomes {
+		if outcome.Satisfied {
+			count++
+		}
+	}
+	return count
+}
+
+func describeCondition(condition mission.Condition) string {
+	switch condition.Type {
+	case "output_equals":
+		return "Command output matches the required result"
+	case "output_contains":
+		return fmt.Sprintf("Output contains %q", condition.Value)
+	case "output_contains_all":
+		return "Output contains every required match"
+	case "output_not_contains":
+		return fmt.Sprintf("Output excludes %q", condition.Value)
+	case "cwd_equals":
+		return fmt.Sprintf("Current directory is %s", condition.Value)
+	case "file_exists":
+		return fmt.Sprintf("File exists: %s", condition.Path)
+	case "dir_exists":
+		return fmt.Sprintf("Directory exists: %s", condition.Path)
+	case "path_missing":
+		return fmt.Sprintf("Path no longer exists: %s", condition.Path)
+	case "file_content_equals":
+		return fmt.Sprintf("File has the required content: %s", condition.Path)
+	case "file_content_contains":
+		return fmt.Sprintf("File contains the required text: %s", condition.Path)
+	case "file_lines_equal":
+		return fmt.Sprintf("File has the required lines: %s", condition.Path)
+	case "file_mode_equals":
+		return fmt.Sprintf("File mode is %s: %s", condition.Value, condition.Path)
+	case "file_owner_equals":
+		return fmt.Sprintf("File owner is %s: %s", condition.Value, condition.Path)
+	case "process_stopped":
+		return fmt.Sprintf("Process %d is stopped", condition.PID)
+	case "process_running":
+		return fmt.Sprintf("Process %d is still running", condition.PID)
+	case "env_equals":
+		return fmt.Sprintf("Environment contains %s", condition.Value)
+	default:
+		return fmt.Sprintf("Outcome condition %s is satisfied", condition.Type)
+	}
 }
 
 func validateCondition(condition mission.Condition, box *sandbox.Sandbox, output string) (bool, error) {

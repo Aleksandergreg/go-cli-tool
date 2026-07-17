@@ -62,13 +62,15 @@ assert_contains "doctor" "${doctor_output}" "embedded catalog: 16 missions"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
 assert_contains "doctor" "${doctor_output}" "sandbox: in-memory; host command execution disabled"
 
-play_output="$(printf 'pwd\n' | run_opsquest play 1)"
+play_output="$(printf 'pwd\nquit\n' | run_opsquest play)"
 assert_contains "scripted mission" "${play_output}" "MISSION 01: Where Am I?"
 assert_contains "scripted mission" "${play_output}" "✓ Mission complete!"
 assert_contains "scripted mission" "${play_output}" "+40 XP"
+assert_contains "continuous play" "${play_output}" "Continuing to Mission 02: Configuration Crawl"
+assert_contains "continuous play" "${play_output}" "Mission paused"
 
 final_profile="$(run_opsquest profile)"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: help, list, show, profile, doctor, and scripted mission passed\n'
+printf 'smoke-test: help, list, show, profile, doctor, and continuous mission flow passed\n'
