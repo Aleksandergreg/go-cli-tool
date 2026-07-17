@@ -539,7 +539,7 @@ func (a *App) printUsage() {
 	fmt.Fprintln(a.out, `OpsQuest — learn operations by fixing fictional production
 
 Usage:
-  opsquest play [MISSION]  Play the next mission or choose one by number/ID
+  opsquest play [MISSION]  Continue the campaign or play one selected mission
   opsquest list            List the Linux campaign and completion status
   opsquest profile         Show rank, XP, and campaign progress
   opsquest commands        Show commands practiced successfully

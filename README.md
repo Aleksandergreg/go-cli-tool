@@ -32,6 +32,7 @@ Version 0.2 is an expanded Linux campaign:
 - 16 hand-written missions across three story chapters
 - An isolated, in-memory filesystem and process table
 - Interactive line editing with Tab completion and Up/Down command recall
+- Continuous campaign play with detailed feedback for incomplete outcomes
 - Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
 - Hints with persistent XP penalties, plus mission status and environment restart controls
@@ -90,7 +91,9 @@ $ opsquest reset
 
 Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples. In an interactive terminal, press Tab to complete supported lab commands and paths in the mission filesystem; use Up/Down to browse commands entered during the current mission session.
 
-`status` reports how many outcome checks currently pass without prescribing a solution. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
+With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the campaign. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission.
+
+The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
 
 ## Campaigns
 

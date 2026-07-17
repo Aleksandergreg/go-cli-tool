@@ -57,6 +57,52 @@ func TestReplayDoesNotAwardXPAgain(t *testing.T) {
 	}
 }
 
+func TestBarePlayContinuesThroughIncompleteMissions(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	input := strings.Join([]string{
+		"pwd",
+		"cd /srv/web/config/live",
+		"quit",
+	}, "\n") + "\n"
+	app, out, errOut := testApp(t, input, store)
+	if err := app.Run([]string{"play"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+
+	output := out.String()
+	for _, expected := range []string{
+		"✓ Mission complete!",
+		"Continuing to Mission 02: Configuration Crawl",
+		"Continuing to Mission 03: A Place for Everything",
+		"Mission paused",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("continuous play output missing %q:\n%s", expected, output)
+		}
+	}
+	player, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !player.IsComplete("linux-orientation") || !player.IsComplete("linux-config-crawl") {
+		t.Fatalf("completed missions = %#v", player.Completed)
+	}
+	if player.IsComplete("linux-workspace") || player.XP != 85 {
+		t.Fatalf("player after continuous play = %#v", player)
+	}
+}
+
+func TestSelectedMissionReturnsAfterCompletion(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "pwd\ncd /srv/web/config/live\n", store)
+	if err := app.Run([]string{"play", "1"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if strings.Contains(out.String(), "MISSION 02") {
+		t.Fatalf("selected mission unexpectedly continued:\n%s", out.String())
+	}
+}
+
 func TestHintPenaltySurvivesAPausedAttempt(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	paused, _, _ := testApp(t, "hint\nquit\n", store)
@@ -204,5 +250,48 @@ func TestMissionStatusAndRestart(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Mission environment restarted") || !strings.Contains(out.String(), "✓ Mission complete!") {
 		t.Fatalf("restart output = %s", out.String())
+	}
+}
+
+func TestMissionStatusExplainsWrongPathWithoutRequiringCommandOrder(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	input := strings.Join([]string{
+		"mkdir -p /workspace/reports/daily",
+		"touch summary.txt",
+		"status",
+		"quit",
+	}, "\n") + "\n"
+	app, out, errOut := testApp(t, input, store)
+	if err := app.Run([]string{"play", "3"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	output := out.String()
+	for _, expected := range []string{
+		"Not complete yet — 1/2 outcome checks satisfied",
+		"✓ Directory exists: /workspace/reports/daily",
+		"○ File exists: /workspace/reports/daily/summary.txt",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("status output missing %q:\n%s", expected, output)
+		}
+	}
+	player, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if player.IsComplete("linux-workspace") {
+		t.Fatal("wrong-path file unexpectedly completed the mission")
+	}
+}
+
+func TestWorkspaceAcceptsChangingDirectoryBeforeCreatingFile(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	input := "mkdir -p reports/daily\ncd reports/daily\ntouch summary.txt\n"
+	app, out, errOut := testApp(t, input, store)
+	if err := app.Run([]string{"play", "3"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "✓ Mission complete!") {
+		t.Fatalf("alternative solution output:\n%s", out.String())
 	}
 }
