@@ -68,6 +68,9 @@ func validateCondition(condition mission.Condition, box *sandbox.Sandbox, output
 			return false, fmt.Errorf("invalid validation mode %q", condition.Value)
 		}
 		return entry.Mode == uint32(expected), nil
+	case "file_owner_equals":
+		entry, exists := box.FS.Entry(condition.Path)
+		return exists && entry.Kind == sandbox.Regular && entry.Owner == condition.Value, nil
 	case "process_stopped":
 		process, exists := box.Processes[condition.PID]
 		return exists && !process.Running, nil

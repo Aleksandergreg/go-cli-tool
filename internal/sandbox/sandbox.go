@@ -49,6 +49,9 @@ func New(setup mission.Setup, startDir string) (*Sandbox, error) {
 		if err := box.FS.EnsureDir(directory.Path, mode); err != nil {
 			return nil, err
 		}
+		if err := box.FS.Chmod(directory.Path, mode); err != nil {
+			return nil, err
+		}
 	}
 	for _, file := range setup.Files {
 		mode, err := parseMode(file.Mode, 0o644)

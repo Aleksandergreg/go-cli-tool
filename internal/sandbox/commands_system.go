@@ -183,66 +183,35 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing operation")
 	}
-	operation := byte(0)
-	archiveName := ""
-	destination := s.CWD
-	var operands []string
-
-	for index := 0; index < len(args); index++ {
-		arg := args[index]
-		if arg == "-C" {
-			if index+1 >= len(args) {
-				return "", fmt.Errorf("-C requires a directory")
-			}
-			index++
-			destination = s.Resolve(args[index])
-			continue
-		}
-		if strings.HasPrefix(arg, "-") || (index == 0 && strings.ContainsAny(arg, "xctf")) {
-			options := strings.TrimPrefix(arg, "-")
-			for optionIndex, option := range options {
-				switch option {
-				case 'x', 'c', 't':
-					operation = byte(option)
-				case 'z', 'v':
-					// Compression and verbose flags do not change the virtual archive format.
-				case 'f':
-					if optionIndex != len(options)-1 {
-						archiveName = options[optionIndex+1:]
-						break
-					}
-					if index+1 >= len(args) {
-						return "", fmt.Errorf("-f requires an archive")
-					}
-					index++
-					archiveName = args[index]
-				default:
-					return "", fmt.Errorf("unknown option %c", option)
-				}
-			}
-			continue
-		}
-		operands = append(operands, arg)
+	options, err := parseTarArgs(args)
+	if err != nil {
+		return "", err
 	}
-	if operation == 0 {
+	if options.operation == 0 {
 		return "", fmt.Errorf("choose one of -x, -c, or -t")
 	}
-	if archiveName == "" {
+	if options.archiveName == "" {
 		return "", fmt.Errorf("archive file is required with -f")
 	}
-	archivePath := s.Resolve(archiveName)
+	archivePath := s.Resolve(options.archiveName)
+	destination := s.Resolve(options.destination)
 
-	switch operation {
+	switch options.operation {
 	case 'x':
 		archive, exists := s.Archives[archivePath]
 		if !exists {
-			return "", fmt.Errorf("%s: not a recognized archive", archiveName)
+			return "", fmt.Errorf("%s: not a recognized archive", options.archiveName)
 		}
 		if !s.FS.IsDir(destination) {
 			return "", fmt.Errorf("%s: extraction destination is not a directory", destination)
 		}
+		var output strings.Builder
 		for _, item := range archive.Entries {
-			target := path.Join(destination, item.Path)
+			relative, err := safeArchivePath(item.Path)
+			if err != nil {
+				return "", fmt.Errorf("archive entry %q: %w", item.Path, err)
+			}
+			target := path.Join(destination, relative)
 			if err := s.FS.EnsureDir(path.Dir(target), 0o755); err != nil {
 				return "", err
 			}
@@ -253,12 +222,15 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 			if err := s.FS.WriteFile(target, item.Content, mode); err != nil {
 				return "", err
 			}
+			if options.verbose {
+				output.WriteString(relative + "\n")
+			}
 		}
-		return "", nil
+		return output.String(), nil
 	case 't':
 		archive, exists := s.Archives[archivePath]
 		if !exists {
-			return "", fmt.Errorf("%s: not a recognized archive", archiveName)
+			return "", fmt.Errorf("%s: not a recognized archive", options.archiveName)
 		}
 		var output strings.Builder
 		for _, item := range archive.Entries {
@@ -266,11 +238,11 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 		}
 		return output.String(), nil
 	case 'c':
-		if len(operands) == 0 {
+		if len(options.operands) == 0 {
 			return "", fmt.Errorf("no files given for archive")
 		}
 		entries := make([]mission.ArchiveEntry, 0)
-		for _, operand := range operands {
+		for _, operand := range options.operands {
 			resolved := s.Resolve(operand)
 			paths, err := s.FS.Descendants(resolved, true)
 			if err != nil {
@@ -292,9 +264,87 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 		if err := s.FS.WriteFile(archivePath, "OpsQuest virtual tar archive\n", 0o644); err != nil {
 			return "", err
 		}
+		if options.verbose {
+			var output strings.Builder
+			for _, item := range entries {
+				output.WriteString(item.Path + "\n")
+			}
+			return output.String(), nil
+		}
 		return "", nil
 	}
 	return "", nil
+}
+
+type tarOptions struct {
+	operation   byte
+	archiveName string
+	destination string
+	verbose     bool
+	operands    []string
+}
+
+func parseTarArgs(args []string) (tarOptions, error) {
+	options := tarOptions{destination: "."}
+	for index := 0; index < len(args); index++ {
+		arg := args[index]
+		if arg == "-C" {
+			if index+1 >= len(args) {
+				return tarOptions{}, fmt.Errorf("-C requires a directory")
+			}
+			index++
+			options.destination = args[index]
+			continue
+		}
+		isOptionGroup := strings.HasPrefix(arg, "-") || index == 0 && len(arg) > 0 && strings.ContainsRune("xct", rune(arg[0]))
+		if !isOptionGroup || arg == "-" {
+			options.operands = append(options.operands, arg)
+			continue
+		}
+		group := strings.TrimPrefix(arg, "-")
+		if group == "" {
+			return tarOptions{}, fmt.Errorf("empty option group")
+		}
+		for optionIndex := 0; optionIndex < len(group); optionIndex++ {
+			option := group[optionIndex]
+			switch option {
+			case 'x', 'c', 't':
+				if options.operation != 0 && options.operation != option {
+					return tarOptions{}, fmt.Errorf("choose exactly one of -x, -c, or -t")
+				}
+				options.operation = option
+			case 'z':
+				// Archives are represented virtually, so compression is transparent.
+			case 'v':
+				options.verbose = true
+			case 'f':
+				if optionIndex+1 < len(group) {
+					options.archiveName = group[optionIndex+1:]
+					optionIndex = len(group)
+					continue
+				}
+				if index+1 >= len(args) {
+					return tarOptions{}, fmt.Errorf("-f requires an archive")
+				}
+				index++
+				options.archiveName = args[index]
+			default:
+				return tarOptions{}, fmt.Errorf("unknown option %c", option)
+			}
+		}
+	}
+	return options, nil
+}
+
+func safeArchivePath(name string) (string, error) {
+	if name == "" || strings.HasPrefix(name, "/") {
+		return "", fmt.Errorf("path must be relative")
+	}
+	cleaned := path.Clean(name)
+	if cleaned == "." || cleaned == ".." || strings.HasPrefix(cleaned, "../") {
+		return "", fmt.Errorf("path escapes the extraction directory")
+	}
+	return cleaned, nil
 }
 
 func (s *Sandbox) cmdGzip(command string, args []string) (string, error) {
