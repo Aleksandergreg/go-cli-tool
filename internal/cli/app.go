@@ -12,16 +12,19 @@ import (
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
+	"github.com/aleksandergregersen/opsquest/internal/ui"
 )
 
 const version = "0.2.0"
 
 type App struct {
-	in      io.Reader
-	out     io.Writer
-	errOut  io.Writer
-	catalog mission.Catalog
-	store   profile.Store
+	in         io.Reader
+	out        io.Writer
+	errOut     io.Writer
+	catalog    mission.Catalog
+	store      profile.Store
+	style      ui.Style
+	errorStyle ui.Style
 }
 
 func New(in io.Reader, out, errOut io.Writer) (*App, error) {
@@ -37,7 +40,15 @@ func New(in io.Reader, out, errOut io.Writer) (*App, error) {
 }
 
 func NewWithDependencies(in io.Reader, out, errOut io.Writer, catalog mission.Catalog, store profile.Store) *App {
-	return &App{in: in, out: out, errOut: errOut, catalog: catalog, store: store}
+	return &App{
+		in:         in,
+		out:        out,
+		errOut:     errOut,
+		catalog:    catalog,
+		store:      store,
+		style:      ui.Auto(out),
+		errorStyle: ui.Auto(errOut),
+	}
 }
 
 func (a *App) loadPlayer() (profile.Profile, error) {
@@ -106,7 +117,7 @@ func (a *App) Run(args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("version does not accept arguments")
 		}
-		fmt.Fprintf(a.out, "OpsQuest %s\n", version)
+		fmt.Fprintf(a.out, "%s %s\n", a.style.Header("OpsQuest"), a.style.Accent(version))
 		return nil
 	case "help", "--help", "-h":
 		return a.runHelp(args[1:])
@@ -143,14 +154,14 @@ func (a *App) runPlay(args []string) error {
 		var found bool
 		item, found = a.catalog.Next(player.IsComplete)
 		if !found {
-			fmt.Fprintln(a.out, "Campaign complete! Replay a mission with 'opsquest play MISSION'.")
+			fmt.Fprintln(a.out, a.style.Success("Campaign complete! Replay a mission with 'opsquest play MISSION'."))
 			return nil
 		}
 	}
 	continuous := flags.NArg() == 0
 	reader := game.NewCommandLineReader(a.in, a.out)
 	for {
-		session := game.Session{
+			session := game.Session{
 			Mission: item,
 			Player:  &player,
 			Store:   a.store,
@@ -162,6 +173,8 @@ func (a *App) runPlay(args []string) error {
 			ListMissions: func(args []string) error {
 				return a.listMissions(args, player)
 			},
+			Style:      a.style,
+			ErrorStyle: a.errorStyle,
 		}
 		result, err := session.Run()
 		if err != nil {
@@ -177,10 +190,10 @@ func (a *App) runPlay(args []string) error {
 
 		next, found := a.catalog.Next(player.IsComplete)
 		if !found {
-			fmt.Fprintln(a.out, "\nCampaign complete! Every Linux mission is now complete.")
+			fmt.Fprintf(a.out, "\n%s\n", a.style.Success("Campaign complete! Every Linux mission is now complete."))
 			return nil
 		}
-		fmt.Fprintf(a.out, "\n→ Continuing to Mission %02d: %s\n", next.Number, next.Title)
+		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("→ Continuing to Mission %02d: %s", next.Number, next.Title)))
 		item = next
 	}
 }
@@ -212,7 +225,7 @@ func (a *App) listMissions(args []string, player profile.Profile) error {
 	if *completedOnly && *remainingOnly {
 		return fmt.Errorf("--completed and --remaining cannot be combined")
 	}
-	fmt.Fprintln(a.out, "LINUX CAMPAIGN")
+	fmt.Fprintln(a.out, a.style.Header("LINUX CAMPAIGN"))
 	lastCampaign := ""
 	shown := 0
 	for _, item := range a.catalog.All() {
@@ -227,14 +240,19 @@ func (a *App) listMissions(args []string, player profile.Profile) error {
 			if lastCampaign != "" {
 				fmt.Fprintln(a.out)
 			}
-			fmt.Fprintf(a.out, "%s\n", item.Campaign)
+			fmt.Fprintf(a.out, "%s\n", a.style.Accent(item.Campaign))
 			lastCampaign = item.Campaign
 		}
 		status := "○"
 		if isComplete {
-			status = "✓"
+			status = a.style.Success("✓")
+		} else {
+			status = a.style.Muted(status)
 		}
-		fmt.Fprintf(a.out, "  %s %02d  %-38s %-12s %3d XP  %s\n", status, item.Number, item.Title, item.Difficulty, item.Rewards.XP, item.ID)
+		title := fmt.Sprintf("%-38s", item.Title)
+		difficulty := a.style.Difficulty(fmt.Sprintf("%-12s", item.Difficulty))
+		reward := a.style.Reward(fmt.Sprintf("%3d XP", item.Rewards.XP))
+		fmt.Fprintf(a.out, "  %s %02d  %s %s %s  %s\n", status, item.Number, title, difficulty, reward, a.style.Muted(item.ID))
 		shown++
 	}
 	if shown == 0 {
@@ -246,7 +264,7 @@ func (a *App) listMissions(args []string, player profile.Profile) error {
 			completed++
 		}
 	}
-	fmt.Fprintf(a.out, "\n%d/%d missions complete · %d XP\n", completed, len(a.catalog.All()), player.XP)
+	fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("%d/%d missions complete · %d XP", completed, len(a.catalog.All()), player.XP)))
 	return nil
 }
 
@@ -282,7 +300,7 @@ func (a *App) runProfile(args []string) error {
 		if err := a.store.Save(player); err != nil {
 			return err
 		}
-		fmt.Fprintln(a.out, "Profile name updated.")
+		fmt.Fprintln(a.out, a.style.Success("Profile name updated."))
 	}
 	total := len(a.catalog.All())
 	completed := 0
@@ -306,19 +324,19 @@ func (a *App) runProfile(args []string) error {
 			campaigns[index].completed++
 		}
 	}
-	fmt.Fprintf(a.out, "Operator: %s\n", player.Name)
-	fmt.Fprintf(a.out, "Rank: %s\n", player.Rank())
-	fmt.Fprintf(a.out, "Level: %d · %d XP\n", player.Level(), player.XP)
+	fmt.Fprintf(a.out, "%s %s\n", a.style.Accent("Operator:"), player.Name)
+	fmt.Fprintf(a.out, "%s %s\n", a.style.Accent("Rank:"), player.Rank())
+	fmt.Fprintf(a.out, "%s %d · %s\n", a.style.Accent("Level:"), player.Level(), a.style.Reward(fmt.Sprintf("%d XP", player.XP)))
 	if nextRank, needed, exists := player.NextRank(); exists {
-		fmt.Fprintf(a.out, "Next rank: %s in %d XP\n", nextRank, needed)
+		fmt.Fprintf(a.out, "%s %s in %s\n", a.style.Muted("Next rank:"), nextRank, a.style.Reward(fmt.Sprintf("%d XP", needed)))
 	}
 	fmt.Fprintln(a.out)
-	fmt.Fprintf(a.out, "Linux  %s %3d%%\n", progressBar(completed, total, 20), percentage(completed, total))
+	fmt.Fprintf(a.out, "Linux  %s %3d%%\n", styledProgressBar(a.style, completed, total, 20), percentage(completed, total))
 	for _, campaign := range campaigns {
-		fmt.Fprintf(a.out, "  %-19s %s %3d%%\n", campaign.name, progressBar(campaign.completed, campaign.total, 10), percentage(campaign.completed, campaign.total))
+		fmt.Fprintf(a.out, "  %-19s %s %3d%%\n", campaign.name, styledProgressBar(a.style, campaign.completed, campaign.total, 10), percentage(campaign.completed, campaign.total))
 	}
-	fmt.Fprintf(a.out, "Docker %s  locked\n", progressBar(0, 20, 20))
-	fmt.Fprintf(a.out, "K8s    %s  locked\n\n", progressBar(0, 20, 20))
+	fmt.Fprintf(a.out, "%s\n", a.style.Muted(fmt.Sprintf("Docker %s  locked", progressBar(0, 20, 20))))
+	fmt.Fprintf(a.out, "%s\n\n", a.style.Muted(fmt.Sprintf("K8s    %s  locked", progressBar(0, 20, 20))))
 	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(player.Commands))
 	fmt.Fprintf(a.out, "Missions completed: %d\n", completed)
 	fmt.Fprintf(a.out, "Hints used: %d\n", player.HintsUsed())
@@ -348,9 +366,10 @@ func (a *App) runCommands(args []string) error {
 		fmt.Fprintln(a.out, "No commands mastered yet. Start with 'opsquest play'.")
 		return nil
 	}
-	fmt.Fprintf(a.out, "COMMAND MASTERY (%d)\n\n", len(commands))
+	fmt.Fprintf(a.out, "%s\n\n", a.style.Header(fmt.Sprintf("COMMAND MASTERY (%d)", len(commands))))
 	for _, command := range commands {
-		fmt.Fprintf(a.out, "  %-12s used successfully %d %s\n", command, player.Commands[command], plural(player.Commands[command], "time", "times"))
+		name := fmt.Sprintf("%-12s", command)
+		fmt.Fprintf(a.out, "  %s used successfully %d %s\n", a.style.Accent(name), player.Commands[command], plural(player.Commands[command], "time", "times"))
 	}
 	return nil
 }
@@ -372,13 +391,14 @@ func (a *App) runAchievements(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintln(a.out, "ACHIEVEMENTS")
+	fmt.Fprintln(a.out, a.style.Header("ACHIEVEMENTS"))
 	for _, achievement := range profile.AchievementDefinitions() {
 		unlockedAt, unlocked := player.Unlocked[achievement.ID]
 		if unlocked {
-			fmt.Fprintf(a.out, "  ★ %-22s %s  [%s]\n", achievement.Title, achievement.Description, unlockedAt.Local().Format("2006-01-02"))
+			title := fmt.Sprintf("%-22s", achievement.Title)
+			fmt.Fprintf(a.out, "  %s %s %s  %s\n", a.style.Achievement("★"), a.style.Achievement(title), achievement.Description, a.style.Muted("["+unlockedAt.Local().Format("2006-01-02")+"]"))
 		} else {
-			fmt.Fprintf(a.out, "  ☆ %-22s %s\n", achievement.Title, achievement.Description)
+			fmt.Fprintf(a.out, "  %s\n", a.style.Muted(fmt.Sprintf("☆ %-22s %s", achievement.Title, achievement.Description)))
 		}
 	}
 	fmt.Fprintf(a.out, "\n%d/%d unlocked\n", player.AchievementCount(), len(profile.AchievementDefinitions()))
@@ -425,9 +445,13 @@ func (a *App) runShow(args []string) error {
 	if player.IsComplete(item.ID) {
 		status = "completed"
 	}
-	fmt.Fprintf(a.out, "MISSION %02d: %s\n", item.Number, item.Title)
-	fmt.Fprintf(a.out, "Campaign: %s · Difficulty: %s · Reward: %d XP\n", item.Campaign, item.Difficulty, item.Rewards.XP)
-	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints available: %d\n\n", status, len(item.Validation.All), len(item.Hints))
+	fmt.Fprintln(a.out, a.style.Header(fmt.Sprintf("MISSION %02d: %s", item.Number, item.Title)))
+	fmt.Fprintf(a.out, "Campaign: %s · Difficulty: %s · Reward: %s\n", a.style.Accent(item.Campaign), a.style.Difficulty(item.Difficulty), a.style.Reward(fmt.Sprintf("%d XP", item.Rewards.XP)))
+	styledStatus := a.style.Muted(status)
+	if status == "completed" {
+		styledStatus = a.style.Success(status)
+	}
+	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints available: %d\n\n", styledStatus, len(item.Validation.All), len(item.Hints))
 	fmt.Fprintf(a.out, "%s\n\n%s\n", item.Story, item.Objective)
 	fmt.Fprintf(a.out, "\nPlay with: opsquest play %d\n", item.Number)
 	return nil
@@ -450,11 +474,12 @@ func (a *App) runDoctor(args []string) error {
 	if err != nil {
 		return fmt.Errorf("profile check failed: %w", err)
 	}
-	fmt.Fprintln(a.out, "OpsQuest diagnostics")
-	fmt.Fprintf(a.out, "  ✓ embedded catalog: %d missions\n", len(a.catalog.All()))
-	fmt.Fprintf(a.out, "  ✓ profile: version %d, %d completed missions\n", player.Version, len(player.Completed))
-	fmt.Fprintf(a.out, "  ✓ profile path: %s\n", a.store.Path())
-	fmt.Fprintln(a.out, "  ✓ sandbox: in-memory; host command execution disabled")
+	fmt.Fprintln(a.out, a.style.Header("OpsQuest diagnostics"))
+	check := a.style.Success("✓")
+	fmt.Fprintf(a.out, "  %s embedded catalog: %d missions\n", check, len(a.catalog.All()))
+	fmt.Fprintf(a.out, "  %s profile: version %d, %d completed missions\n", check, player.Version, len(player.Completed))
+	fmt.Fprintf(a.out, "  %s profile path: %s\n", check, a.store.Path())
+	fmt.Fprintf(a.out, "  %s sandbox: in-memory; host command execution disabled\n", check)
 	return nil
 }
 
@@ -490,9 +515,9 @@ func (a *App) runReset(args []string) error {
 		return err
 	}
 	if removed {
-		fmt.Fprintln(a.out, "Progress reset. Welcome back, Intern.")
+		fmt.Fprintln(a.out, a.style.Success("Progress reset. Welcome back, Intern."))
 	} else {
-		fmt.Fprintln(a.out, "No saved progress found.")
+		fmt.Fprintln(a.out, a.style.Muted("No saved progress found."))
 	}
 	return nil
 }

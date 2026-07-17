@@ -14,6 +14,7 @@ OpsQuest currently ships:
 - An in-memory filesystem, process table, environment, and virtual archive model
 - A quote-aware teaching shell with globbing, pipelines, redirection, and variables
 - Interactive prompt editing, history, path completion, and in-mission navigation
+- Terminal-aware color for CLI and mission presentation, with plain redirected output
 - A compact modal `vi` teaching editor
 - A bounded, simulated shell-script runner
 - Persistent profiles, XP, ranks, hints, command mastery, and six achievements
@@ -107,6 +108,8 @@ Unknown commands fail. There is no fallback to a host executable.
 
 The mission prompt supports Tab completion against the virtual filesystem, Up/Down history, arrows, Home/End, common word movement, Backspace, forward Delete, and bracketed-paste isolation.
 
+Decorative color automatically enables on an interactive output terminal. Piped and redirected output remains plain, and a non-empty `NO_COLOR` environment variable disables color. Color belongs to the presentation layer: sandbox command results and mission validation continue to use unstyled text.
+
 `vi FILE` opens one virtual UTF-8 text file up to 256 KiB. Its deliberate teaching subset includes:
 
 - Normal and Insert modes
@@ -183,6 +186,7 @@ Mission content remains declarative. Parser, command, filesystem, profile, and v
 ```text
 cmd/opsquest/       Executable entry point
 internal/cli/       Top-level commands, flags, help, and presentation
+internal/ui/        Terminal-aware ANSI styles and color policy
 internal/game/      Sessions, rewards, terminal input, vi, and outcome validation
 internal/mission/   Mission schema, strict catalog loading, and embedded JSON data
 internal/profile/   Versioned progress model and atomic JSON persistence

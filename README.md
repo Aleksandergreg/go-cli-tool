@@ -56,6 +56,8 @@ It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
 
 OpsQuest requires Go 1.22 or newer. It uses the Go project's small `x/term` module for portable interactive line editing; gameplay itself remains local and in memory.
 
+Color automatically appears when output is connected to an interactive terminal. Piped or redirected output stays plain for scripts and logs; set `NO_COLOR=1` to disable decorative color explicitly.
+
 ```console
 $ go run ./cmd/opsquest play
 ```
@@ -171,6 +173,7 @@ Two environment variables are useful for development or portable installs:
 ```text
 cmd/opsquest/       Executable entry point
 internal/cli/       Top-level commands and presentation
+internal/ui/        Terminal-aware ANSI styles and color policy
 internal/game/      Interactive session and outcome validation
 internal/mission/   Mission model, catalog, and embedded mission data
 internal/profile/   XP, ranks, mastery, and atomic JSON persistence

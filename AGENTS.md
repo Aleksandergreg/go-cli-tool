@@ -6,6 +6,7 @@ OpsQuest is a Go 1.22 CLI game that teaches Linux through 16 declarative mission
 
 - `cmd/opsquest`: process entry point, dependency construction, and exit reporting.
 - `internal/cli`: public CLI commands, flags, help, and presentation.
+- `internal/ui`: terminal-aware ANSI styling and the shared color policy for presentation.
 - `internal/game`: mission sessions, rewards, and observable-outcome validation.
 - `internal/mission`: JSON schema, strict embedded catalog loading, integrity checks, and `data/` mission content.
 - `internal/sandbox`: parser, dispatcher, virtual filesystem, virtual processes, archives, and the supported command subset.
