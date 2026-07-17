@@ -3,7 +3,13 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd -- "${SCRIPT_DIR}/.." && pwd)"
-SMOKE_ROOT="$(mktemp -d "${TMPDIR:-/tmp}/opsquest-smoke.XXXXXX")"
+TMP_PARENT="$(cd -- "${TMPDIR:-/tmp}" && pwd -P)"
+if [[ "${TMP_PARENT}" == "/" ]]; then
+  SMOKE_TEMPLATE="/opsquest-smoke.XXXXXX"
+else
+  SMOKE_TEMPLATE="${TMP_PARENT}/opsquest-smoke.XXXXXX"
+fi
+SMOKE_ROOT="$(mktemp -d "${SMOKE_TEMPLATE}")"
 PROFILE_HOME="${SMOKE_ROOT}/profile"
 BINARY="${SMOKE_ROOT}/opsquest"
 
