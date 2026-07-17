@@ -264,6 +264,13 @@ func (f *FileSystem) Copy(source, destination string, recursive bool) error {
 	for _, oldName := range items {
 		rel := strings.TrimPrefix(oldName, source)
 		newName := destination + rel
+		if existing, exists := f.entries[newName]; exists && existing.Kind != f.entries[oldName].Kind {
+			return fmt.Errorf("cannot overwrite %s with %s at %s", existing.Kind, f.entries[oldName].Kind, newName)
+		}
+	}
+	for _, oldName := range items {
+		rel := strings.TrimPrefix(oldName, source)
+		newName := destination + rel
 		clone := *f.entries[oldName]
 		f.entries[newName] = &clone
 	}

@@ -143,6 +143,17 @@ func TestCopyDoesNotReplaceDirectoriesWithFiles(t *testing.T) {
 	if !box.FS.IsDir("/out/events.log") {
 		t.Fatal("destination directory was corrupted")
 	}
+	for _, command := range []string{`mkdir -p tree`, `touch tree/node`, `mkdir -p /out/tree/node`} {
+		if _, err := box.Execute(command); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if _, err := box.Execute(`cp -r tree /out`); err == nil {
+		t.Fatal("recursive copy replaced a nested directory with a file")
+	}
+	if !box.FS.IsDir("/out/tree/node") {
+		t.Fatal("nested destination directory was corrupted")
+	}
 }
 
 func TestWCCountsNewlineCharacters(t *testing.T) {

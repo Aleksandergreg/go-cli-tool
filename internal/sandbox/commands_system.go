@@ -222,6 +222,7 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 			if err := s.FS.WriteFile(target, item.Content, mode); err != nil {
 				return "", err
 			}
+			s.removeArchiveMetadata(target)
 			if options.verbose {
 				output.WriteString(relative + "\n")
 			}
