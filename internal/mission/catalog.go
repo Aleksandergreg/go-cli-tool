@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -104,8 +103,3 @@ func (c Catalog) Next(completed func(string) bool) (Mission, bool) {
 	}
 	return Mission{}, false
 }
-
-func SourceName(item Mission) string {
-	return filepath.Base(fmt.Sprintf("%02d-%s.json", item.Number, item.ID))
-}
-

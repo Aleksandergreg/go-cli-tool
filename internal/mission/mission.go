@@ -20,11 +20,11 @@ type Mission struct {
 }
 
 type Setup struct {
-	Directories []DirectorySpec  `json:"directories"`
-	Files       []FileSpec       `json:"files"`
-	Processes   []ProcessSpec    `json:"processes"`
+	Directories []DirectorySpec   `json:"directories"`
+	Files       []FileSpec        `json:"files"`
+	Processes   []ProcessSpec     `json:"processes"`
 	Environment map[string]string `json:"environment"`
-	Archives    []ArchiveSpec    `json:"archives"`
+	Archives    []ArchiveSpec     `json:"archives"`
 }
 
 type DirectorySpec struct {
@@ -46,7 +46,7 @@ type ProcessSpec struct {
 }
 
 type ArchiveSpec struct {
-	Path    string        `json:"path"`
+	Path    string         `json:"path"`
 	Entries []ArchiveEntry `json:"entries"`
 }
 
@@ -72,4 +72,3 @@ type Rewards struct {
 	XP          int `json:"xp"`
 	HintPenalty int `json:"hint_penalty"`
 }
-

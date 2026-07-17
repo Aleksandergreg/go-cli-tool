@@ -2,7 +2,7 @@
   "id": "linux-release-shuffle",
   "number": 5,
   "title": "The Release Shuffle",
-  "campaign": "First Day",
+  "campaign": "The Logpocalypse",
   "difficulty": "beginner",
   "story": "A completed incident report is still in the incoming tray. Audit says this is a process failure; everyone else says it is Tuesday.",
   "objective": "Move /incoming/incident-104.txt to /archive/2026/incident-104.txt so the original no longer exists.",
@@ -30,4 +30,3 @@
   },
   "rewards": {"xp": 60, "hint_penalty": 10}
 }
-
