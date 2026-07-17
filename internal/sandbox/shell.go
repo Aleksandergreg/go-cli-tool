@@ -25,13 +25,23 @@ const (
 type token struct {
 	kind  tokenKind
 	value string
+	glob  bool
 }
 
-type commandLine struct {
-	stages     [][]string
+type shellWord struct {
+	value string
+	glob  bool
+}
+
+type pipelineStage struct {
+	args       []shellWord
 	inputPath  string
 	outputPath string
 	append     bool
+}
+
+type commandLine struct {
+	stages []pipelineStage
 }
 
 func (s *Sandbox) Execute(line string) (Result, error) {
@@ -47,37 +57,35 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 		return Result{}, nil
 	}
 
+	s.commandTrace = nil
 	stdin := ""
-	if parsed.inputPath != "" {
-		stdin, err = s.FS.ReadFile(s.Resolve(parsed.inputPath))
-		if err != nil {
-			return Result{}, err
-		}
-	}
-
-	commands := make([]string, 0, len(parsed.stages))
 	for _, stage := range parsed.stages {
-		name := stage[0]
-		commands = append(commands, name)
-		stdin, err = s.run(stage, stdin)
+		if stage.inputPath != "" {
+			stdin, err = s.FS.ReadFile(s.Resolve(stage.inputPath))
+			if err != nil {
+				return Result{Commands: s.trace()}, fmt.Errorf("redirect: %w", err)
+			}
+		}
+		args := s.expandWords(stage.args)
+		name := args[0]
+		stdin, err = s.run(args, stdin)
 		if err != nil {
-			return Result{Commands: commands}, fmt.Errorf("%s: %w", name, err)
+			return Result{Commands: s.trace()}, fmt.Errorf("%s: %w", name, err)
+		}
+		if stage.outputPath != "" {
+			target := s.Resolve(stage.outputPath)
+			if stage.append {
+				err = s.FS.AppendFile(target, stdin)
+			} else {
+				err = s.FS.WriteFile(target, stdin, 0)
+			}
+			if err != nil {
+				return Result{Commands: s.trace()}, fmt.Errorf("redirect: %w", err)
+			}
+			stdin = ""
 		}
 	}
-
-	if parsed.outputPath != "" {
-		target := s.Resolve(parsed.outputPath)
-		if parsed.append {
-			err = s.FS.AppendFile(target, stdin)
-		} else {
-			err = s.FS.WriteFile(target, stdin, 0)
-		}
-		if err != nil {
-			return Result{Commands: commands}, fmt.Errorf("redirect: %w", err)
-		}
-		stdin = ""
-	}
-	return Result{Output: stdin, Commands: commands}, nil
+	return Result{Output: stdin, Commands: s.trace()}, nil
 }
 
 func parseCommandLine(tokens []token) (commandLine, error) {
@@ -85,18 +93,18 @@ func parseCommandLine(tokens []token) (commandLine, error) {
 		return commandLine{}, nil
 	}
 	parsed := commandLine{}
-	stage := make([]string, 0)
+	stage := pipelineStage{}
 	for i := 0; i < len(tokens); i++ {
 		current := tokens[i]
 		switch current.kind {
 		case wordToken:
-			stage = append(stage, current.value)
+			stage.args = append(stage.args, shellWord{value: current.value, glob: current.glob})
 		case pipeToken:
-			if len(stage) == 0 {
+			if len(stage.args) == 0 {
 				return commandLine{}, fmt.Errorf("unexpected pipe")
 			}
 			parsed.stages = append(parsed.stages, stage)
-			stage = nil
+			stage = pipelineStage{}
 		case redirectToken, appendToken, inputToken:
 			if i+1 >= len(tokens) || tokens[i+1].kind != wordToken {
 				return commandLine{}, fmt.Errorf("redirection requires a file")
@@ -104,23 +112,24 @@ func parseCommandLine(tokens []token) (commandLine, error) {
 			i++
 			file := tokens[i].value
 			if current.kind == inputToken {
-				if parsed.inputPath != "" {
+				if stage.inputPath != "" {
 					return commandLine{}, fmt.Errorf("multiple input redirections")
 				}
-				parsed.inputPath = file
+				stage.inputPath = file
 			} else {
-				if parsed.outputPath != "" {
+				if stage.outputPath != "" {
 					return commandLine{}, fmt.Errorf("multiple output redirections")
 				}
-				parsed.outputPath = file
-				parsed.append = current.kind == appendToken
+				stage.outputPath = file
+				stage.append = current.kind == appendToken
 			}
 		}
 	}
-	if len(stage) == 0 {
+	if len(stage.args) == 0 {
 		if len(parsed.stages) > 0 {
 			return commandLine{}, fmt.Errorf("pipeline cannot end with a pipe")
 		}
+		return commandLine{}, fmt.Errorf("redirection requires a command")
 	} else {
 		parsed.stages = append(parsed.stages, stage)
 	}
@@ -132,13 +141,15 @@ func lex(line string, env map[string]string) ([]token, error) {
 	var current strings.Builder
 	var quote rune
 	tokenStarted := false
+	wordGlob := false
 	runes := []rune(line)
 
 	flush := func() {
 		if tokenStarted {
-			tokens = append(tokens, token{kind: wordToken, value: current.String()})
+			tokens = append(tokens, token{kind: wordToken, value: current.String(), glob: wordGlob})
 			current.Reset()
 			tokenStarted = false
+			wordGlob = false
 		}
 	}
 
@@ -184,11 +195,13 @@ func lex(line string, env map[string]string) ([]token, error) {
 			case char == '$':
 				value, consumed := expandVariable(runes[i:], env)
 				current.WriteString(value)
+				wordGlob = wordGlob || strings.ContainsAny(value, "*?[")
 				i += consumed
 				tokenStarted = true
 				continue
 			default:
 				current.WriteRune(char)
+				wordGlob = wordGlob || strings.ContainsRune("*?[", char)
 				tokenStarted = true
 				continue
 			}
@@ -247,6 +260,7 @@ func (s *Sandbox) run(args []string, stdin string) (string, error) {
 	if len(args) == 0 {
 		return "", nil
 	}
+	s.commandTrace = append(s.commandTrace, args[0])
 	switch args[0] {
 	case "pwd":
 		return s.cmdPwd(args[1:])
@@ -325,17 +339,17 @@ func shellHelp() string {
 	return "Available lab commands:\n  " + strings.Join(commands, "  ") + "\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection.\n"
 }
 
-func expandGlobs(fs *FileSystem, cwd string, args []string) []string {
-	expanded := make([]string, 0, len(args))
-	for _, arg := range args {
-		if strings.ContainsAny(arg, "*?[") {
-			matches := fs.Glob(cwd, arg)
+func (s *Sandbox) expandWords(words []shellWord) []string {
+	expanded := make([]string, 0, len(words))
+	for _, word := range words {
+		if word.glob {
+			matches := s.FS.Glob(s.CWD, word.value)
 			if len(matches) > 0 {
 				expanded = append(expanded, matches...)
 				continue
 			}
 		}
-		expanded = append(expanded, arg)
+		expanded = append(expanded, word.value)
 	}
 	return expanded
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path"
 	"strconv"
+	"strings"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
@@ -21,9 +22,12 @@ type Archive struct {
 type Sandbox struct {
 	FS        *FileSystem
 	CWD       string
+	Previous  string
 	Env       map[string]string
 	Processes map[int]*Process
 	Archives  map[string]Archive
+
+	commandTrace []string
 }
 
 func New(setup mission.Setup, startDir string) (*Sandbox, error) {
@@ -96,5 +100,16 @@ func parseMode(value string, fallback uint32) (uint32, error) {
 }
 
 func (s *Sandbox) Resolve(name string) string {
+	if name == "~" {
+		name = s.Env["HOME"]
+	} else if strings.HasPrefix(name, "~/") {
+		name = path.Join(s.Env["HOME"], strings.TrimPrefix(name, "~/"))
+	}
 	return Clean(s.CWD, name)
+}
+
+func (s *Sandbox) trace() []string {
+	commands := make([]string, len(s.commandTrace))
+	copy(commands, s.commandTrace)
+	return commands
 }
