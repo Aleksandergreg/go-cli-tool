@@ -361,13 +361,23 @@ func shellHelp(args []string) (string, error) {
 		}
 		return manual + "\n", nil
 	}
-	commands := []string{
-		"awk", "basename", "cat", "cd", "chmod", "chown", "clear", "cp", "cut", "dirname", "du", "echo", "env", "export",
-		"find", "grep", "gzip", "gunzip", "head", "help", "history", "kill", "less", "ls", "man", "mkdir", "mv",
-		"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "wc", "whoami",
-	}
-	sort.Strings(commands)
+	commands := CommandNames()
 	return "Available lab commands:\n  " + strings.Join(commands, "  ") + "\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection.\nUse help COMMAND for examples.\n", nil
+}
+
+var commandNames = []string{
+	"awk", "basename", "cat", "cd", "chmod", "chown", "clear", "cp", "cut", "dirname", "du", "echo", "env", "export",
+	"find", "grep", "gzip", "gunzip", "head", "help", "history", "kill", "less", "ls", "man", "mkdir", "mv",
+	"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "wc", "whoami",
+}
+
+// CommandNames returns the commands accepted by the teaching-shell dispatcher.
+// Interactive completion uses the same list as shell help so the two surfaces
+// cannot drift apart.
+func CommandNames() []string {
+	commands := append([]string(nil), commandNames...)
+	sort.Strings(commands)
+	return commands
 }
 
 var commandManuals = map[string]string{

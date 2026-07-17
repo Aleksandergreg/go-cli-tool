@@ -1,7 +1,7 @@
 package game
 
 import (
-	"bufio"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -41,10 +41,7 @@ func (s Session) Run() (SessionResult, error) {
 
 	hintsUsed := s.Player.MissionHints(s.Mission.ID)
 	printMission(s.Out, s.Mission, hintsUsed)
-	reader := bufio.NewScanner(s.In)
-	// Commands are intentionally bounded: this is a teaching shell, not a place
-	// to paste generated megabytes into memory.
-	reader.Buffer(make([]byte, 1024), 64*1024)
+	reader := newCommandLineReader(s.In, s.Out)
 	discovered := make([]string, 0)
 	discoveredSet := make(map[string]bool)
 	practiced := make([]string, 0)
@@ -52,15 +49,15 @@ func (s Session) Run() (SessionResult, error) {
 	lastOutput := ""
 
 	for {
-		fmt.Fprintf(s.Out, "opsquest:%s$ ", box.CWD)
-		if !reader.Scan() {
-			if err := reader.Err(); err != nil {
-				return SessionResult{}, fmt.Errorf("read command: %w", err)
-			}
+		line, readErr := reader.ReadLine(fmt.Sprintf("opsquest:%s$ ", box.CWD), box)
+		if errors.Is(readErr, io.EOF) {
 			fmt.Fprintln(s.Out)
 			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
 		}
-		line := strings.TrimSpace(reader.Text())
+		if readErr != nil {
+			return SessionResult{}, fmt.Errorf("read command: %w", readErr)
+		}
+		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
 		}
@@ -100,7 +97,7 @@ func (s Session) Run() (SessionResult, error) {
 			fmt.Fprintln(s.Out, "Mission environment restarted. Hints and command mastery are retained.")
 			continue
 		case "?":
-			fmt.Fprintln(s.Out, "Mission controls: hint, objective, status, restart, quit. Type help for available shell commands.")
+			printMissionControls(s.Out)
 			continue
 		}
 
@@ -182,7 +179,12 @@ func printMission(out io.Writer, item mission.Mission, hintsUsed int) {
 		fmt.Fprintf(out, "Hints already used: %d/%d\n", hintsUsed, len(item.Hints))
 	}
 	fmt.Fprintf(out, "\n%s\n\n%s\n\n", item.Story, item.Objective)
+	printMissionControls(out)
+}
+
+func printMissionControls(out io.Writer) {
 	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type help for lab commands.")
+	fmt.Fprintln(out, "Interactive keys: Tab completes lab commands and mission paths; Up/Down recall commands from this session.")
 }
 
 func currentReward(item mission.Mission, hintsUsed int) int {

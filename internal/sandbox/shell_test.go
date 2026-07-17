@@ -1,11 +1,29 @@
 package sandbox
 
 import (
+	"sort"
 	"strings"
 	"testing"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
+
+func TestCommandNamesAreSortedUniqueAndDocumented(t *testing.T) {
+	commands := CommandNames()
+	if !sort.StringsAreSorted(commands) {
+		t.Fatalf("CommandNames() is not sorted: %v", commands)
+	}
+	seen := make(map[string]bool, len(commands))
+	for _, command := range commands {
+		if seen[command] {
+			t.Fatalf("CommandNames() contains duplicate %q", command)
+		}
+		seen[command] = true
+		if _, documented := commandManuals[command]; !documented {
+			t.Errorf("command %q has no focused help", command)
+		}
+	}
+}
 
 func testSandbox(t *testing.T) *Sandbox {
 	t.Helper()
