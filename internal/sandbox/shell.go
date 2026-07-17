@@ -439,7 +439,7 @@ func shellHelp(args []string) (string, error) {
 var commandNames = []string{
 	"awk", "basename", "cat", "cd", "chmod", "chown", "clear", "cp", "cut", "dirname", "du", "echo", "env", "export",
 	"find", "grep", "gzip", "gunzip", "head", "help", "history", "kill", "less", "ls", "man", "mkdir", "mv",
-	"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "vi", "wc", "whoami",
+	"printf", "ps", "pwd", "rm", "rmdir", "sed", "sh", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "vi", "wc", "whoami",
 }
 
 // CommandNames returns the commands accepted by the teaching-shell dispatcher.
@@ -485,13 +485,19 @@ var commandManuals = map[string]string{
 	"rm":       "rm [-rf] PATH... — remove paths inside the virtual filesystem",
 	"rmdir":    "rmdir DIR... — remove empty directories",
 	"sed":      "sed [-i] 's/REGEX/REPLACEMENT/g' [FILE] — transform text",
-	"sort":     "sort [-nru] [FILE...] — sort lines",
-	"stat":     "stat PATH... — inspect type, size, owner, and mode",
-	"tail":     "tail [-n COUNT] [FILE...] — print the last lines",
-	"tar":      "tar -xf ARCHIVE [-C DIR] — extract; -cf creates and -tf lists",
-	"touch":    "touch FILE... — create empty files when they do not exist",
-	"tr":       "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
-	"uniq":     "uniq [-c] [FILE] — collapse adjacent duplicate lines",
+	"sh": "sh FILE — run a virtual UTF-8 script through the OpsQuest teaching shell\n" +
+		"Blank lines, comments, #!/bin/sh, existing commands, variables, pipelines, and redirection are supported.\n" +
+		"Executable paths such as ./deploy.sh require a shebang and an executable mode; sh FILE does not.\n" +
+		"Scripts stop at the first error, restore their working directory and environment, and report virtual file/line locations.\n" +
+		"Limits: 64 KiB per script, 8 KiB per line, 8 nested scripts, 256 dispatched commands, and 1 MiB output.\n" +
+		"Options, arguments, stdin, loops, conditionals, functions, substitutions, background jobs, and external programs are unsupported.",
+	"sort":  "sort [-nru] [FILE...] — sort lines",
+	"stat":  "stat PATH... — inspect type, size, owner, and mode",
+	"tail":  "tail [-n COUNT] [FILE...] — print the last lines",
+	"tar":   "tar -xf ARCHIVE [-C DIR] — extract; -cf creates and -tf lists",
+	"touch": "touch FILE... — create empty files when they do not exist",
+	"tr":    "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
+	"uniq":  "uniq [-c] [FILE] — collapse adjacent duplicate lines",
 	"vi": "vi FILE — edit one virtual UTF-8 text file up to 256 KiB interactively\n" +
 		"Normal mode: h/j/k/l or arrows move, i inserts, x deletes a character, and dd deletes a line.\n" +
 		"Insert mode: type text, Enter adds a line, Backspace deletes, and Esc returns to Normal mode.\n" +

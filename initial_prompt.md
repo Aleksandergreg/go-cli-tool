@@ -1,272 +1,237 @@
-Working title: OpsQuest.
+# OpsQuest — current implementation brief
 
-    $ opsquest play
+OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. It teaches Linux through short, story-driven operations missions while keeping all player commands inside a deterministic, in-memory environment.
 
-    MISSION 04: The Missing Log File
+The current executable reports version **0.2.0**. Docker-backed gameplay is planned for v0.3, and Kubernetes remains a later expansion; neither is currently implemented.
 
-    The web server is failing. Find every file ending in `.log`
-    inside `/var/app` that contains the word "ERROR".
+## Product today
 
-    opsquest:/var/app$ find . -name "*.log" -exec grep -l "ERROR" {} \;
+OpsQuest currently ships:
 
-    ✓ Mission complete!
-    +75 XP
-    New command discovered: find
+- 16 hand-written Linux missions across three campaigns
+- Strict, embedded JSON mission definitions
+- Observable-outcome validation rather than prescribed command sequences
+- An in-memory filesystem, process table, environment, and virtual archive model
+- A quote-aware teaching shell with globbing, pipelines, redirection, and variables
+- Interactive prompt editing, history, path completion, and in-mission navigation
+- A compact modal `vi` teaching editor
+- A bounded, simulated shell-script runner
+- Persistent profiles, XP, ranks, hints, command mastery, and six achievements
+- Continuous campaign play, explicit mission replay, previews, filters, and diagnostics
+- Test, vet, race, build, smoke-test, mission-validation, and CI quality gates
 
-    ## Core gameplay loop
+No player-entered command, script, or virtual path is executed by or resolved against the host operating system.
 
-    Each mission gives the player:
+## Core gameplay loop
 
-    - A small story or incident
-    - A simulated or isolated environment
-    - A goal without prescribing the exact command
-    - Optional hints that reduce the XP reward
-    - Validation based on the resulting state
-    - A short explanation after completion
+Each mission contains:
 
-    For example:
+- A short incident or story
+- Declarative setup for an isolated virtual environment
+- An objective that does not prescribe one exact command
+- Between one and several progressive hints with XP penalties
+- One or more observable validation conditions
+- A completion explanation and XP reward
 
-    MISSION: Port Problems
+For example:
 
-    A container named `api` is running, but nobody can reach it.
-    Recreate it so that container port 8080 is available on host port 3000.
+```console
+$ opsquest play 4
 
-    > docker ps
-    > docker rm -f api
-    > docker run -d --name api -p 3000:8080 example/api
+MISSION 04: The Missing Log File
+================================
 
-    ✓ Service reachable on localhost:3000
+Find every file ending in .log inside /var/app that contains ERROR.
 
-    The important design choice is to validate the outcome, not require one exact command. A player might solve a Linux mission with find, grep, awk, or a
-  pipeline—
-    and creative valid solutions should count.
+opsquest:/var/app$ find . -name "*.log" -exec grep -l "ERROR" {} \;
+./api/app.log
+./worker/worker.log
 
-    ## Learning paths
+✓ Mission complete!
++75 XP
+New commands discovered: find, grep
+```
 
-    ### 1. Linux foundations
+The validator judges the resulting output or environment. If `mv` and `cp` followed by `rm` both produce the required final state, both approaches can succeed.
 
-    Start here because it requires the least infrastructure:
+## Campaigns and progression
 
-    - Navigation: pwd, cd, ls
-    - Files: touch, mkdir, cp, mv, rm
-    - Reading: cat, less, head, tail
-    - Searching: find, grep
-    - Permissions: chmod, chown
-    - Processes: ps, kill
-    - Archives: tar, gzip
-    - Pipes and redirection
-    - Environment variables
-    - Basic shell scripting
+The current Linux curriculum is split into:
 
-    Mission examples:
+1. **First Day** — navigation, directories, and basic file operations
+2. **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
+3. **Production Friday** — aggregation, transformation, ownership, disk usage, and a multi-step boss incident
 
-    - Locate a missing configuration file
-    - Find an error in a large log
-    - Repair incorrect permissions
-    - Stop a runaway process
-    - Extract and reorganize an archive
-    - Build a pipeline that produces a report
+XP, ranks, hint usage, completed missions, practiced commands, and achievements persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not.
 
-    ### 2. Docker
+Ranks progress from Intern through Operator, Sysadmin, and SRE levels. The six current achievements reward first completion, pipeline practice, command breadth, hint-free solutions, advanced incidents, and completing the Linux campaign.
 
-    - Images versus containers
-    - docker run, ps, logs, exec
-    - Port mapping
-    - Volumes
-    - Environment variables
-    - Building images
-    - Container networking
-    - Docker Compose
+## CLI surface
 
-    Mission examples:
+Top-level commands are:
 
-    - Diagnose a crashing container
-    - Expose a web service
-    - Preserve data after a restart
-    - Fix a broken Dockerfile
-    - Connect an API to a database
-    - Reduce an unnecessarily large image
+```text
+play       list/campaign       show/mission       profile
+commands   achievements        doctor             reset
+version    help
+```
 
-    ### 3. Kubernetes
+Inside a mission, players can use `hint`, `objective`, `status`, `restart`, and `quit`. They can also navigate with `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
 
-    This could be an advanced campaign added later:
+Bare `opsquest play` continues to the next incomplete mission after a success. `opsquest play NUMBER_OR_ID` runs only the selected mission.
 
-    - Pods and deployments
-    - Services
-    - ConfigMaps and Secrets
-    - Logs and exec
-    - Scaling
-    - Rollouts
-    - Resource requests
-    - Basic troubleshooting
+## Teaching shell
 
-    Mission examples:
+The current command subset is:
 
-    - Find why a pod is in CrashLoopBackOff
-    - Correct a bad environment variable
-    - Expose a deployment
-    - Scale during a fictional traffic spike
-    - Roll back a broken deployment
-    - Repair a readiness probe
+```text
+awk basename cat cd chmod chown clear cp cut dirname du echo env export find
+grep gzip gunzip head help history kill less ls man mkdir mv printf ps pwd rm
+rmdir sed sh sort stat tail tar touch tr uniq vi wc whoami
+```
 
-    ## Gamification
+The parser supports:
 
-    Rather than adding RPG mechanics purely as decoration, connect them to learning:
+- Unquoted whitespace-separated words
+- Single and double quotes
+- Escaped characters
+- `$NAME` and `${NAME}` expansion
+- Virtual path globbing
+- Comments beginning with `#` at a token boundary
+- Pipelines with `|`
+- Virtual input, output, and append redirection with `<`, `>`, and `>>`
 
-    - XP: awarded for completing missions
-    - Hint penalty: hints make learning accessible but reduce bonus XP
-    - Command mastery: track which commands the player has successfully used
-    - Streaks: optional daily challenge streak
-    - Achievements: “Pipe Dream” for a three-command pipeline
-    - Boss battles: multi-step troubleshooting incidents
-    - Rank progression: Intern → Operator → Sysadmin → SRE
-    - Efficiency medals: optional rewards for concise or fast solutions
-    - Daily incidents: generated from reusable mission templates
+Unknown commands fail. There is no fallback to a host executable.
 
-    Example profile:
+## Interactive terminal and vi
 
-    Operator: alex
-    Rank: Junior Sysadmin
-    Level: 7
+The mission prompt supports Tab completion against the virtual filesystem, Up/Down history, arrows, Home/End, common word movement, Backspace, forward Delete, and bracketed-paste isolation.
 
-    Linux       ████████░░  82%
-    Docker      █████░░░░░  54%
-    Kubernetes  ██░░░░░░░░  21%
+`vi FILE` opens one virtual UTF-8 text file up to 256 KiB. Its deliberate teaching subset includes:
 
-    Commands mastered: 34
-    Missions completed: 27
-    Hints used: 8
+- Normal and Insert modes
+- `h`, `j`, `k`, `l`, and arrow movement
+- `i`, `x`, and `dd`
+- Text insertion, newline, Backspace, and Delete
+- `:w`, `:q`, `:wq`, and `:q!`
 
-    ## Story structure
+It does not provide plugins, registers, search, shell escapes, multiple buffers, or the rest of Vim. Writes go only to the virtual filesystem.
 
-    A light narrative could make the exercises memorable:
+## Safe shell-script runner
 
-    > You have joined ByteWorks as its newest operations engineer. Unfortunately, the senior engineer has gone on vacation, the documentation is outdated, and
-    > production is held together by shell scripts nobody understands.
+Players can write a file with `vi`, redirection, or other virtual commands and run it with:
 
-    Campaigns could represent increasingly chaotic workdays:
+```console
+opsquest:/workspace$ sh report.sh
+```
 
-    1. First Day — basic navigation and files
-    2. The Logpocalypse — searching, pipes, and processes
-    3. It Works on My Machine — Docker
-    4. The Cluster Awakens — Kubernetes
-    5. Production Friday — multi-step boss missions
+They can also run it directly:
 
-    Humor would give the tool an identity without overwhelming the educational side.
+```console
+opsquest:/workspace$ chmod 750 report.sh
+opsquest:/workspace$ ./report.sh
+```
 
-    ## Technical design
+`sh FILE` accepts exactly one virtual file and does not require executable permission. Direct path execution requires at least one executable mode bit and a first line of either `#!/bin/sh` or `#!/usr/bin/env sh`.
 
-    I’d divide the Go application into four main concepts:
+Each non-empty, non-comment line returns through the same OpsQuest lexer, parser, dispatcher, and virtual filesystem as an interactive command. Existing quoting, environment expansion, globbing, pipelines, and redirection therefore behave consistently. CRLF input is accepted.
 
-    Mission
-    ├── Setup
-    ├── Description
-    ├── Hints
-    ├── Validator
-    └── Explanation
+Scripts have child-shell state: `cd` and `export` affect subsequent lines in that script but the prior working directory and environment are restored when it returns. Virtual file, archive, and process changes persist. Execution stops at the first error and reports the virtual script path and line number.
 
-    Game
-    ├── Player profile
-    ├── XP and progression
-    ├── Campaign state
-    └── Achievements
+The runner is deliberately bounded:
 
-    Environment
-    ├── Simulator
-    ├── Docker sandbox
-    └── Kubernetes sandbox
+- 64 KiB per script
+- 8 KiB per source line
+- Eight nested scripts
+- 256 dispatched commands across one invocation
+- 1 MiB of collected output per script
+- Direct and indirect recursion rejection
 
-    CLI
-    ├── play
-    ├── campaign
-    ├── profile
-    ├── commands
-    └── reset
+The following are intentionally unsupported:
 
-    Mission definitions could initially be YAML:
+- `sh -c`, other flags, stdin-fed source, or positional arguments
+- Standalone variable assignments; use `export NAME=value`
+- Loops, conditionals, case statements, functions, and sourced files
+- `;`, `&&`, `||`, subshells, and background jobs
+- Backtick or `$()` command substitution
+- Positional and special parameters such as `$1` and `$?`
+- External binaries, host shell escapes, and interactive `vi` inside a script
 
-    id: linux-find-logs
-    title: The Missing Logs
-    difficulty: beginner
-    environment: simulated
+Script output may feed a later pipeline stage or be redirected to a virtual file. Feeding pipeline or redirected input into a script is rejected because this teaching model does not emulate one shared script stdin stream.
 
-    objective: Find the file containing "DATABASE_ERROR"
+## Mission format
 
-    hints:
-      - "grep searches inside files."
-      - "The -r flag searches recursively."
+Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, and validation types.
 
-    validation:
-      type: output_contains
-      value: "/var/log/api.log"
+Each mission has this conceptual shape:
 
-    rewards:
-      xp: 50
+```text
+Mission
+├── ID, number, title, campaign, and difficulty
+├── Story, objective, hints, and explanation
+├── Start directory and declarative setup
+├── One or more observable validation conditions
+└── XP and hint-penalty rewards
+```
 
-    This makes it possible to add missions without recompiling the game later.
+Mission content remains declarative. Parser, command, filesystem, profile, and validator behavior belongs in Go rather than mission JSON.
 
-    ## The main technical challenge: isolation
+## Repository architecture
 
-    Executing arbitrary shell commands directly on the player’s machine would be unsafe. There are three reasonable approaches:
+```text
+cmd/opsquest/       Executable entry point
+internal/cli/       Top-level commands, flags, help, and presentation
+internal/game/      Sessions, rewards, terminal input, vi, and outcome validation
+internal/mission/   Mission schema, strict catalog loading, and embedded JSON data
+internal/profile/   Versioned progress model and atomic JSON persistence
+internal/sandbox/   Parser, dispatcher, virtual state, commands, and script runner
+scripts/            Deterministic checks shared by local development and CI
+```
 
-    1. Simulated terminal
+The sandbox is the execution boundary. It owns virtual paths, environment variables, processes, archive metadata, command history, nested command tracing, and resource limits.
 
-       Parse and emulate a small set of commands. Safest and easiest to distribute, but implementing shell behavior can become surprisingly complicated.
+## Safety and compatibility invariants
 
-    2. Disposable Docker containers
+- Never pass player input or script text to host `sh`, `bash`, `os/exec`, or another process.
+- Never resolve a virtual path against the host filesystem.
+- Scripts may compose only commands already whitelisted by the teaching shell.
+- Unknown or unsupported behavior must fail clearly instead of falling back or being misleadingly approximated.
+- Mission validation checks observable outcomes, not one canonical solution.
+- Mission definitions remain declarative and strictly validated.
+- Mission-schema and profile-format changes are compatibility-sensitive.
+- Existing parser, persistence, validation, and isolation guarantees must not be weakened for new content.
 
-       Launch each Linux mission inside an isolated container. This provides a real shell and authentic command behavior. It requires Docker, but is ideal once
-  the
-       basic game works.
+## Development and quality gate
 
-    3. Hybrid approach
+Codex reads `AGENTS.md`. Repository-specific workflows live under `.agents/skills` for mission work, sandbox-command extensions, and release-sized iterations.
 
-       Start with a simulator for introductory lessons, then offer real Docker-based labs for advanced missions.
+Common validation commands are:
 
-    For a beginner-friendly implementation, I would initially avoid a full interactive shell. Let the player submit individual commands, interpret a limited
-  command
-    set, and validate the output or virtual filesystem. Once the game loop is fun, add container-backed environments.
+```console
+$ make test
+$ make validate-missions
+$ make check-agent-docs
+$ make vet
+$ make build
+$ make smoke-test
+$ make race
+$ make check
+$ make check-all
+```
 
-    For Kubernetes, use a lightweight local cluster such as kind or k3d eventually—but definitely not in the first version.
+`make check-all` is the comprehensive local gate. It validates agent documentation, runs all Go tests and embedded mission integrity checks, vets, builds, executes an isolated CLI smoke test, and runs race detection. GitHub Actions invokes the same target.
 
-    ## A realistic first version
+## Roadmap
 
-    Keep version 0.1 deliberately small:
+The next major product iteration remains **v0.3 Docker labs**:
 
-    - Linux missions only
-    - 10 hand-written missions
-    - Commands entered one at a time
-    - Virtual filesystem or a disposable Docker container
-    - XP and hint system
-    - Progress stored in JSON
-    - play, list, profile, and reset commands
-    - Outcome-based validation where practical
+- Disposable, isolated Docker-backed environments
+- Images versus containers
+- `run`, `ps`, `logs`, and `exec`
+- Port mappings, volumes, and environment variables
+- Dockerfiles, networking, and Compose
+- Outcome-based container troubleshooting missions
 
-    That version already teaches plenty of Go:
+Kubernetes remains a later campaign using an isolated local cluster. External mission packs, streaks, efficiency medals, and generated daily incidents are possible future additions, not current behavior.
 
-    - CLI parsing
-    - Interfaces
-    - JSON/YAML decoding
-    - State persistence
-    - Process execution
-    - Filesystem manipulation
-    - Testing
-    - Error handling
-
-    Then Docker becomes version 0.2, and Kubernetes becomes the long-term expansion.
-
-    My favorite names would be OpsQuest, Shellbound, CommandCraft, Terminal Trials, or CrashLoop. “Shellbound” has the most game-like personality; “OpsQuest”
-    communicates the purpose most clearly.
-
-
-  › Explain this codebase
-
-    gpt-5.6-sol high · ~/privat/go-cli-tool
-
-
-• I’ll map the repository’s entry points, packages, data flow, and tests, then relate the current implementation back to the OpsQuest design you outlined.
-
-• The visible working tree currently contains only a license, so I’m checking hidden/project metadata and Git history to determine whether the implementation
-  lives in an untracked, ignored, or earlier state.
-
-
+The Docker and Kubernetes tracks must not weaken the safe in-memory Linux campaign or cause player commands to run against the host by default.

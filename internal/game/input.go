@@ -339,7 +339,7 @@ func completeLine(line string, position int, box *sandbox.Sandbox) (string, int,
 	}
 
 	var candidates []completionCandidate
-	if commandPosition(line[:start]) {
+	if commandPosition(line[:start]) && !scriptPathCompletion(typed) {
 		candidates = commandCandidates(typed)
 	} else {
 		candidates = pathCandidates(box, typed)
@@ -365,6 +365,10 @@ func completeLine(line string, position int, box *sandbox.Sandbox) (string, int,
 
 	completed := line[:start] + replacement + line[end:]
 	return completed, start + len(replacement), true
+}
+
+func scriptPathCompletion(value string) bool {
+	return strings.Contains(value, "/") || strings.HasPrefix(value, ".") || strings.HasPrefix(value, "~")
 }
 
 func completionTokenRange(line string, position int) (int, int) {

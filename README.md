@@ -34,6 +34,7 @@ Version 0.2 is an expanded Linux campaign:
 - Interactive line editing with Tab completion and Up/Down command recall
 - Continuous campaign play with detailed feedback for incomplete outcomes
 - Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
+- Safe virtual shell scripts with bounded nesting and line-numbered errors
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
 - Hints with persistent XP penalties, plus mission status and environment restart controls
 - Persistent XP, ranks, mission completion, command mastery, and six learning achievements
@@ -46,7 +47,7 @@ The sandbox implements a focused teaching subset of:
 ```text
 awk basename cat cd chmod chown clear cp cut dirname du echo env export find
 grep gzip gunzip head help history kill less ls man mkdir mv printf ps pwd rm
-rmdir sed sort stat tail tar touch tr uniq vi wc whoami
+rmdir sed sh sort stat tail tar touch tr uniq vi wc whoami
 ```
 
 It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
@@ -114,6 +115,23 @@ In normal mode, use `h`/`j`/`k`/`l` or the arrow keys to move, `i` to enter inse
 
 This is deliberately not full Vim: flags, multiple files, search, registers, plugins, shell escapes, external commands, pipelines, and redirection are unsupported. The editor accepts one UTF-8 text file up to 256 KiB; display width for wide or combining Unicode is approximate. Because it needs raw interactive key input, `vi` cannot be launched through redirected or other non-interactive stdin.
 
+### Virtual shell scripts
+
+Scripts are interpreted by the same safe teaching shell as commands entered at the mission prompt:
+
+```console
+opsquest:/workspace$ vi report.sh
+opsquest:/workspace$ sh report.sh
+opsquest:/workspace$ chmod 750 report.sh
+opsquest:/workspace$ ./report.sh
+```
+
+`sh FILE` accepts one virtual UTF-8 file and does not require executable permission. Direct paths such as `./report.sh` require an executable mode and either `#!/bin/sh` or `#!/usr/bin/env sh`. Blank lines, comments, existing lab commands, exported variables, pipelines, and virtual redirection work normally. Script output can feed a later pipeline stage or be redirected to another virtual file.
+
+Each script runs with child-shell working-directory and environment scope: `cd` and `export` affect later lines in that script but are restored on return, while virtual files, archives, and mission processes keep their resulting state. Execution stops at the first error and reports its virtual filename and line. Source size, line length, nesting, dispatched commands, and output are bounded.
+
+This is not a complete POSIX shell. Options such as `sh -c`, positional arguments, stdin-fed scripts, standalone assignments, loops, conditionals, functions, substitutions, background jobs, external programs, and interactive `vi` calls from a script are rejected rather than approximated. Use `help sh` for the exact limits.
+
 With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the campaign. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission.
 
 The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
@@ -128,7 +146,7 @@ Achievements reward learning behavior rather than decoration: completing a first
 
 ## Safety model
 
-Player input is parsed by OpsQuest itself. It is never passed to `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Tab completion queries that same virtual filesystem and cannot expose host paths. Unsupported commands return a teaching-shell error.
+Player input—including `sh` scripts—is parsed by OpsQuest itself. It is never passed to a host `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Tab completion queries that same virtual filesystem and cannot expose host paths. Unsupported commands return a teaching-shell error.
 
 The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory.
 
