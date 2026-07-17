@@ -21,6 +21,8 @@ type Session struct {
 	Out          io.Writer
 	Err          io.Writer
 	Reader       CommandLineReader
+	Catalog      mission.Catalog
+	ListMissions func([]string) error
 	Now          func() time.Time
 }
 
@@ -29,6 +31,9 @@ type SessionResult struct {
 	Quit      bool
 	XPAwarded int
 	HintsUsed int
+	// SwitchMission contains a validated mission ID requested from inside the
+	// lab. The CLI starts that mission with a fresh sandbox.
+	SwitchMission string
 }
 
 func (s Session) Run() (SessionResult, error) {
@@ -64,6 +69,51 @@ func (s Session) Run() (SessionResult, error) {
 		line = strings.TrimSpace(line)
 		if line == "" {
 			continue
+		}
+		if fields, navigation := missionNavigationFields(line); navigation {
+			switch fields[0] {
+			case "list", "missions":
+				if s.ListMissions == nil {
+					fmt.Fprintln(s.Err, "mission listing is unavailable in this session")
+					continue
+				}
+				if err := s.ListMissions(fields[1:]); err != nil {
+					fmt.Fprintf(s.Err, "%v\n", err)
+				}
+				continue
+			case "play":
+				if len(fields) != 2 {
+					fmt.Fprintln(s.Err, "usage inside a mission: play MISSION")
+					continue
+				}
+				target, found := s.Catalog.Find(fields[1])
+				if !found {
+					fmt.Fprintf(s.Err, "mission %q not found; use list to see available missions\n", fields[1])
+					continue
+				}
+				if target.ID == s.Mission.ID {
+					fmt.Fprintf(s.Out, "Already playing Mission %02d: %s.\n", target.Number, target.Title)
+					continue
+				}
+				printMissionSwitch(s.Out, target)
+				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
+			case "next", "previous", "prev":
+				direction := 1
+				if fields[0] != "next" {
+					direction = -1
+				}
+				if len(fields) != 1 {
+					fmt.Fprintf(s.Err, "%s does not accept arguments\n", fields[0])
+					continue
+				}
+				target, found := adjacentMission(s.Catalog, s.Mission.ID, direction)
+				if !found {
+					fmt.Fprintf(s.Out, "Mission %02d is already at this end of the catalog.\n", s.Mission.Number)
+					continue
+				}
+				printMissionSwitch(s.Out, target)
+				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
+			}
 		}
 
 		switch line {
@@ -189,8 +239,48 @@ func printMission(out io.Writer, item mission.Mission, hintsUsed int) {
 
 func printMissionControls(out io.Writer) {
 	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type status to see completed and missing outcomes.")
+	fmt.Fprintln(out, "Navigation: list --completed, play NUMBER/ID, next, previous. An optional opsquest prefix also works.")
 	fmt.Fprintln(out, "Type help for lab commands; valid solutions are judged by their result, not by one command sequence.")
-	fmt.Fprintln(out, "Interactive keys: Tab completes lab commands and mission paths; Up/Down recall commands from this session.")
+	fmt.Fprintln(out, "Editing keys: arrows move and recall history; Home/End or Ctrl-A/E jump across the line.")
+	fmt.Fprintln(out, "Option/Ctrl-Left/Right move by word; Tab completes; Backspace, Delete, and Ctrl-W remove text.")
+}
+
+func missionNavigationFields(line string) ([]string, bool) {
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return nil, false
+	}
+	if fields[0] == "opsquest" {
+		fields = fields[1:]
+		if len(fields) == 0 {
+			return []string{"missions"}, true
+		}
+	}
+	switch fields[0] {
+	case "list", "missions", "play", "next", "previous", "prev":
+		return fields, true
+	default:
+		return nil, false
+	}
+}
+
+func adjacentMission(catalog mission.Catalog, currentID string, direction int) (mission.Mission, bool) {
+	items := catalog.All()
+	for index, item := range items {
+		if item.ID != currentID {
+			continue
+		}
+		target := index + direction
+		if target < 0 || target >= len(items) {
+			return mission.Mission{}, false
+		}
+		return items[target], true
+	}
+	return mission.Mission{}, false
+}
+
+func printMissionSwitch(out io.Writer, target mission.Mission) {
+	fmt.Fprintf(out, "Switching to Mission %02d: %s. The current mission sandbox will reset.\n", target.Number, target.Title)
 }
 
 func printOutcomeStatus(out io.Writer, outcomes []outcomeResult) {

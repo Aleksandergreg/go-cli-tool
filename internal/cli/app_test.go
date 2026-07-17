@@ -103,6 +103,60 @@ func TestSelectedMissionReturnsAfterCompletion(t *testing.T) {
 	}
 }
 
+func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	seed, _, _ := testApp(t, "pwd\n", store)
+	if err := seed.Run([]string{"play", "1"}); err != nil {
+		t.Fatal(err)
+	}
+
+	input := strings.Join([]string{
+		"opsquest list --completed",
+		"opsquest play 3",
+		"mkdir -p reports/daily",
+		"list --completed",
+		"status",
+		"quit",
+	}, "\n") + "\n"
+	app, out, errOut := testApp(t, input, store)
+	if err := app.Run([]string{"play", "9"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+
+	output := out.String()
+	for _, expected := range []string{
+		"LINUX CAMPAIGN",
+		"1/16 missions complete",
+		"Switching to Mission 03: A Place for Everything",
+		"MISSION 03: A Place for Everything",
+		"✓ Directory exists: /workspace/reports/daily",
+		"○ File exists: /workspace/reports/daily/summary.txt",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("in-mission navigation output missing %q:\n%s", expected, output)
+		}
+	}
+	if strings.Contains(errOut.String(), "command not available") {
+		t.Fatalf("navigation reached the sandbox dispatcher: %s", errOut.String())
+	}
+}
+
+func TestMissionPromptSupportsPreviousAndNext(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "previous\nnext\nquit\n", store)
+	if err := app.Run([]string{"play", "9"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{
+		"Switching to Mission 08: The Runaway Worker",
+		"Switching to Mission 09: Backup Archaeology",
+	} {
+		if !strings.Contains(out.String(), expected) {
+			t.Errorf("arrow-style navigation output missing %q:\n%s", expected, out.String())
+		}
+	}
+}
+
 func TestHintPenaltySurvivesAPausedAttempt(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	paused, _, _ := testApp(t, "hint\nquit\n", store)

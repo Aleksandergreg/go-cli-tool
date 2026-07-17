@@ -161,10 +161,18 @@ func (a *App) runPlay(args []string) error {
 			Out:          a.out,
 			Err:          a.errOut,
 			Reader:       reader,
+			Catalog:      a.catalog,
+			ListMissions: func(args []string) error {
+				return a.listMissions(args, player)
+			},
 		}
 		result, err := session.Run()
 		if err != nil {
 			return err
+		}
+		if result.SwitchMission != "" {
+			item, _ = a.catalog.Find(result.SwitchMission)
+			continue
 		}
 		if !continuous || !result.Completed {
 			return nil
@@ -181,6 +189,14 @@ func (a *App) runPlay(args []string) error {
 }
 
 func (a *App) runList(args []string) error {
+	player, err := a.loadPlayer()
+	if err != nil {
+		return err
+	}
+	return a.listMissions(args, player)
+}
+
+func (a *App) listMissions(args []string, player profile.Profile) error {
 	flags := flag.NewFlagSet("list", flag.ContinueOnError)
 	flags.SetOutput(a.errOut)
 	completedOnly := flags.Bool("completed", false, "show completed missions only")
@@ -198,10 +214,6 @@ func (a *App) runList(args []string) error {
 	}
 	if *completedOnly && *remainingOnly {
 		return fmt.Errorf("--completed and --remaining cannot be combined")
-	}
-	player, err := a.loadPlayer()
-	if err != nil {
-		return err
 	}
 	fmt.Fprintln(a.out, "LINUX CAMPAIGN")
 	lastCampaign := ""
