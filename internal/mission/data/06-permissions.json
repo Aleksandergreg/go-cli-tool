@@ -1,0 +1,31 @@
+{
+  "id": "linux-permissions",
+  "number": 6,
+  "title": "Permission to Deploy",
+  "campaign": "First Day",
+  "difficulty": "intermediate",
+  "story": "The deployment script contains all the right commands and none of the right permissions. Security would like fewer surprises today.",
+  "objective": "Set /srv/release/deploy.sh so its owner can read, write, and execute it; its group can read and execute it; and everyone else has no access (mode 750).",
+  "start_dir": "/srv/release",
+  "hints": [
+    "chmod changes permission bits.",
+    "In octal, read=4, write=2, and execute=1. Add them for owner, group, and others.",
+    "Try: chmod 750 deploy.sh"
+  ],
+  "explanation": "Mode 750 means rwx for the owner, r-x for the group, and --- for others. Grant only the access a file actually needs.",
+  "setup": {
+    "directories": [
+      {"path": "/srv/release"}
+    ],
+    "files": [
+      {"path": "/srv/release/deploy.sh", "content": "#!/bin/sh\necho deploying\n", "mode": "0644", "owner": "operator"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_mode_equals", "path": "/srv/release/deploy.sh", "value": "0750"}
+    ]
+  },
+  "rewards": {"xp": 65, "hint_penalty": 10}
+}
+

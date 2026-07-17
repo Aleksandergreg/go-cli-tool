@@ -1,0 +1,35 @@
+{
+  "id": "linux-environment",
+  "number": 7,
+  "title": "Wrong Planet",
+  "campaign": "The Logpocalypse",
+  "difficulty": "beginner",
+  "story": "The deployment helper thinks it is in development. The production database is relieved, but the staging release is not.",
+  "objective": "Set the shell environment variable DEPLOY_ENV to staging.",
+  "start_dir": "/opt/deploy",
+  "hints": [
+    "echo $DEPLOY_ENV shows the current value.",
+    "export sets a variable for the current shell environment.",
+    "Try: export DEPLOY_ENV=staging"
+  ],
+  "explanation": "Environment variables carry configuration into commands and child processes. export NAME=value sets one for the current shell session.",
+  "setup": {
+    "directories": [
+      {"path": "/opt/deploy"}
+    ],
+    "files": [
+      {"path": "/opt/deploy/README", "content": "Expected target: staging\n"}
+    ],
+    "environment": {
+      "DEPLOY_ENV": "development",
+      "USER": "operator"
+    }
+  },
+  "validation": {
+    "all": [
+      {"type": "env_equals", "value": "DEPLOY_ENV=staging"}
+    ]
+  },
+  "rewards": {"xp": 55, "hint_penalty": 10}
+}
+

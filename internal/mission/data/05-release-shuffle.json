@@ -1,0 +1,33 @@
+{
+  "id": "linux-release-shuffle",
+  "number": 5,
+  "title": "The Release Shuffle",
+  "campaign": "First Day",
+  "difficulty": "beginner",
+  "story": "A completed incident report is still in the incoming tray. Audit says this is a process failure; everyone else says it is Tuesday.",
+  "objective": "Move /incoming/incident-104.txt to /archive/2026/incident-104.txt so the original no longer exists.",
+  "start_dir": "/incoming",
+  "hints": [
+    "mv relocates or renames a file.",
+    "The destination directory already exists.",
+    "Try: mv incident-104.txt /archive/2026/incident-104.txt"
+  ],
+  "explanation": "mv changes a file's path. The mission checks the final state, so copying the file and then removing the original is equally valid.",
+  "setup": {
+    "directories": [
+      {"path": "/incoming"},
+      {"path": "/archive/2026"}
+    ],
+    "files": [
+      {"path": "/incoming/incident-104.txt", "content": "Incident 104: cache server confused itself for a toaster.\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_equals", "path": "/archive/2026/incident-104.txt", "value": "Incident 104: cache server confused itself for a toaster."},
+      {"type": "path_missing", "path": "/incoming/incident-104.txt"}
+    ]
+  },
+  "rewards": {"xp": 60, "hint_penalty": 10}
+}
+

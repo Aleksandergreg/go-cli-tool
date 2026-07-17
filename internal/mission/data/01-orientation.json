@@ -1,0 +1,30 @@
+{
+  "id": "linux-orientation",
+  "number": 1,
+  "title": "Where Am I?",
+  "campaign": "First Day",
+  "difficulty": "beginner",
+  "story": "Your first ticket simply says: \"Check where the onboarding shell dropped you.\" The documentation, naturally, does not say.",
+  "objective": "Print the absolute path of your current directory.",
+  "start_dir": "/home/operator",
+  "hints": [
+    "The command name is short for print working directory.",
+    "Try: pwd"
+  ],
+  "explanation": "pwd prints the shell's current working directory. It is a useful first check whenever a path-sensitive command behaves unexpectedly.",
+  "setup": {
+    "directories": [
+      {"path": "/home/operator"}
+    ],
+    "files": [
+      {"path": "/home/operator/WELCOME.txt", "content": "Welcome to ByteWorks. Please ignore the smoke.\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_equals", "value": "/home/operator"}
+    ]
+  },
+  "rewards": {"xp": 40, "hint_penalty": 10}
+}
+

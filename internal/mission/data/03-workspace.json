@@ -1,0 +1,29 @@
+{
+  "id": "linux-workspace",
+  "number": 3,
+  "title": "A Place for Everything",
+  "campaign": "First Day",
+  "difficulty": "beginner",
+  "story": "Incident reports currently live in a folder named final-final-USE-THIS. Bring a tiny amount of order to ByteWorks.",
+  "objective": "Create the directory /workspace/reports/daily and an empty file named summary.txt inside it.",
+  "start_dir": "/workspace",
+  "hints": [
+    "mkdir creates directories; -p also creates missing parent directories.",
+    "touch creates an empty file when it does not already exist.",
+    "Try mkdir -p reports/daily, then touch reports/daily/summary.txt"
+  ],
+  "explanation": "mkdir -p builds a directory path safely, and touch creates a file (or updates its timestamp in a real shell). Validators inspect the resulting filesystem, so equivalent solutions also count.",
+  "setup": {
+    "directories": [
+      {"path": "/workspace"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "dir_exists", "path": "/workspace/reports/daily"},
+      {"type": "file_exists", "path": "/workspace/reports/daily/summary.txt"}
+    ]
+  },
+  "rewards": {"xp": 55, "hint_penalty": 10}
+}
+

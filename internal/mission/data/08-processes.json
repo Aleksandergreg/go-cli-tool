@@ -1,0 +1,35 @@
+{
+  "id": "linux-runaway",
+  "number": 8,
+  "title": "The Runaway Worker",
+  "campaign": "The Logpocalypse",
+  "difficulty": "intermediate",
+  "story": "One report worker has entered an infinite loop and is enthusiastically converting CPU time into heat. Stop only the runaway process.",
+  "objective": "Inspect the process list and stop the report-worker process whose PID is 4242. Leave the other processes running.",
+  "start_dir": "/home/operator",
+  "hints": [
+    "ps lists running processes in this lab.",
+    "kill asks a process to terminate by PID.",
+    "Try: kill 4242"
+  ],
+  "explanation": "ps helps identify processes, and kill sends a termination signal. Target the specific PID rather than using a broad pattern that could stop healthy services.",
+  "setup": {
+    "directories": [
+      {"path": "/home/operator"}
+    ],
+    "processes": [
+      {"pid": 101, "command": "web-api", "running": true},
+      {"pid": 4242, "command": "report-worker --loop", "running": true},
+      {"pid": 8080, "command": "metrics-agent", "running": true}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "process_stopped", "pid": 4242},
+      {"type": "process_running", "pid": 101},
+      {"type": "process_running", "pid": 8080}
+    ]
+  },
+  "rewards": {"xp": 70, "hint_penalty": 10}
+}
+

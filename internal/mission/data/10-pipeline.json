@@ -1,0 +1,32 @@
+{
+  "id": "linux-pipeline-report",
+  "number": 10,
+  "title": "Boss Battle: The Morning Report",
+  "campaign": "The Logpocalypse",
+  "difficulty": "advanced",
+  "story": "Management wants the incident summary before stand-up. Stand-up began seven minutes ago. Produce evidence that looks intentional.",
+  "objective": "From /logs/incidents.log, create /reports/error-services.txt containing only the names of services with ERROR entries, one per line, alphabetically sorted with duplicates removed.",
+  "start_dir": "/logs",
+  "hints": [
+    "Build the result in stages: filter ERROR lines, select the third field, sort, then remove duplicates.",
+    "awk '{print $3}' prints the third whitespace-separated field. sort and uniq can process its output.",
+    "Try: grep ERROR incidents.log | awk '{print $3}' | sort | uniq > /reports/error-services.txt"
+  ],
+  "explanation": "Pipelines connect one command's output to the next command's input. Redirection writes the final stream to a file. Small tools compose into a repeatable report without changing the source log.",
+  "setup": {
+    "directories": [
+      {"path": "/logs"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/logs/incidents.log", "content": "08:01 INFO api started\n08:03 ERROR worker queue-timeout\n08:04 ERROR api upstream-reset\n08:05 WARN database pool-high\n08:06 ERROR database connection-refused\n08:08 ERROR worker retry-exhausted\n08:10 INFO api recovered\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_equals", "path": "/reports/error-services.txt", "value": "api\ndatabase\nworker"}
+    ]
+  },
+  "rewards": {"xp": 125, "hint_penalty": 20}
+}
+

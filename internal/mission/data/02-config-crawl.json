@@ -1,0 +1,33 @@
+{
+  "id": "linux-config-crawl",
+  "number": 2,
+  "title": "Configuration Crawl",
+  "campaign": "First Day",
+  "difficulty": "beginner",
+  "story": "The web team hid the live configuration three directories deep, then called that a deployment strategy.",
+  "objective": "Move your shell into /srv/web/config/live.",
+  "start_dir": "/home/operator",
+  "hints": [
+    "cd changes the current working directory.",
+    "You can use an absolute path: cd /srv/web/config/live"
+  ],
+  "explanation": "cd changes the shell's working directory. Absolute paths begin at /, while relative paths begin at your current location.",
+  "setup": {
+    "directories": [
+      {"path": "/home/operator"},
+      {"path": "/srv/web/config/live"},
+      {"path": "/srv/web/config/old"}
+    ],
+    "files": [
+      {"path": "/srv/web/config/live/app.conf", "content": "listen=8080\n"},
+      {"path": "/srv/web/config/old/app.conf", "content": "listen=8000\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "cwd_equals", "value": "/srv/web/config/live"}
+    ]
+  },
+  "rewards": {"xp": 45, "hint_penalty": 10}
+}
+

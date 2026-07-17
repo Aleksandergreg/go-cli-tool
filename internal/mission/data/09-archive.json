@@ -1,0 +1,39 @@
+{
+  "id": "linux-archive-rescue",
+  "number": 9,
+  "title": "Backup Archaeology",
+  "campaign": "The Logpocalypse",
+  "difficulty": "intermediate",
+  "story": "Someone deleted the status page and left behind a tar archive labeled definitely-current-v2-final. Restore it before anyone asks what v1 was.",
+  "objective": "Extract /backups/status-site.tar into /restore so /restore/index.html and /restore/assets/status.txt are restored.",
+  "start_dir": "/backups",
+  "hints": [
+    "tar works with file archives; x extracts and f names the archive file.",
+    "The -C option chooses the destination directory.",
+    "Try: tar -xf status-site.tar -C /restore"
+  ],
+  "explanation": "tar bundles directory trees into one archive. -x extracts, -f selects the archive, and -C changes the extraction destination.",
+  "setup": {
+    "directories": [
+      {"path": "/backups"},
+      {"path": "/restore"}
+    ],
+    "archives": [
+      {
+        "path": "/backups/status-site.tar",
+        "entries": [
+          {"path": "index.html", "content": "<h1>ByteWorks status: mostly fine</h1>\n", "mode": "0644"},
+          {"path": "assets/status.txt", "content": "operational-ish\n", "mode": "0644"}
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_contains", "path": "/restore/index.html", "value": "ByteWorks status"},
+      {"type": "file_content_equals", "path": "/restore/assets/status.txt", "value": "operational-ish"}
+    ]
+  },
+  "rewards": {"xp": 80, "hint_penalty": 15}
+}
+

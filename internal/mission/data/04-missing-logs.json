@@ -1,0 +1,40 @@
+{
+  "id": "linux-find-logs",
+  "number": 4,
+  "title": "The Missing Log File",
+  "campaign": "The Logpocalypse",
+  "difficulty": "beginner",
+  "story": "The web server is failing, and the monitoring dashboard has chosen this moment to become an abstract art installation.",
+  "objective": "Find every file ending in .log inside /var/app that contains the word ERROR. Your command output must identify only the matching log files.",
+  "start_dir": "/var/app",
+  "hints": [
+    "grep searches inside files; its -l flag prints only matching filenames.",
+    "find can select names with -name \"*.log\".",
+    "Try: find . -name \"*.log\" -exec grep -l \"ERROR\" {} \\;"
+  ],
+  "explanation": "find selects filesystem entries, while grep tests file contents. Combining small, focused tools is a core Unix pattern; recursive grep is another valid route.",
+  "setup": {
+    "directories": [
+      {"path": "/var/app/api"},
+      {"path": "/var/app/worker"},
+      {"path": "/var/app/assets"}
+    ],
+    "files": [
+      {"path": "/var/app/api/access.log", "content": "INFO GET /health 200\nINFO GET / 200\n"},
+      {"path": "/var/app/api/app.log", "content": "INFO boot complete\nERROR database connection refused\n"},
+      {"path": "/var/app/worker/worker.log", "content": "WARN queue lagging\nERROR job 319 timed out\n"},
+      {"path": "/var/app/worker/notes.txt", "content": "ERROR is mentioned here, but this is not a log.\n"},
+      {"path": "/var/app/assets/build.log", "content": "INFO assets compiled\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_contains_all", "values": ["app.log", "worker.log"]},
+      {"type": "output_not_contains", "value": "access.log"},
+      {"type": "output_not_contains", "value": "build.log"},
+      {"type": "output_not_contains", "value": "notes.txt"}
+    ]
+  },
+  "rewards": {"xp": 75, "hint_penalty": 15}
+}
+
