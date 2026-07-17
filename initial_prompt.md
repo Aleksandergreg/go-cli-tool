@@ -142,7 +142,7 @@ The runner is deliberately bounded:
 
 - 64 KiB per script
 - 8 KiB per source line
-- Eight nested scripts
+- A maximum nesting depth of eight scripts
 - 256 dispatched commands across one invocation
 - 1 MiB of collected output per script
 - Direct and indirect recursion rejection

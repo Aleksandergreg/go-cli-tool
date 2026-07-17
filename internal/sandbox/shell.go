@@ -489,7 +489,7 @@ var commandManuals = map[string]string{
 		"Blank lines, comments, #!/bin/sh, existing commands, variables, pipelines, and redirection are supported.\n" +
 		"Executable paths such as ./deploy.sh require a shebang and an executable mode; sh FILE does not.\n" +
 		"Scripts stop at the first error, restore their working directory and environment, and report virtual file/line locations.\n" +
-		"Limits: 64 KiB per script, 8 KiB per line, 8 nested scripts, 256 dispatched commands, and 1 MiB output.\n" +
+		"Limits: 64 KiB per script, 8 KiB per line, nesting depth 8, 256 dispatched commands, and 1 MiB output.\n" +
 		"Options, arguments, stdin, loops, conditionals, functions, substitutions, background jobs, and external programs are unsupported.",
 	"sort":  "sort [-nru] [FILE...] — sort lines",
 	"stat":  "stat PATH... — inspect type, size, owner, and mode",

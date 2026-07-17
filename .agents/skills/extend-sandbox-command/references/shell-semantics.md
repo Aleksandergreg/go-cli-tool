@@ -4,6 +4,8 @@
 
 `Sandbox.Execute` is the sole entry for a player command. It records bounded in-memory history, lexes the line, parses a pipeline, expands virtual globs, dispatches only whitelisted handlers, and returns output plus a command trace. A command handler may touch only `Sandbox` state: `FileSystem`, `Env`, `Processes`, `Archives`, navigation state, and history.
 
+`sh FILE` and executable virtual paths reuse the private line executor with one shared execution context. Script source is never added to interactive history, while nested commands contribute to the returned command trace and maximum pipeline width. Script execution is bounded by source, line, nesting, dispatched-command, and output limits.
+
 Do not add a fallback to the host. Unknown commands must remain errors, and player input must never reach `sh`, `bash`, `os/exec`, host file APIs, or host process controls.
 
 ## Current parsing subset
@@ -16,6 +18,16 @@ Do not add a fallback to the host. Unknown commands must remain errors, and play
 - `|` creates a pipeline. `<`, `>`, and `>>` are stage-local redirections backed by virtual files.
 - Each parsed stage requires a command. Missing redirection paths, duplicate same-direction redirects, leading/trailing pipes, and empty stages are errors.
 - Control operators, subshells, command substitution, background jobs, functions, aliases, and a general shell language are outside the supported subset.
+
+## Script subset
+
+- `sh FILE` accepts exactly one virtual UTF-8 file. It does not support flags, stdin-fed source, or positional arguments.
+- A path containing `/`, such as `./deploy.sh`, is treated as a virtual executable script. It requires an executable mode and a supported `#!/bin/sh` or `#!/usr/bin/env sh` shebang.
+- Blank lines and comments are skipped. Every other line uses the same lexer, parser, globbing, dispatcher, pipelines, and virtual redirection as an interactive command.
+- Script `cd` and `export` state is visible to later lines but restored on return. Virtual filesystem, archive, and process mutations persist.
+- Scripts stop on the first error and add the resolved virtual filename and source line to the diagnostic.
+- Interactive commands, shell control language, standalone assignments, substitutions, recursion, external programs, and host execution remain unsupported.
+- Script stdout may feed a later pipeline stage or virtual output redirection. Incoming pipeline and redirected stdin are rejected because the simulator does not model a shared stdin stream across script lines.
 
 Keep a parser change narrow. If a new syntax form is not implemented faithfully enough for teaching, reject it clearly rather than treating punctuation as ordinary text in a misleading way.
 
