@@ -1,6 +1,9 @@
 package sandbox
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestTarCreateFailureLeavesNoArchiveMetadata(t *testing.T) {
 	box := testSandbox(t)
@@ -18,5 +21,32 @@ func TestTarCreateFailureLeavesNoArchiveMetadata(t *testing.T) {
 	}
 	if box.FS.Exists(archivePath) {
 		t.Fatalf("failed tar creation left a virtual file at %s", archivePath)
+	}
+}
+
+func TestTarCreateFailurePreservesExistingArchiveMetadata(t *testing.T) {
+	box := testSandbox(t)
+	archivePath := "/out/existing.tar"
+	if _, err := box.Execute(`tar -cf /out/existing.tar events.log`); err != nil {
+		t.Fatalf("create original archive: %v", err)
+	}
+	original := box.Archives[archivePath]
+	originalBacking, err := box.FS.ReadFile(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if _, err := box.Execute(`tar -cf /out/existing.tar quiet.log missing.log`); err == nil {
+		t.Fatal("tar creation with a missing operand unexpectedly succeeded")
+	}
+	if actual := box.Archives[archivePath]; !reflect.DeepEqual(actual, original) {
+		t.Errorf("failed tar creation replaced metadata: got %#v, want %#v", actual, original)
+	}
+	backing, err := box.FS.ReadFile(archivePath)
+	if err != nil {
+		t.Fatalf("failed tar creation removed backing file: %v", err)
+	}
+	if backing != originalBacking {
+		t.Errorf("failed tar creation changed backing file: got %q, want %q", backing, originalBacking)
 	}
 }

@@ -40,10 +40,15 @@ func (s *Sandbox) cmdCD(args []string) (string, error) {
 		return "", fmt.Errorf("%s: not a directory", target)
 	}
 	old := s.CWD
+	environment := cloneEnvironment(s.Env)
+	environment["OLDPWD"] = old
+	environment["PWD"] = resolved
+	if err := validateEnvironment(environment); err != nil {
+		return "", err
+	}
 	s.CWD = resolved
 	s.Previous = old
-	s.Env["OLDPWD"] = old
-	s.Env["PWD"] = resolved
+	s.Env = environment
 	if printTarget {
 		return resolved + "\n", nil
 	}
@@ -72,7 +77,7 @@ func (s *Sandbox) cmdLS(args []string) (string, error) {
 	if len(names) == 0 {
 		names = []string{"."}
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for index, name := range names {
 		resolved := s.Resolve(name)
 		entry, exists := s.FS.Entry(resolved)
@@ -107,7 +112,7 @@ func (s *Sandbox) cmdLS(args []string) (string, error) {
 			}
 		}
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func permissionString(mode uint32) string {
@@ -192,14 +197,18 @@ func (s *Sandbox) cmdCopy(args []string) (string, error) {
 	}
 	for _, source := range operands[:len(operands)-1] {
 		sourcePath := s.Resolve(source)
-		if sourcePath == s.CWD || strings.HasPrefix(s.CWD, sourcePath+"/") {
-			return "", fmt.Errorf("cannot move the current directory or one of its parents")
+		if sourcePath == "/" {
+			return "", fmt.Errorf("refusing to copy /")
 		}
 		finalDestination := s.finalDestination(sourcePath, destination)
+		archives, err := s.planArchiveCopy(sourcePath, finalDestination)
+		if err != nil {
+			return "", err
+		}
 		if err := s.FS.Copy(sourcePath, destination, recursive); err != nil {
 			return "", err
 		}
-		s.copyArchiveMetadata(sourcePath, finalDestination)
+		s.Archives = archives
 	}
 	return "", nil
 }
@@ -215,6 +224,9 @@ func (s *Sandbox) cmdMove(args []string) (string, error) {
 	}
 	for _, source := range operands[:len(operands)-1] {
 		sourcePath := s.Resolve(source)
+		if sourcePath == s.CWD || strings.HasPrefix(s.CWD, sourcePath+"/") {
+			return "", fmt.Errorf("cannot move the current directory or one of its parents")
+		}
 		finalDestination := s.finalDestination(sourcePath, destination)
 		if err := s.FS.Move(sourcePath, destination); err != nil {
 			return "", err

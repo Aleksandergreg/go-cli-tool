@@ -12,11 +12,11 @@ func (s *Sandbox) cmdHistory(args []string) (string, error) {
 	if len(args) > 0 {
 		return "", fmt.Errorf("does not accept arguments")
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for index, command := range s.History {
 		output.WriteString(fmt.Sprintf("%4s  %s\n", strconv.Itoa(index+1), command))
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdDU(args []string) (string, error) {
@@ -78,7 +78,7 @@ func (s *Sandbox) cmdDU(args []string) (string, error) {
 		// The default output is already one summary per requested path.
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].path < items[j].path })
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, item := range items {
 		size := fmt.Sprintf("%d", item.size)
 		if human {
@@ -86,7 +86,7 @@ func (s *Sandbox) cmdDU(args []string) (string, error) {
 		}
 		output.WriteString(size + "\t" + item.path + "\n")
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) diskUsage(root string) int {
@@ -122,7 +122,7 @@ func (s *Sandbox) cmdStat(args []string) (string, error) {
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing file operand")
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, name := range args {
 		resolved := s.Resolve(name)
 		entry, exists := s.FS.Entry(resolved)
@@ -138,7 +138,7 @@ func (s *Sandbox) cmdStat(args []string) (string, error) {
 		output.WriteString(fmt.Sprintf("  Size: %d\n", size))
 		output.WriteString(fmt.Sprintf("Access: (%04o/%c%s)  Owner: %s\n", entry.Mode, prefix, permissionString(entry.Mode), entry.Owner))
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func cmdPathPart(command string, args []string) (string, error) {

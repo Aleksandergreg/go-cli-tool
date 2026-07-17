@@ -1,14 +1,30 @@
 package sandbox
 
-import "testing"
+import (
+	"reflect"
+	"testing"
+)
 
 func TestTextCommandsPreserveOneBlankLine(t *testing.T) {
-	t.Run("line splitter", func(t *testing.T) {
-		lines := textLines("\n")
-		if len(lines) != 1 || lines[0] != "" {
-			t.Fatalf("textLines(single blank line) = %#v", lines)
-		}
-	})
+	lineTests := []struct {
+		name string
+		text string
+		want []string
+	}{
+		{name: "empty input", text: "", want: nil},
+		{name: "unterminated line", text: "alpha", want: []string{"alpha"}},
+		{name: "terminated line", text: "alpha\n", want: []string{"alpha"}},
+		{name: "single blank line", text: "\n", want: []string{""}},
+		{name: "two blank lines", text: "\n\n", want: []string{"", ""}},
+		{name: "text then blank line", text: "alpha\n\n", want: []string{"alpha", ""}},
+	}
+	for _, test := range lineTests {
+		t.Run("line splitter/"+test.name, func(t *testing.T) {
+			if got := textLines(test.text); !reflect.DeepEqual(got, test.want) {
+				t.Fatalf("textLines(%q) = %#v, want %#v", test.text, got, test.want)
+			}
+		})
+	}
 
 	commands := []string{
 		`printf '\n' | head -n 1`,

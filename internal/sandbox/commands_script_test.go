@@ -195,7 +195,7 @@ func TestShRestoresWorkingDirectoryAndEnvironmentWhileKeepingFiles(t *testing.T)
 			box := testSandbox(t)
 			box.Previous = "/previous"
 			box.Env["OLDPWD"] = "/previous"
-			beforeEnv := cloneScriptEnv(box.Env)
+			beforeEnv := cloneEnvironment(box.Env)
 			writeTestScript(t, box, "state.sh", test.script, 0o644)
 
 			_, err := box.Execute("sh state.sh")

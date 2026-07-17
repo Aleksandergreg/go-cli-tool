@@ -33,7 +33,15 @@ func (s *Sandbox) cmdCat(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	total := 0
+	for _, input := range inputs {
+		if len(input.text) > maxCommandOutputBytes-total {
+			return "", commandOutputLimitError()
+		}
+		total += len(input.text)
+	}
 	var output strings.Builder
+	output.Grow(total)
 	for _, input := range inputs {
 		output.WriteString(input.text)
 	}
@@ -70,7 +78,7 @@ func (s *Sandbox) cmdHeadTail(args []string, stdin string, head bool) (string, e
 	if err != nil {
 		return "", err
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for index, input := range inputs {
 		if len(inputs) > 1 {
 			if index > 0 {
@@ -92,7 +100,7 @@ func (s *Sandbox) cmdHeadTail(args []string, stdin string, head bool) (string, e
 			output.WriteString(strings.Join(lines, "\n") + "\n")
 		}
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
@@ -188,7 +196,7 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 	}
 
 	showNames := len(inputs) > 1 || recursive
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, input := range inputs {
 		matchedFile := false
 		matchCount := 0
@@ -226,7 +234,7 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 			output.WriteString(strconv.Itoa(matchCount) + "\n")
 		}
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
@@ -312,7 +320,7 @@ func (s *Sandbox) cmdUniq(args []string, stdin string) (string, error) {
 	if len(lines) == 0 {
 		return "", nil
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for index := 0; index < len(lines); {
 		next := index + 1
 		for next < len(lines) && lines[next] == lines[index] {
@@ -325,7 +333,7 @@ func (s *Sandbox) cmdUniq(args []string, stdin string) (string, error) {
 		}
 		index = next
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdWC(args []string, stdin string) (string, error) {
@@ -350,7 +358,7 @@ func (s *Sandbox) cmdWC(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, input := range inputs {
 		var count int
 		switch mode {
@@ -367,7 +375,7 @@ func (s *Sandbox) cmdWC(args []string, stdin string) (string, error) {
 		}
 		output.WriteByte('\n')
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 var awkPrintField = regexp.MustCompile(`^\{\s*print\s+\$([0-9]+)\s*\}$`)
@@ -388,7 +396,7 @@ func (s *Sandbox) cmdAwk(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, input := range inputs {
 		for _, line := range textLines(input.text) {
 			fields := strings.Fields(line)
@@ -398,7 +406,7 @@ func (s *Sandbox) cmdAwk(args []string, stdin string) (string, error) {
 			output.WriteByte('\n')
 		}
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdCut(args []string, stdin string) (string, error) {
@@ -440,7 +448,7 @@ func (s *Sandbox) cmdCut(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, input := range inputs {
 		for _, line := range textLines(input.text) {
 			fields := strings.Split(line, delimiter)
@@ -450,7 +458,7 @@ func (s *Sandbox) cmdCut(args []string, stdin string) (string, error) {
 			output.WriteByte('\n')
 		}
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func cmdEcho(args []string) (string, error) {
@@ -472,7 +480,7 @@ func cmdPrintf(args []string) (string, error) {
 	}
 	format := strings.NewReplacer(`\n`, "\n", `\t`, "\t", `\\`, "\\").Replace(args[0])
 	values := args[1:]
-	var output strings.Builder
+	var output commandOutputBuffer
 	valueIndex := 0
 	for index := 0; index < len(format); index++ {
 		if format[index] == '%' && index+1 < len(format) {
@@ -493,15 +501,14 @@ func cmdPrintf(args []string) (string, error) {
 		}
 		output.WriteByte(format[index])
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func textLines(text string) []string {
-	text = strings.TrimSuffix(text, "\n")
 	if text == "" {
 		return nil
 	}
-	return strings.Split(text, "\n")
+	return strings.Split(strings.TrimSuffix(text, "\n"), "\n")
 }
 
 func joinOutputLines(lines []string) string {

@@ -91,7 +91,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 
 	savedCWD := s.CWD
 	savedPrevious := s.Previous
-	savedEnv := cloneScriptEnv(s.Env)
+	savedEnv := cloneEnvironment(s.Env)
 	context.scriptStack = append(context.scriptStack, scriptPath)
 	defer func() {
 		context.scriptStack = context.scriptStack[:len(context.scriptStack)-1]
@@ -124,14 +124,6 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		output.WriteString(result.Output)
 	}
 	return output.String(), nil
-}
-
-func cloneScriptEnv(source map[string]string) map[string]string {
-	clone := make(map[string]string, len(source))
-	for name, value := range source {
-		clone[name] = value
-	}
-	return clone
 }
 
 func validateScriptLine(line string, env map[string]string) error {

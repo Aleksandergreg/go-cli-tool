@@ -148,7 +148,7 @@ Achievements reward learning behavior rather than decoration: completing a first
 
 Player input—including `sh` scripts—is parsed by OpsQuest itself. It is never passed to a host `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Tab completion queries that same virtual filesystem and cannot expose host paths. Unsupported commands return a teaching-shell error.
 
-The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory.
+The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory. Resource ceilings keep a lab deterministic: command lines are limited to 64 KiB; a virtual file and one command's output are limited to 2 MiB; total virtual-file content and logical archive content are each limited to 8 MiB; and filesystem paths and archive entries are each capped at 4,096. The virtual environment is capped at 256 entries and 256 KiB. File writes and appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their affected state before committing it.
 
 This makes the introductory campaign safe and portable, with two intentional tradeoffs:
 

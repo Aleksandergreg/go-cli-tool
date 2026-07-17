@@ -147,6 +147,8 @@ The runner is deliberately bounded:
 - 1 MiB of collected output per script
 - Direct and indirect recursion rejection
 
+The shared sandbox also limits command lines to 64 KiB, each virtual file and command result to 2 MiB, total virtual-file content and logical archive content to 8 MiB each, and filesystem paths and archive entries to 4,096 each. The virtual environment is capped at 256 entries and 256 KiB. Writes, appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their affected state before committing it.
+
 The following are intentionally unsupported:
 
 - `sh -c`, other flags, stdin-fed source, or positional arguments

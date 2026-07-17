@@ -64,7 +64,7 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 		index++
 	}
 
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, root := range roots {
 		rootAbs := s.Resolve(root)
 		items, err := s.FS.Descendants(rootAbs, true)
@@ -95,6 +95,9 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 			display := displayFindPath(root, rootAbs, candidate)
 			if len(execArgs) == 0 {
 				output.WriteString(display + "\n")
+				if err := output.Err(); err != nil {
+					return "", err
+				}
 				continue
 			}
 			command := make([]string, len(execArgs))
@@ -110,9 +113,12 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 				return "", fmt.Errorf("-exec %s: %w", command[0], err)
 			}
 			output.WriteString(result)
+			if err := output.Err(); err != nil {
+				return "", err
+			}
 		}
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func displayFindPath(root, rootAbs, candidate string) string {
@@ -142,12 +148,12 @@ func (s *Sandbox) cmdPS(args []string) (string, error) {
 		}
 	}
 	sort.Ints(pids)
-	var output strings.Builder
+	var output commandOutputBuffer
 	output.WriteString("  PID COMMAND\n")
 	for _, pid := range pids {
 		output.WriteString(fmt.Sprintf("%5d %s\n", pid, s.Processes[pid].Command))
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdKill(args []string) (string, error) {
@@ -205,39 +211,57 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 		if !s.FS.IsDir(destination) {
 			return "", fmt.Errorf("%s: extraction destination is not a directory", destination)
 		}
-		var output strings.Builder
+		type extractionItem struct {
+			relative string
+			target   string
+			content  string
+			mode     uint32
+		}
+		items := make([]extractionItem, 0, len(archive.Entries))
+		var output commandOutputBuffer
 		for _, item := range archive.Entries {
 			relative, err := safeArchivePath(item.Path)
 			if err != nil {
 				return "", fmt.Errorf("archive entry %q: %w", item.Path, err)
 			}
-			target := path.Join(destination, relative)
-			if err := s.FS.EnsureDir(path.Dir(target), 0o755); err != nil {
-				return "", err
-			}
 			mode, err := parseMode(item.Mode, 0o644)
 			if err != nil {
 				return "", err
 			}
-			if err := s.FS.WriteFile(target, item.Content, mode); err != nil {
-				return "", err
-			}
-			s.removeArchiveMetadata(target)
+			items = append(items, extractionItem{
+				relative: relative,
+				target:   path.Join(destination, relative),
+				content:  item.Content,
+				mode:     mode,
+			})
 			if options.verbose {
 				output.WriteString(relative + "\n")
 			}
 		}
-		return output.String(), nil
+		verboseOutput, err := output.Result()
+		if err != nil {
+			return "", err
+		}
+		for _, item := range items {
+			if err := s.FS.EnsureDir(path.Dir(item.target), 0o755); err != nil {
+				return "", err
+			}
+			if err := s.FS.WriteFile(item.target, item.content, item.mode); err != nil {
+				return "", err
+			}
+			s.removeArchiveMetadata(item.target)
+		}
+		return verboseOutput, nil
 	case 't':
 		archive, exists := s.Archives[archivePath]
 		if !exists {
 			return "", fmt.Errorf("%s: not a recognized archive", options.archiveName)
 		}
-		var output strings.Builder
+		var output commandOutputBuffer
 		for _, item := range archive.Entries {
 			output.WriteString(item.Path + "\n")
 		}
-		return output.String(), nil
+		return output.Result()
 	case 'c':
 		if len(options.operands) == 0 {
 			return "", fmt.Errorf("no files given for archive")
@@ -258,21 +282,32 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 				entries = append(entries, mission.ArchiveEntry{Path: relative, Content: entry.Content, Mode: fmt.Sprintf("%04o", entry.Mode)})
 			}
 		}
-		s.Archives[archivePath] = Archive{Entries: entries}
+		archives, err := s.planArchiveReplacement(archivePath, Archive{Entries: entries})
+		if err != nil {
+			return "", err
+		}
+		verboseOutput := ""
+		if options.verbose {
+			var output commandOutputBuffer
+			for _, item := range entries {
+				output.WriteString(item.Path + "\n")
+			}
+			verboseOutput, err = output.Result()
+			if err != nil {
+				return "", err
+			}
+		}
 		if err := s.FS.EnsureDir(path.Dir(archivePath), 0o755); err != nil {
 			return "", err
 		}
 		if err := s.FS.WriteFile(archivePath, "OpsQuest virtual tar archive\n", 0o644); err != nil {
 			return "", err
 		}
-		if options.verbose {
-			var output strings.Builder
-			for _, item := range entries {
-				output.WriteString(item.Path + "\n")
-			}
-			return output.String(), nil
-		}
-		return "", nil
+		// Publish archive metadata only after its backing virtual file exists.
+		// Collection and filesystem failures must leave an existing archive
+		// untouched and must not create a metadata-only archive.
+		s.Archives = archives
+		return verboseOutput, nil
 	}
 	return "", nil
 }
@@ -373,13 +408,18 @@ func (s *Sandbox) cmdExport(args []string) (string, error) {
 	if len(args) == 0 {
 		return s.cmdEnv(nil)
 	}
+	environment := cloneEnvironment(s.Env)
 	for _, assignment := range args {
 		key, value, found := strings.Cut(assignment, "=")
 		if !found || !validVariableName(key) {
 			return "", fmt.Errorf("expected NAME=value, got %q", assignment)
 		}
-		s.Env[key] = value
+		environment[key] = value
 	}
+	if err := validateEnvironment(environment); err != nil {
+		return "", err
+	}
+	s.Env = environment
 	return "", nil
 }
 
@@ -387,11 +427,11 @@ func (s *Sandbox) cmdEnv(args []string) (string, error) {
 	if len(args) > 0 {
 		return "", fmt.Errorf("running a command through env is not supported in this lab")
 	}
-	var output strings.Builder
+	var output commandOutputBuffer
 	for _, key := range sortedKeys(s.Env) {
 		output.WriteString(key + "=" + s.Env[key] + "\n")
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func validVariableName(name string) bool {

@@ -7,6 +7,11 @@ import (
 	"unicode"
 )
 
+const (
+	maxCommandLineBytes   = 64 * 1024
+	maxCommandOutputBytes = maxVirtualFileBytes
+)
+
 type Result struct {
 	Output        string
 	Commands      []string
@@ -54,6 +59,9 @@ type commandLine struct {
 }
 
 func (s *Sandbox) Execute(line string) (Result, error) {
+	if len(line) > maxCommandLineBytes {
+		return Result{}, fmt.Errorf("command line exceeds the %d KiB limit", maxCommandLineBytes/1024)
+	}
 	if strings.TrimSpace(line) != "" {
 		s.History = append(s.History, line)
 		if len(s.History) > 100 {
@@ -322,10 +330,16 @@ func expandVariable(input []rune, env map[string]string) (string, int) {
 	return env[string(input[1:i])], i - 1
 }
 
-func (s *Sandbox) run(context *executionContext, args []string, stdin string) (string, error) {
+func (s *Sandbox) run(context *executionContext, args []string, stdin string) (output string, err error) {
 	if len(args) == 0 {
 		return "", nil
 	}
+	defer func() {
+		if err == nil && len(output) > maxCommandOutputBytes {
+			output = ""
+			err = commandOutputLimitError()
+		}
+	}()
 	if len(context.scriptStack) > 0 {
 		context.scriptSteps++
 		if context.scriptSteps > maxScriptSteps {
@@ -433,7 +447,10 @@ func shellHelp(args []string) (string, error) {
 		return manual + "\n", nil
 	}
 	commands := CommandNames()
-	return "Available lab commands:\n  " + strings.Join(commands, "  ") + "\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection.\nUse help COMMAND for examples.\n", nil
+	return "Available lab commands:\n  " + strings.Join(commands, "  ") +
+		"\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection." +
+		"\nSandbox limits: 64 KiB per command line; 2 MiB per file and command output; 8 MiB total file and archive content; 4,096 filesystem and archive entries." +
+		"\nUse help COMMAND for examples.\n", nil
 }
 
 var commandNames = []string{
@@ -457,7 +474,7 @@ var commandManuals = map[string]string{
 	"cat":      "cat [FILE...] — concatenate files or pipeline input",
 	"cd":       "cd [DIR] — change directory; cd - returns to the previous directory",
 	"chmod":    "chmod MODE FILE... — change octal permissions, for example chmod 750 deploy.sh",
-	"chown":    "chown OWNER FILE... — change a file owner",
+	"chown":    "chown OWNER FILE... — change a file owner; OWNER is limited to 256 bytes",
 	"clear":    "clear — clear output in a real terminal; it is a no-op in scripted labs",
 	"cp":       "cp [-r] SOURCE... DEST — copy files or directory trees",
 	"cut":      "cut -d DELIMITER -f FIELD [FILE] — select a delimited field",

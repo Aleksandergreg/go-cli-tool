@@ -36,6 +36,7 @@ Keep a parser change narrow. If a new syntax form is not implemented faithfully 
 - Paths use Go's `path` package so lab behavior is slash-based on every host OS.
 - `Sandbox.Resolve` cleans absolute or CWD-relative paths and expands `~` or `~/` through the virtual `HOME`.
 - `FileSystem` owns all entries, content, modes, owners, traversal, globbing, copies, moves, and removal. Virtual `/` is not the host root.
+- Command lines are capped at 64 KiB. File writes and appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their ceilings. Files and command output are limited to 2 MiB; aggregate file and logical archive content to 8 MiB each; filesystem and archive entries to 4,096 each; and the environment to 256 entries and 256 KiB.
 - Redirection reads and writes only through `FileSystem`. Overwriting a virtual archive also clears its virtual archive metadata.
 - `cd` updates virtual `PWD`, `OLDPWD`, CWD, and previous-directory state.
 - `ps` and `kill` inspect or mutate only mission processes. Archive and compression commands operate on virtual metadata and files.

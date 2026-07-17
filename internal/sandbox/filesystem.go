@@ -30,6 +30,7 @@ const (
 	maxVirtualFileBytes       = 2 * 1024 * 1024
 	maxVirtualFileSystemBytes = 8 * 1024 * 1024
 	maxVirtualPathBytes       = 4096
+	maxVirtualOwnerBytes      = 256
 )
 
 func NewFileSystem() *FileSystem {
@@ -112,28 +113,50 @@ func (f *FileSystem) Paths() []string {
 }
 
 func (f *FileSystem) EnsureDir(name string, mode uint32) error {
-	name = path.Clean(name)
+	var err error
+	name, err = cleanVirtualMutationPath(name)
+	if err != nil {
+		return err
+	}
 	if name == "/" {
 		return nil
-	}
-	if entry, ok := f.entries[name]; ok {
-		if entry.Kind != Directory {
-			return fmt.Errorf("%s: not a directory", name)
-		}
-		return nil
-	}
-	if err := f.EnsureDir(path.Dir(name), 0o755); err != nil {
-		return err
 	}
 	if mode == 0 {
 		mode = 0o755
 	}
-	f.entries[name] = &Entry{Kind: Directory, Mode: mode, Owner: "operator"}
+
+	missing := make([]string, 0)
+	for candidate := name; ; candidate = path.Dir(candidate) {
+		if entry, ok := f.entries[candidate]; ok {
+			if entry.Kind != Directory {
+				return fmt.Errorf("%s: not a directory", candidate)
+			}
+			break
+		}
+		missing = append(missing, candidate)
+		if candidate == "/" {
+			return fmt.Errorf("virtual filesystem root is missing")
+		}
+	}
+	if err := f.checkEntryBudget(len(missing)); err != nil {
+		return err
+	}
+	for index := len(missing) - 1; index >= 0; index-- {
+		entryMode := uint32(0o755)
+		if index == 0 {
+			entryMode = mode
+		}
+		f.entries[missing[index]] = &Entry{Kind: Directory, Mode: entryMode, Owner: "operator"}
+	}
 	return nil
 }
 
 func (f *FileSystem) Mkdir(name string, parents bool, mode uint32) error {
-	name = path.Clean(name)
+	var err error
+	name, err = cleanVirtualMutationPath(name)
+	if err != nil {
+		return err
+	}
 	if name == "/" {
 		if parents {
 			return nil
@@ -146,14 +169,15 @@ func (f *FileSystem) Mkdir(name string, parents bool, mode uint32) error {
 		}
 		return fmt.Errorf("%s: file exists", name)
 	}
+	if parents {
+		return f.EnsureDir(name, mode)
+	}
 	parent := path.Dir(name)
 	if !f.IsDir(parent) {
-		if !parents {
-			return fmt.Errorf("%s: no such directory", parent)
-		}
-		if err := f.EnsureDir(parent, 0o755); err != nil {
-			return err
-		}
+		return fmt.Errorf("%s: no such directory", parent)
+	}
+	if err := f.checkEntryBudget(1); err != nil {
+		return err
 	}
 	if mode == 0 {
 		mode = 0o755
@@ -163,25 +187,39 @@ func (f *FileSystem) Mkdir(name string, parents bool, mode uint32) error {
 }
 
 func (f *FileSystem) WriteFile(name, content string, mode uint32) error {
-	name = path.Clean(name)
+	var err error
+	name, err = cleanVirtualMutationPath(name)
+	if err != nil {
+		return err
+	}
 	if name == "/" {
 		return fmt.Errorf("%s: is a directory", name)
 	}
 	if !f.IsDir(path.Dir(name)) {
 		return fmt.Errorf("%s: no such directory", path.Dir(name))
 	}
-	if existing, ok := f.entries[name]; ok && existing.Kind == Directory {
+	existing, exists := f.entries[name]
+	if exists && existing.Kind == Directory {
 		return fmt.Errorf("%s: is a directory", name)
 	}
+	oldBytes := 0
+	if exists {
+		oldBytes = len(existing.Content)
+	} else if err := f.checkEntryBudget(1); err != nil {
+		return err
+	}
+	if err := f.checkContentBudget(name, oldBytes, len(content)); err != nil {
+		return err
+	}
 	if mode == 0 {
-		if existing, ok := f.entries[name]; ok {
+		if exists {
 			mode = existing.Mode
 		} else {
 			mode = 0o644
 		}
 	}
 	owner := "operator"
-	if existing, ok := f.entries[name]; ok && existing.Owner != "" {
+	if exists && existing.Owner != "" {
 		owner = existing.Owner
 	}
 	f.entries[name] = &Entry{Kind: Regular, Content: content, Mode: mode, Owner: owner}
@@ -189,10 +227,21 @@ func (f *FileSystem) WriteFile(name, content string, mode uint32) error {
 }
 
 func (f *FileSystem) AppendFile(name, content string) error {
-	name = path.Clean(name)
+	var err error
+	name, err = cleanVirtualMutationPath(name)
+	if err != nil {
+		return err
+	}
 	if existing, ok := f.entries[name]; ok {
 		if existing.Kind != Regular {
 			return fmt.Errorf("%s: is a directory", name)
+		}
+		if len(content) > maxVirtualFileBytes-len(existing.Content) {
+			return fmt.Errorf("%s: file exceeds the %d KiB virtual file limit", name, maxVirtualFileBytes/1024)
+		}
+		newBytes := len(existing.Content) + len(content)
+		if err := f.checkContentBudget(name, len(existing.Content), newBytes); err != nil {
+			return err
 		}
 		existing.Content += content
 		return nil
@@ -281,7 +330,18 @@ func (f *FileSystem) Remove(name string, recursive, force bool) error {
 }
 
 func (f *FileSystem) Copy(source, destination string, recursive bool) error {
-	source, destination = path.Clean(source), path.Clean(destination)
+	var err error
+	source, err = cleanVirtualMutationPath(source)
+	if err != nil {
+		return err
+	}
+	destination, err = cleanVirtualMutationPath(destination)
+	if err != nil {
+		return err
+	}
+	if source == "/" {
+		return fmt.Errorf("refusing to copy /")
+	}
 	src, ok := f.entries[source]
 	if !ok {
 		return fmt.Errorf("%s: no such file or directory", source)
@@ -289,53 +349,105 @@ func (f *FileSystem) Copy(source, destination string, recursive bool) error {
 	if f.IsDir(destination) {
 		destination = path.Join(destination, path.Base(source))
 	}
+	if source == destination {
+		return fmt.Errorf("%s and %s are the same path", source, destination)
+	}
 	if src.Kind == Directory && !recursive {
 		return fmt.Errorf("%s: is a directory (use -r)", source)
 	}
 	if !f.IsDir(path.Dir(destination)) {
 		return fmt.Errorf("%s: no such directory", path.Dir(destination))
 	}
-	if existing, exists := f.entries[destination]; exists && existing.Kind != src.Kind {
-		return fmt.Errorf("cannot overwrite %s with %s", existing.Kind, src.Kind)
-	}
-	if src.Kind == Regular {
-		clone := *src
-		f.entries[destination] = &clone
-		return nil
-	}
-	if strings.HasPrefix(destination+"/", source+"/") {
+	if src.Kind == Directory && strings.HasPrefix(destination+"/", source+"/") {
 		return fmt.Errorf("cannot copy a directory into itself")
 	}
-	items, _ := f.Descendants(source, true)
-	for _, oldName := range items {
-		rel := strings.TrimPrefix(oldName, source)
-		newName := destination + rel
-		if existing, exists := f.entries[newName]; exists && existing.Kind != f.entries[oldName].Kind {
-			return fmt.Errorf("cannot overwrite %s with %s at %s", existing.Kind, f.entries[oldName].Kind, newName)
+	items := []string{source}
+	if src.Kind == Directory {
+		items, err = f.Descendants(source, true)
+		if err != nil {
+			return err
 		}
 	}
+	type copyItem struct {
+		name  string
+		entry Entry
+	}
+	plan := make([]copyItem, 0, len(items))
+	additionalEntries := 0
+	projectedContent := f.contentBytes()
 	for _, oldName := range items {
 		rel := strings.TrimPrefix(oldName, source)
 		newName := destination + rel
-		clone := *f.entries[oldName]
-		f.entries[newName] = &clone
+		if _, err := cleanVirtualMutationPath(newName); err != nil {
+			return err
+		}
+		sourceEntry := f.entries[oldName]
+		if existing, exists := f.entries[newName]; exists {
+			if existing.Kind != sourceEntry.Kind {
+				return fmt.Errorf("cannot overwrite %s with %s at %s", existing.Kind, sourceEntry.Kind, newName)
+			}
+			if existing.Kind == Regular {
+				projectedContent -= len(existing.Content)
+			}
+		} else {
+			additionalEntries++
+		}
+		clone := *sourceEntry
+		if clone.Kind == Regular {
+			if len(clone.Content) > maxVirtualFileBytes {
+				return fmt.Errorf("%s: file exceeds the %d KiB virtual file limit", newName, maxVirtualFileBytes/1024)
+			}
+			if len(clone.Content) > maxVirtualFileSystemBytes-projectedContent {
+				return fmt.Errorf("virtual filesystem content limit of %d MiB exceeded", maxVirtualFileSystemBytes/(1024*1024))
+			}
+			projectedContent += len(clone.Content)
+		}
+		plan = append(plan, copyItem{name: newName, entry: clone})
+	}
+	if err := f.checkEntryBudget(additionalEntries); err != nil {
+		return err
+	}
+	for _, item := range plan {
+		clone := item.entry
+		f.entries[item.name] = &clone
 	}
 	return nil
 }
 
 func (f *FileSystem) Move(source, destination string) error {
-	source, destination = path.Clean(source), path.Clean(destination)
+	var err error
+	source, err = cleanVirtualMutationPath(source)
+	if err != nil {
+		return err
+	}
+	destination, err = cleanVirtualMutationPath(destination)
+	if err != nil {
+		return err
+	}
 	if !f.Exists(source) {
 		return fmt.Errorf("%s: no such file or directory", source)
 	}
 	if f.IsDir(destination) {
 		destination = path.Join(destination, path.Base(source))
 	}
+	if source == destination {
+		return fmt.Errorf("%s and %s are the same path", source, destination)
+	}
 	if !f.IsDir(path.Dir(destination)) {
 		return fmt.Errorf("%s: no such directory", path.Dir(destination))
 	}
 	if source == "/" || strings.HasPrefix(destination+"/", source+"/") {
 		return fmt.Errorf("cannot move %s to %s", source, destination)
+	}
+	items, err := f.Descendants(source, true)
+	if err != nil {
+		return err
+	}
+	for _, oldName := range items {
+		newName := destination + strings.TrimPrefix(oldName, source)
+		if _, err := cleanVirtualMutationPath(newName); err != nil {
+			return err
+		}
 	}
 	if f.Exists(destination) {
 		sourceEntry, _ := f.Entry(source)
@@ -345,7 +457,6 @@ func (f *FileSystem) Move(source, destination string) error {
 		}
 		delete(f.entries, destination)
 	}
-	items, _ := f.Descendants(source, true)
 	for _, oldName := range items {
 		rel := strings.TrimPrefix(oldName, source)
 		f.entries[destination+rel] = f.entries[oldName]
@@ -366,6 +477,9 @@ func (f *FileSystem) Chmod(name string, mode uint32) error {
 }
 
 func (f *FileSystem) Chown(name, owner string) error {
+	if len(owner) > maxVirtualOwnerBytes {
+		return fmt.Errorf("owner exceeds the %d-byte limit", maxVirtualOwnerBytes)
+	}
 	entry, ok := f.entries[path.Clean(name)]
 	if !ok {
 		return fmt.Errorf("%s: no such file or directory", name)
