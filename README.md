@@ -7,6 +7,7 @@ $ opsquest play
 
 MISSION 04: The Missing Log File
 ================================
+Campaign: The Logpocalypse · Difficulty: beginner · Reward: 75 XP
 
 The web server is failing, and the monitoring dashboard has chosen this
 moment to become an abstract art installation.
@@ -19,7 +20,7 @@ opsquest:/var/app$ find . -name "*.log" -exec grep -l "ERROR" {} \;
 
 ✓ Mission complete!
 +75 XP
-New command discovered: find
+New commands discovered: find, grep
 ```
 
 The game validates the result, not a prescribed command. For example, the file-moving mission accepts `mv` or an equivalent `cp` followed by `rm`.

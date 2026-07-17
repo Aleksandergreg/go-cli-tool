@@ -47,6 +47,8 @@ func (s Session) Run() (SessionResult, error) {
 	reader.Buffer(make([]byte, 1024), 64*1024)
 	discovered := make([]string, 0)
 	discoveredSet := make(map[string]bool)
+	practiced := make([]string, 0)
+	practicedSet := make(map[string]bool)
 	lastOutput := ""
 
 	for {
@@ -115,6 +117,10 @@ func (s Session) Run() (SessionResult, error) {
 		}
 		lastOutput = result.Output
 		for _, command := range result.Commands {
+			if !practicedSet[command] {
+				practiced = append(practiced, command)
+				practicedSet[command] = true
+			}
 			if s.Player.Commands[command] == 0 && !discoveredSet[command] {
 				discovered = append(discovered, command)
 				discoveredSet[command] = true
@@ -163,7 +169,7 @@ func (s Session) Run() (SessionResult, error) {
 		if err := s.Store.Save(*s.Player); err != nil {
 			return SessionResult{}, err
 		}
-		printCompletion(s.Out, s.Mission, xp, firstCompletion, result.Commands, discovered, unlocked)
+		printCompletion(s.Out, s.Mission, xp, firstCompletion, practiced, discovered, unlocked)
 		return SessionResult{Completed: true, XPAwarded: xp, HintsUsed: hintsUsed}, nil
 	}
 }
@@ -188,7 +194,7 @@ func currentReward(item mission.Mission, hintsUsed int) int {
 	return xp
 }
 
-func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, commands, discovered []string, unlocked []profile.Achievement) {
+func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, practiced, discovered []string, unlocked []profile.Achievement) {
 	fmt.Fprintln(out, "\n✓ Mission complete!")
 	if first {
 		fmt.Fprintf(out, "+%d XP\n", xp)
@@ -199,8 +205,10 @@ func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, co
 		fmt.Fprintf(out, "New command discovered: %s\n", discovered[0])
 	} else if len(discovered) > 1 {
 		fmt.Fprintf(out, "New commands discovered: %s\n", strings.Join(discovered, ", "))
-	} else if len(commands) > 0 {
-		fmt.Fprintf(out, "Command practiced: %s\n", strings.Join(commands, ", "))
+	} else if len(practiced) == 1 {
+		fmt.Fprintf(out, "Command practiced: %s\n", practiced[0])
+	} else if len(practiced) > 1 {
+		fmt.Fprintf(out, "Commands practiced: %s\n", strings.Join(practiced, ", "))
 	}
 	printAchievements(out, unlocked)
 	fmt.Fprintf(out, "\n%s\n", item.Explanation)
