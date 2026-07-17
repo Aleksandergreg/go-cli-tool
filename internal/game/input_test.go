@@ -74,6 +74,22 @@ func TestCompleteLineUsesCommandsControlsAndVirtualPaths(t *testing.T) {
 	}
 }
 
+func TestCompleteLineCompletesExecutableScriptPath(t *testing.T) {
+	box := completionTestSandbox(t)
+	if err := box.FS.WriteFile("/home/operator/report.sh", "#!/bin/sh\n", 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	line := "./rep"
+	got, position, handled := completeLine(line, len(line), box)
+	if !handled {
+		t.Fatal("Tab completion was not handled")
+	}
+	if got != "./report.sh " || position != len(got) {
+		t.Fatalf("script completion = %q at %d, want %q at %d", got, position, "./report.sh ", len("./report.sh "))
+	}
+}
+
 func TestTerminalEditorCompletesAndRecallsHistory(t *testing.T) {
 	box := completionTestSandbox(t)
 	input := strings.NewReader("cat W\t\r\x1b[A\r")
