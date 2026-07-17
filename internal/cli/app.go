@@ -374,6 +374,9 @@ func (a *App) runShow(args []string) error {
 	var found bool
 	if flags.NArg() == 1 {
 		item, found = a.catalog.Find(flags.Arg(0))
+		if !found {
+			return fmt.Errorf("mission %q not found; run 'opsquest list'", flags.Arg(0))
+		}
 	} else {
 		item, found = a.catalog.Next(player.IsComplete)
 		if !found {
@@ -384,7 +387,7 @@ func (a *App) runShow(args []string) error {
 		}
 	}
 	if !found {
-		return fmt.Errorf("mission not found")
+		return fmt.Errorf("no missions are available")
 	}
 	status := "not completed"
 	if player.IsComplete(item.ID) {

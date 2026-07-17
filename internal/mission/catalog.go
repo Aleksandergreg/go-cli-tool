@@ -243,6 +243,11 @@ func validateCondition(condition Condition) error {
 		if len(condition.Values) == 0 {
 			return fmt.Errorf("values cannot be empty")
 		}
+		for _, value := range condition.Values {
+			if value == "" {
+				return fmt.Errorf("values cannot contain an empty string")
+			}
+		}
 	case "cwd_equals":
 		return validateAbsolutePath("cwd_equals", condition.Value, true)
 	case "file_exists", "dir_exists", "path_missing", "file_content_equals":
