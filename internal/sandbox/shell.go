@@ -11,6 +11,7 @@ type Result struct {
 	Output        string
 	Commands      []string
 	PipelineWidth int
+	Editor        *EditorRequest
 }
 
 type tokenKind int
@@ -66,6 +67,30 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 	pipelineWidth := len(parsed.stages)
 
 	s.commandTrace = nil
+	// Interactive commands are preflighted before any pipeline stage runs. This
+	// prevents a rejected composition such as `touch changed | vi file` from
+	// mutating the virtual filesystem before vi reports the unsupported pipeline.
+	for _, stage := range parsed.stages {
+		args := s.expandWords(stage.args)
+		if args[0] != "vi" {
+			continue
+		}
+		s.commandTrace = append(s.commandTrace, "vi")
+		result := Result{Commands: s.trace(), PipelineWidth: pipelineWidth}
+		if pipelineWidth != 1 {
+			return result, fmt.Errorf("vi: pipelines are not supported")
+		}
+		if stage.inputPath != "" || stage.outputPath != "" {
+			return result, fmt.Errorf("vi: redirection is not supported")
+		}
+		request, err := s.cmdVi(args[1:])
+		if err != nil {
+			return result, fmt.Errorf("vi: %w", err)
+		}
+		result.Editor = request
+		return result, nil
+	}
+
 	stdin := ""
 	for _, stage := range parsed.stages {
 		if stage.inputPath != "" {
@@ -343,6 +368,8 @@ func (s *Sandbox) run(args []string, stdin string) (string, error) {
 		return s.Env["USER"] + "\n", nil
 	case "clear":
 		return "", nil
+	case "vi":
+		return "", fmt.Errorf("interactive commands are not supported inside find -exec")
 	case "help", "man":
 		return shellHelp(args[1:])
 	default:
@@ -368,7 +395,7 @@ func shellHelp(args []string) (string, error) {
 var commandNames = []string{
 	"awk", "basename", "cat", "cd", "chmod", "chown", "clear", "cp", "cut", "dirname", "du", "echo", "env", "export",
 	"find", "grep", "gzip", "gunzip", "head", "help", "history", "kill", "less", "ls", "man", "mkdir", "mv",
-	"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "wc", "whoami",
+	"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "vi", "wc", "whoami",
 }
 
 // CommandNames returns the commands accepted by the teaching-shell dispatcher.
@@ -421,8 +448,13 @@ var commandManuals = map[string]string{
 	"touch":    "touch FILE... — create empty files when they do not exist",
 	"tr":       "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
 	"uniq":     "uniq [-c] [FILE] — collapse adjacent duplicate lines",
-	"wc":       "wc [-l|-w|-c] [FILE...] — count lines, words, or bytes",
-	"whoami":   "whoami — print the current virtual user",
+	"vi": "vi FILE — edit one virtual UTF-8 text file up to 256 KiB interactively\n" +
+		"Normal mode: h/j/k/l or arrows move, i inserts, x deletes a character, and dd deletes a line.\n" +
+		"Insert mode: type text, Enter adds a line, Backspace deletes, and Esc returns to Normal mode.\n" +
+		"Commands: :w writes, :q quits an unchanged buffer, :wq writes and quits, and :q! discards changes.\n" +
+		"Options, multiple files, pipelines, redirection, shell escapes, plugins, and other vi features are unsupported.",
+	"wc":     "wc [-l|-w|-c] [FILE...] — count lines, words, or bytes",
+	"whoami": "whoami — print the current virtual user",
 }
 
 func (s *Sandbox) expandWords(words []shellWord) []string {

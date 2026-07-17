@@ -51,6 +51,7 @@ const (
 // when campaign play advances to the next mission.
 type CommandLineReader interface {
 	ReadLine(prompt string, box *sandbox.Sandbox) (string, error)
+	Edit(request sandbox.EditorRequest, save viSaveFunc) error
 }
 
 type scannerLineReader struct {
@@ -77,6 +78,10 @@ func (r *scannerLineReader) ReadLine(prompt string, _ *sandbox.Sandbox) (string,
 	return "", io.EOF
 }
 
+func (r *scannerLineReader) Edit(_ sandbox.EditorRequest, _ viSaveFunc) error {
+	return ErrInteractiveEditor
+}
+
 type terminalReadWriter struct {
 	reader io.Reader
 	writer io.Writer
@@ -90,6 +95,7 @@ type terminalKeyReader struct {
 	pending     []byte
 	deferredErr error
 	pasteActive bool
+	modalEscape bool
 }
 
 func newTerminalKeyReader(reader io.Reader) *terminalKeyReader {
@@ -130,6 +136,13 @@ func (r *terminalKeyReader) readSequence() ([]byte, error) {
 	if first != '\x1b' {
 		return sequence, nil
 	}
+	// A standalone Escape key is meaningful to modal editors. ReadByte fills
+	// the source buffer with bytes already delivered by the terminal, so a
+	// complete arrow/CSI sequence remains available here while a lone Escape
+	// can return immediately instead of waiting for the next keypress.
+	if r.modalEscape && r.source.Buffered() == 0 {
+		return sequence, nil
+	}
 
 	second, err := r.source.ReadByte()
 	if err != nil {
@@ -151,6 +164,17 @@ func (r *terminalKeyReader) readSequence() ([]byte, error) {
 		}
 	}
 	return sequence, nil
+}
+
+func (r *terminalKeyReader) buffered() int {
+	return len(r.pending) + r.source.Buffered()
+}
+
+func (r *terminalKeyReader) unread(data []byte) {
+	pending := make([]byte, 0, len(data)+len(r.pending))
+	pending = append(pending, data...)
+	pending = append(pending, r.pending...)
+	r.pending = pending
 }
 
 func (r *terminalKeyReader) normalize(sequence []byte) []byte {
@@ -182,6 +206,8 @@ func (rw terminalReadWriter) Write(buffer []byte) (int, error) {
 
 type terminalLineReader struct {
 	editor   *term.Terminal
+	keys     *terminalKeyReader
+	out      io.Writer
 	inputFD  int
 	outputFD int
 }
@@ -193,9 +219,12 @@ func NewCommandLineReader(in io.Reader, out io.Writer) CommandLineReader {
 		return newScannerLineReader(in, out)
 	}
 
-	readWriter := terminalReadWriter{reader: newTerminalKeyReader(input), writer: output}
+	keys := newTerminalKeyReader(input)
+	readWriter := terminalReadWriter{reader: keys, writer: output}
 	return &terminalLineReader{
 		editor:   term.NewTerminal(readWriter, ""),
+		keys:     keys,
+		out:      output,
 		inputFD:  int(input.Fd()),
 		outputFD: int(output.Fd()),
 	}
@@ -231,6 +260,42 @@ func (r *terminalLineReader) ReadLine(prompt string, box *sandbox.Sandbox) (stri
 		return line, fmt.Errorf("restore terminal: %w", restoreErr)
 	}
 	return line, nil
+}
+
+func (r *terminalLineReader) Edit(request sandbox.EditorRequest, save viSaveFunc) (returnErr error) {
+	previousState, err := term.MakeRaw(r.inputFD)
+	if err != nil {
+		return fmt.Errorf("enable vi terminal: %w", err)
+	}
+
+	enteredAlternateScreen := false
+	r.keys.modalEscape = true
+	defer func() {
+		r.keys.modalEscape = false
+		r.keys.pasteActive = false
+		if enteredAlternateScreen {
+			if _, err := io.WriteString(r.out, "\x1b[?2004l\x1b[?25h\x1b[?1049l"); err != nil {
+				returnErr = errors.Join(returnErr, fmt.Errorf("restore vi screen: %w", err))
+			}
+		}
+		if err := term.Restore(r.inputFD, previousState); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("restore terminal after vi: %w", err))
+		}
+	}()
+
+	enteredAlternateScreen = true
+	if _, err := io.WriteString(r.out, "\x1b[?1049h\x1b[?2004h\x1b[?25l"); err != nil {
+		return fmt.Errorf("open vi screen: %w", err)
+	}
+
+	size := func() (int, int) {
+		width, height, err := term.GetSize(r.outputFD)
+		if err != nil || width < 20 || height < 6 {
+			return 80, 24
+		}
+		return width, height
+	}
+	return runViEditor(r.keys, r.out, request, save, size)
 }
 
 func terminalCompleter(box *sandbox.Sandbox) func(string, int, rune) (string, int, bool) {

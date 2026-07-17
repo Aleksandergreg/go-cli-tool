@@ -45,6 +45,7 @@ func TestCompleteLineUsesCommandsControlsAndVirtualPaths(t *testing.T) {
 		want     string
 	}{
 		{name: "command", line: "pw", position: len("pw"), want: "pwd "},
+		{name: "vi command", line: "v", position: len("v"), want: "vi "},
 		{name: "mission control", line: "obj", position: len("obj"), want: "objective "},
 		{name: "navigation control", line: "previ", position: len("previ"), want: "previous "},
 		{name: "relative file", line: "cat W", position: len("cat W"), want: "cat WELCOME.txt "},

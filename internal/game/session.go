@@ -160,6 +160,15 @@ func (s Session) Run() (SessionResult, error) {
 			fmt.Fprintf(s.Err, "%v\n", executeErr)
 			continue
 		}
+		if result.Editor != nil {
+			if err := reader.Edit(*result.Editor, box.SaveEditorFile); err != nil {
+				if errors.Is(err, ErrInteractiveEditor) || errors.Is(err, ErrUnsupportedEditorFile) {
+					fmt.Fprintf(s.Err, "%s: %v\n", result.Editor.Command, err)
+					continue
+				}
+				return SessionResult{}, fmt.Errorf("run %s: %w", result.Editor.Command, err)
+			}
+		}
 		if result.Output != "" {
 			fmt.Fprint(s.Out, result.Output)
 			if !strings.HasSuffix(result.Output, "\n") {
@@ -241,7 +250,7 @@ func printMissionControls(out io.Writer) {
 	fmt.Fprintln(out, "Mission controls: hint, objective, status, restart, quit. Type status to see completed and missing outcomes.")
 	fmt.Fprintln(out, "Navigation: list --completed, play NUMBER/ID, next, previous. An optional opsquest prefix also works.")
 	fmt.Fprintln(out, "Type help for lab commands; valid solutions are judged by their result, not by one command sequence.")
-	fmt.Fprintln(out, "Editing keys: arrows move and recall history; Home/End or Ctrl-A/E jump across the line.")
+	fmt.Fprintln(out, "Prompt editing keys: arrows move and recall history; Home/End or Ctrl-A/E jump across the line.")
 	fmt.Fprintln(out, "Option/Ctrl-Left/Right move by word; Tab completes; Backspace, Delete, and Ctrl-W remove text.")
 }
 

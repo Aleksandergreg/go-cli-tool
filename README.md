@@ -46,7 +46,7 @@ The sandbox implements a focused teaching subset of:
 ```text
 awk basename cat cd chmod chown clear cp cut dirname du echo env export find
 grep gzip gunzip head help history kill less ls man mkdir mv printf ps pwd rm
-rmdir sed sort stat tail tar touch tr uniq wc whoami
+rmdir sed sort stat tail tar touch tr uniq vi wc whoami
 ```
 
 It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
@@ -103,6 +103,16 @@ opsquest:/srv/release$ previous
 The `opsquest` prefix is optional inside a mission, so `opsquest list --completed` and `opsquest play 3` also work. Listing preserves the current sandbox; switching missions starts the selected mission with a fresh sandbox while keeping persistent profile progress.
 
 Interactive editing supports Left/Right cursor movement, Up/Down history, Home/End and Ctrl-A/E line boundaries, Option/Ctrl-Left/Right word movement, Tab completion, Backspace, Delete, and Ctrl-W. Command-arrow sequences are treated as Home/End when the terminal reports the modifier.
+
+The teaching shell also includes a compact, modal `vi` simulator for one virtual file at a time:
+
+```console
+opsquest:/workspace$ vi notes.txt
+```
+
+In normal mode, use `h`/`j`/`k`/`l` or the arrow keys to move, `i` to enter insert mode, `x` to delete a character, and `dd` to delete a line. Insert mode accepts text, newlines, Backspace, and literal bracketed paste; paste is ignored in normal mode so it cannot become editor commands. Press Esc to return to normal mode. Use `:w` to save, `:q` to quit an unchanged file, `:wq` to save and quit, or `:q!` to discard changes. Writes stay entirely inside the mission's virtual filesystem.
+
+This is deliberately not full Vim: flags, multiple files, search, registers, plugins, shell escapes, external commands, pipelines, and redirection are unsupported. The editor accepts one UTF-8 text file up to 256 KiB; display width for wide or combining Unicode is approximate. Because it needs raw interactive key input, `vi` cannot be launched through redirected or other non-interactive stdin.
 
 With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the campaign. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission.
 
