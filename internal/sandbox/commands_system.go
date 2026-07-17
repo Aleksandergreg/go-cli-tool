@@ -10,7 +10,7 @@ import (
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
 
-func (s *Sandbox) cmdFind(args []string) (string, error) {
+func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, error) {
 	var roots []string
 	index := 0
 	for index < len(args) && !strings.HasPrefix(args[index], "-") {
@@ -105,7 +105,7 @@ func (s *Sandbox) cmdFind(args []string) (string, error) {
 					command[position] = arg
 				}
 			}
-			result, err := s.run(command, "")
+			result, err := s.run(context, command, "")
 			if err != nil {
 				return "", fmt.Errorf("-exec %s: %w", command[0], err)
 			}

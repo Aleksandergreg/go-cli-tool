@@ -14,6 +14,13 @@ type Result struct {
 	Editor        *EditorRequest
 }
 
+type executionContext struct {
+	commands         []string
+	maxPipelineWidth int
+	scriptStack      []string
+	scriptSteps      int
+}
+
 type tokenKind int
 
 const (
@@ -53,6 +60,14 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 			s.History = append([]string(nil), s.History[len(s.History)-100:]...)
 		}
 	}
+	context := &executionContext{}
+	result, err := s.executeLine(line, context, true)
+	result.Commands = append([]string(nil), context.commands...)
+	result.PipelineWidth = context.maxPipelineWidth
+	return result, err
+}
+
+func (s *Sandbox) executeLine(line string, context *executionContext, allowInteractive bool) (Result, error) {
 	tokens, err := lex(line, s.Env)
 	if err != nil {
 		return Result{}, err
@@ -65,8 +80,10 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 		return Result{}, nil
 	}
 	pipelineWidth := len(parsed.stages)
+	if pipelineWidth > context.maxPipelineWidth {
+		context.maxPipelineWidth = pipelineWidth
+	}
 
-	s.commandTrace = nil
 	// Interactive commands are preflighted before any pipeline stage runs. This
 	// prevents a rejected composition such as `touch changed | vi file` from
 	// mutating the virtual filesystem before vi reports the unsupported pipeline.
@@ -75,8 +92,11 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 		if args[0] != "vi" {
 			continue
 		}
-		s.commandTrace = append(s.commandTrace, "vi")
-		result := Result{Commands: s.trace(), PipelineWidth: pipelineWidth}
+		context.commands = append(context.commands, "vi")
+		if !allowInteractive {
+			return Result{}, fmt.Errorf("vi: interactive commands are not supported in scripts")
+		}
+		result := Result{}
 		if pipelineWidth != 1 {
 			return result, fmt.Errorf("vi: pipelines are not supported")
 		}
@@ -90,20 +110,32 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 		result.Editor = request
 		return result, nil
 	}
+	// A script can produce pipeline output, but this teaching subset does not
+	// model a shared stdin stream across its independent lines. Reject incoming
+	// pipeline or file input before an earlier stage can mutate sandbox state.
+	for index, stage := range parsed.stages {
+		args := s.expandWords(stage.args)
+		if !isScriptInvocation(args[0]) {
+			continue
+		}
+		if index > 0 || stage.inputPath != "" {
+			return Result{}, fmt.Errorf("%s: script input from pipelines or redirection is not supported", args[0])
+		}
+	}
 
 	stdin := ""
 	for _, stage := range parsed.stages {
 		if stage.inputPath != "" {
 			stdin, err = s.FS.ReadFile(s.Resolve(stage.inputPath))
 			if err != nil {
-				return Result{Commands: s.trace(), PipelineWidth: pipelineWidth}, fmt.Errorf("redirect: %w", err)
+				return Result{}, fmt.Errorf("redirect: %w", err)
 			}
 		}
 		args := s.expandWords(stage.args)
 		name := args[0]
-		stdin, err = s.run(args, stdin)
+		stdin, err = s.run(context, args, stdin)
 		if err != nil {
-			return Result{Commands: s.trace(), PipelineWidth: pipelineWidth}, fmt.Errorf("%s: %w", name, err)
+			return Result{}, fmt.Errorf("%s: %w", name, err)
 		}
 		if stage.outputPath != "" {
 			target := s.Resolve(stage.outputPath)
@@ -113,13 +145,13 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 				err = s.FS.WriteFile(target, stdin, 0)
 			}
 			if err != nil {
-				return Result{Commands: s.trace(), PipelineWidth: pipelineWidth}, fmt.Errorf("redirect: %w", err)
+				return Result{}, fmt.Errorf("redirect: %w", err)
 			}
 			s.removeArchiveMetadata(target)
 			stdin = ""
 		}
 	}
-	return Result{Output: stdin, Commands: s.trace(), PipelineWidth: pipelineWidth}, nil
+	return Result{Output: stdin}, nil
 }
 
 func parseCommandLine(tokens []token) (commandLine, error) {
@@ -290,11 +322,21 @@ func expandVariable(input []rune, env map[string]string) (string, int) {
 	return env[string(input[1:i])], i - 1
 }
 
-func (s *Sandbox) run(args []string, stdin string) (string, error) {
+func (s *Sandbox) run(context *executionContext, args []string, stdin string) (string, error) {
 	if len(args) == 0 {
 		return "", nil
 	}
-	s.commandTrace = append(s.commandTrace, args[0])
+	if len(context.scriptStack) > 0 {
+		context.scriptSteps++
+		if context.scriptSteps > maxScriptSteps {
+			return "", fmt.Errorf("script command limit of %d exceeded", maxScriptSteps)
+		}
+	}
+	if isExecutableScriptPath(args[0]) {
+		context.commands = append(context.commands, "sh")
+		return s.cmdExecutableScript(context, args, stdin)
+	}
+	context.commands = append(context.commands, args[0])
 	switch args[0] {
 	case "pwd":
 		return s.cmdPwd(args[1:])
@@ -323,7 +365,9 @@ func (s *Sandbox) run(args []string, stdin string) (string, error) {
 	case "grep":
 		return s.cmdGrep(args[1:], stdin)
 	case "find":
-		return s.cmdFind(args[1:])
+		return s.cmdFind(context, args[1:])
+	case "sh":
+		return s.cmdSh(context, args[1:], stdin)
 	case "chmod":
 		return s.cmdChmod(args[1:])
 	case "chown":

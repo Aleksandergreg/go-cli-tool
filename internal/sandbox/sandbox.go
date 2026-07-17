@@ -27,8 +27,6 @@ type Sandbox struct {
 	Processes map[int]*Process
 	Archives  map[string]Archive
 	History   []string
-
-	commandTrace []string
 }
 
 func New(setup mission.Setup, startDir string) (*Sandbox, error) {
@@ -111,12 +109,6 @@ func (s *Sandbox) Resolve(name string) string {
 		name = path.Join(s.Env["HOME"], strings.TrimPrefix(name, "~/"))
 	}
 	return Clean(s.CWD, name)
-}
-
-func (s *Sandbox) trace() []string {
-	commands := make([]string, len(s.commandTrace))
-	copy(commands, s.commandTrace)
-	return commands
 }
 
 func (s *Sandbox) finalDestination(source, destination string) string {

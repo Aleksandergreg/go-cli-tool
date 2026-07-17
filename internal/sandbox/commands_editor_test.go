@@ -192,12 +192,12 @@ func TestViRejectsShellCompositionBeforePipelineSideEffects(t *testing.T) {
 
 func TestViRejectsNestedFindExec(t *testing.T) {
 	box := testSandbox(t)
-	_, err := box.Execute(`find . -name "*.log" -exec vi {} \;`)
+	result, err := box.Execute(`find . -name "*.log" -exec vi {} \;`)
 	if err == nil || !strings.Contains(err.Error(), "interactive commands are not supported inside find -exec") {
 		t.Fatalf("Execute() error = %v", err)
 	}
-	if strings.Join(box.trace(), ",") != "find,vi" {
-		t.Errorf("command trace = %v, want [find vi]", box.trace())
+	if strings.Join(result.Commands, ",") != "find,vi" {
+		t.Errorf("command trace = %v, want [find vi]", result.Commands)
 	}
 }
 
