@@ -61,17 +61,15 @@ func (a *App) loadPlayer() (profile.Profile, error) {
 	if player.HintFreeCompletions() >= 5 {
 		unlock("self-reliant")
 	}
-	knownCompleted := 0
 	for _, item := range a.catalog.All() {
 		if !player.IsComplete(item.ID) {
 			continue
 		}
-		knownCompleted++
 		if item.Difficulty == "advanced" {
 			unlock("boss-slayer")
 		}
 	}
-	if knownCompleted == len(a.catalog.All()) && knownCompleted > 0 {
+	if game.HasCompletedCatalog(player, a.catalog) {
 		unlock("linux-completionist")
 	}
 	if changed {
@@ -153,15 +151,14 @@ func (a *App) runPlay(args []string) error {
 	reader := game.NewCommandLineReader(a.in, a.out)
 	for {
 		session := game.Session{
-			Mission:      item,
-			MissionCount: len(a.catalog.All()),
-			Player:       &player,
-			Store:        a.store,
-			In:           a.in,
-			Out:          a.out,
-			Err:          a.errOut,
-			Reader:       reader,
-			Catalog:      a.catalog,
+			Mission: item,
+			Player:  &player,
+			Store:   a.store,
+			In:      a.in,
+			Out:     a.out,
+			Err:     a.errOut,
+			Reader:  reader,
+			Catalog: a.catalog,
 			ListMissions: func(args []string) error {
 				return a.listMissions(args, player)
 			},

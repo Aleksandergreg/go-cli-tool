@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
@@ -347,5 +348,51 @@ func TestWorkspaceAcceptsChangingDirectoryBeforeCreatingFile(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "✓ Mission complete!") {
 		t.Fatalf("alternative solution output:\n%s", out.String())
+	}
+}
+
+func TestCompletionistRequiresEveryCurrentCatalogMission(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	items := catalog.All()
+	completedAt := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
+	tests := []struct {
+		name       string
+		seedFrom   int
+		wantUnlock bool
+	}{
+		{name: "unknown ID cannot replace missing mission", seedFrom: 2, wantUnlock: false},
+		{name: "all current missions still unlock", seedFrom: 1, wantUnlock: true},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+			player := profile.New("alex")
+			for _, item := range items[test.seedFrom:] {
+				player.Complete(item.ID, 0, 0, completedAt)
+			}
+			player.Complete("retired-linux-mission", 0, 0, completedAt)
+			if err := store.Save(player); err != nil {
+				t.Fatal(err)
+			}
+
+			app, out, errOut := testApp(t, "pwd\n", store)
+			if err := app.Run([]string{"play", "1"}); err != nil {
+				t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+			}
+			player, err = store.Load()
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := player.HasAchievement("linux-completionist"); got != test.wantUnlock {
+				t.Fatalf("completionist unlocked = %v, want %v; completed = %#v", got, test.wantUnlock, player.Completed)
+			}
+			if announced := strings.Contains(out.String(), "Achievement unlocked: Linux Completionist"); announced != test.wantUnlock {
+				t.Fatalf("completionist announcement = %v, want %v; output:\n%s", announced, test.wantUnlock, out.String())
+			}
+		})
 	}
 }

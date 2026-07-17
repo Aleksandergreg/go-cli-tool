@@ -25,10 +25,56 @@ type FileSystem struct {
 	entries map[string]*Entry
 }
 
+const (
+	maxVirtualEntries         = 4096
+	maxVirtualFileBytes       = 2 * 1024 * 1024
+	maxVirtualFileSystemBytes = 8 * 1024 * 1024
+	maxVirtualPathBytes       = 4096
+)
+
 func NewFileSystem() *FileSystem {
 	return &FileSystem{entries: map[string]*Entry{
 		"/": {Kind: Directory, Mode: 0o755, Owner: "root"},
 	}}
+}
+
+func cleanVirtualMutationPath(name string) (string, error) {
+	name = path.Clean(name)
+	if !strings.HasPrefix(name, "/") {
+		return "", fmt.Errorf("virtual path %q must be absolute", name)
+	}
+	if len(name) > maxVirtualPathBytes {
+		return "", fmt.Errorf("virtual path exceeds the %d-byte limit", maxVirtualPathBytes)
+	}
+	return name, nil
+}
+
+func (f *FileSystem) contentBytes() int {
+	total := 0
+	for _, entry := range f.entries {
+		if entry.Kind == Regular {
+			total += len(entry.Content)
+		}
+	}
+	return total
+}
+
+func (f *FileSystem) checkEntryBudget(additional int) error {
+	if additional > maxVirtualEntries-len(f.entries) {
+		return fmt.Errorf("virtual filesystem entry limit of %d exceeded", maxVirtualEntries)
+	}
+	return nil
+}
+
+func (f *FileSystem) checkContentBudget(name string, oldBytes, newBytes int) error {
+	if newBytes > maxVirtualFileBytes {
+		return fmt.Errorf("%s: file exceeds the %d KiB virtual file limit", name, maxVirtualFileBytes/1024)
+	}
+	usedWithoutOld := f.contentBytes() - oldBytes
+	if newBytes > maxVirtualFileSystemBytes-usedWithoutOld {
+		return fmt.Errorf("virtual filesystem content limit of %d MiB exceeded", maxVirtualFileSystemBytes/(1024*1024))
+	}
+	return nil
 }
 
 func Clean(cwd, name string) string {

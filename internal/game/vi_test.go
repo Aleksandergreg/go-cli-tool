@@ -356,7 +356,7 @@ func TestNonTerminalViRefusalDoesNotConsumeTheNextCommand(t *testing.T) {
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
 	session := Session{
-		Mission: item, MissionCount: len(catalog.All()), Player: &player,
+		Mission: item, Player: &player,
 		In: strings.NewReader("vi app.env\nquit\n"), Out: out, Err: errOut, Catalog: catalog,
 	}
 	result, err := session.Run()
@@ -412,7 +412,7 @@ func TestViSessionCompletesOutcomeAndRecordsMastery(t *testing.T) {
 	}
 	out := &bytes.Buffer{}
 	session := Session{
-		Mission: item, MissionCount: len(catalog.All()), Player: &player, Store: store,
+		Mission: item, Player: &player, Store: store,
 		Out: out, Err: &bytes.Buffer{}, Reader: reader, Catalog: catalog,
 		Now: func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) },
 	}

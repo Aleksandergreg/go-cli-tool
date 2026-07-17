@@ -14,7 +14,6 @@ import (
 
 type Session struct {
 	Mission      mission.Mission
-	MissionCount int
 	Player       *profile.Profile
 	Store        profile.Store
 	In           io.Reader
@@ -223,7 +222,7 @@ func (s Session) Run() (SessionResult, error) {
 			if s.Mission.Difficulty == "advanced" {
 				unlocked = unlock(s.Player, "boss-slayer", completedAt, unlocked)
 			}
-			if s.MissionCount > 0 && len(s.Player.Completed) >= s.MissionCount {
+			if HasCompletedCatalog(*s.Player, s.Catalog) {
 				unlocked = unlock(s.Player, "linux-completionist", completedAt, unlocked)
 			}
 		}
