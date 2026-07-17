@@ -19,6 +19,33 @@ import (
 
 const maxScriptedCommandBytes = 64 * 1024
 
+const terminalKeyDeleteForward rune = '\ue000'
+
+var terminalSequenceReplacements = map[string]string{
+	"\x1bOH":     "\x1b[H",    // application-mode Home
+	"\x1bOF":     "\x1b[F",    // application-mode End
+	"\x1b[1~":    "\x1b[H",    // alternate Home
+	"\x1b[4~":    "\x1b[F",    // alternate End
+	"\x1b[7~":    "\x1b[H",    // rxvt Home
+	"\x1b[8~":    "\x1b[F",    // rxvt End
+	"\x1bb":      "\x1b[1;3D", // Meta/Option-B
+	"\x1bf":      "\x1b[1;3C", // Meta/Option-F
+	"\x1b[1;5D":  "\x1b[1;3D", // Ctrl-Left
+	"\x1b[1;5C":  "\x1b[1;3C", // Ctrl-Right
+	"\x1b[1;9D":  "\x1b[H",    // Command/Meta-Left
+	"\x1b[1;9C":  "\x1b[F",    // Command/Meta-Right
+	"\x1b[1;10D": "\x1b[H",    // Shift-Command/Meta-Left
+	"\x1b[1;10C": "\x1b[F",    // Shift-Command/Meta-Right
+	"\x1b[3~":    string(terminalKeyDeleteForward),
+	"\x1b\x7f":   "\x17", // Option-Backspace to Ctrl-W
+	"\x1b\x08":   "\x17", // alternate Option-Backspace
+}
+
+const (
+	bracketedPasteStart = "\x1b[200~"
+	bracketedPasteEnd   = "\x1b[201~"
+)
+
 // CommandLineReader owns line-editing state across mission sessions. Reusing
 // one reader preserves buffered scripted input and interactive command history
 // when campaign play advances to the next mission.
@@ -55,6 +82,96 @@ type terminalReadWriter struct {
 	writer io.Writer
 }
 
+// terminalKeyReader normalizes common terminal-specific key encodings into
+// the VT100/readline subset understood by x/term. It never interprets bytes
+// inside bracketed paste markers.
+type terminalKeyReader struct {
+	source      *bufio.Reader
+	pending     []byte
+	deferredErr error
+	pasteActive bool
+}
+
+func newTerminalKeyReader(reader io.Reader) *terminalKeyReader {
+	return &terminalKeyReader{source: bufio.NewReader(reader)}
+}
+
+func (r *terminalKeyReader) Read(buffer []byte) (int, error) {
+	if len(buffer) == 0 {
+		return 0, nil
+	}
+	if len(r.pending) == 0 {
+		if r.deferredErr != nil {
+			err := r.deferredErr
+			r.deferredErr = nil
+			return 0, err
+		}
+		sequence, err := r.readSequence()
+		if len(sequence) == 0 {
+			return 0, err
+		}
+		if err != nil {
+			r.deferredErr = err
+		}
+		r.pending = r.normalize(sequence)
+	}
+
+	count := copy(buffer, r.pending)
+	r.pending = r.pending[count:]
+	return count, nil
+}
+
+func (r *terminalKeyReader) readSequence() ([]byte, error) {
+	first, err := r.source.ReadByte()
+	if err != nil {
+		return nil, err
+	}
+	sequence := []byte{first}
+	if first != '\x1b' {
+		return sequence, nil
+	}
+
+	second, err := r.source.ReadByte()
+	if err != nil {
+		return sequence, err
+	}
+	sequence = append(sequence, second)
+	if second != '[' && second != 'O' {
+		return sequence, nil
+	}
+
+	for len(sequence) < 32 {
+		next, readErr := r.source.ReadByte()
+		if readErr != nil {
+			return sequence, readErr
+		}
+		sequence = append(sequence, next)
+		if next >= 0x40 && next <= 0x7e {
+			break
+		}
+	}
+	return sequence, nil
+}
+
+func (r *terminalKeyReader) normalize(sequence []byte) []byte {
+	value := string(sequence)
+	if value == bracketedPasteStart {
+		r.pasteActive = true
+		return sequence
+	}
+	if value == bracketedPasteEnd && r.pasteActive {
+		r.pasteActive = false
+		return sequence
+	}
+	if r.pasteActive {
+		return sequence
+	}
+	if replacement, exists := terminalSequenceReplacements[value]; exists {
+		return []byte(replacement)
+	}
+	return sequence
+}
+
 func (rw terminalReadWriter) Read(buffer []byte) (int, error) {
 	return rw.reader.Read(buffer)
 }
@@ -76,7 +193,7 @@ func NewCommandLineReader(in io.Reader, out io.Writer) CommandLineReader {
 		return newScannerLineReader(in, out)
 	}
 
-	readWriter := terminalReadWriter{reader: input, writer: output}
+	readWriter := terminalReadWriter{reader: newTerminalKeyReader(input), writer: output}
 	return &terminalLineReader{
 		editor:   term.NewTerminal(readWriter, ""),
 		inputFD:  int(input.Fd()),
@@ -118,11 +235,26 @@ func (r *terminalLineReader) ReadLine(prompt string, box *sandbox.Sandbox) (stri
 
 func terminalCompleter(box *sandbox.Sandbox) func(string, int, rune) (string, int, bool) {
 	return func(line string, position int, key rune) (string, int, bool) {
-		if key != '\t' {
+		switch key {
+		case terminalKeyDeleteForward:
+			return deleteRuneAtCursor(line, position)
+		case '\t':
+			return completeLine(line, position, box)
+		default:
 			return line, position, false
 		}
-		return completeLine(line, position, box)
 	}
+}
+
+func deleteRuneAtCursor(line string, position int) (string, int, bool) {
+	if position < 0 || position > len(line) || !utf8.ValidString(line) || position < len(line) && !utf8.RuneStart(line[position]) {
+		return line, position, true
+	}
+	if position == len(line) {
+		return line, position, true
+	}
+	_, size := utf8.DecodeRuneInString(line[position:])
+	return line[:position] + line[position+size:], position, true
 }
 
 type completionCandidate struct {
@@ -275,7 +407,7 @@ func commandPosition(beforeToken string) bool {
 }
 
 func commandCandidates(prefix string) []completionCandidate {
-	commands := append(sandbox.CommandNames(), "?", ":q", "exit", "hint", "objective", "quit", "restart", "status")
+	commands := append(sandbox.CommandNames(), "?", ":q", "exit", "hint", "list", "missions", "next", "objective", "opsquest", "play", "prev", "previous", "quit", "restart", "status")
 	sort.Strings(commands)
 	candidates := make([]completionCandidate, 0)
 	last := ""

@@ -62,15 +62,17 @@ assert_contains "doctor" "${doctor_output}" "embedded catalog: 16 missions"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
 assert_contains "doctor" "${doctor_output}" "sandbox: in-memory; host command execution disabled"
 
-play_output="$(printf 'pwd\nquit\n' | run_opsquest play)"
+play_output="$(printf 'pwd\nopsquest list --completed\nplay 3\nquit\n' | run_opsquest play)"
 assert_contains "scripted mission" "${play_output}" "MISSION 01: Where Am I?"
 assert_contains "scripted mission" "${play_output}" "✓ Mission complete!"
 assert_contains "scripted mission" "${play_output}" "+40 XP"
 assert_contains "continuous play" "${play_output}" "Continuing to Mission 02: Configuration Crawl"
-assert_contains "continuous play" "${play_output}" "Mission paused"
+assert_contains "in-mission list" "${play_output}" "1/16 missions complete"
+assert_contains "in-mission switch" "${play_output}" "Switching to Mission 03: A Place for Everything"
+assert_contains "in-mission switch" "${play_output}" "MISSION 03: A Place for Everything"
 
 final_profile="$(run_opsquest profile)"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: help, list, show, profile, doctor, and continuous mission flow passed\n'
+printf 'smoke-test: help, list, show, profile, doctor, and continuous in-mission navigation passed\n'

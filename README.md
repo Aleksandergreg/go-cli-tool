@@ -89,7 +89,20 @@ $ opsquest doctor
 $ opsquest reset
 ```
 
-Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples. In an interactive terminal, press Tab to complete supported lab commands and paths in the mission filesystem; use Up/Down to browse commands entered during the current mission session.
+Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples.
+
+You can navigate without leaving the mission prompt:
+
+```console
+opsquest:/backups$ list --completed
+opsquest:/backups$ play 3
+opsquest:/workspace$ next
+opsquest:/srv/release$ previous
+```
+
+The `opsquest` prefix is optional inside a mission, so `opsquest list --completed` and `opsquest play 3` also work. Listing preserves the current sandbox; switching missions starts the selected mission with a fresh sandbox while keeping persistent profile progress.
+
+Interactive editing supports Left/Right cursor movement, Up/Down history, Home/End and Ctrl-A/E line boundaries, Option/Ctrl-Left/Right word movement, Tab completion, Backspace, Delete, and Ctrl-W. Command-arrow sequences are treated as Home/End when the terminal reports the modifier.
 
 With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the campaign. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission.
 
