@@ -319,25 +319,72 @@ func (s *Sandbox) run(args []string, stdin string) (string, error) {
 		return s.cmdAwk(args[1:], stdin)
 	case "cut":
 		return s.cmdCut(args[1:], stdin)
+	case "sed":
+		return s.cmdSed(args[1:], stdin)
+	case "tr":
+		return s.cmdTr(args[1:], stdin)
+	case "du":
+		return s.cmdDU(args[1:])
+	case "stat":
+		return s.cmdStat(args[1:])
+	case "basename", "dirname":
+		return cmdPathPart(args[0], args[1:])
 	case "whoami":
 		return s.Env["USER"] + "\n", nil
 	case "clear":
 		return "", nil
-	case "help":
-		return shellHelp(), nil
+	case "help", "man":
+		return shellHelp(args[1:])
 	default:
 		return "", fmt.Errorf("command not available in this lab; type help to see supported commands")
 	}
 }
 
-func shellHelp() string {
+func shellHelp(args []string) (string, error) {
+	if len(args) > 1 {
+		return "", fmt.Errorf("usage: help [COMMAND]")
+	}
+	if len(args) == 1 {
+		manual, exists := commandManuals[args[0]]
+		if !exists {
+			return "", fmt.Errorf("no help available for %s", args[0])
+		}
+		return manual + "\n", nil
+	}
 	commands := []string{
-		"awk", "cat", "cd", "chmod", "chown", "cp", "cut", "echo", "env", "export",
+		"awk", "basename", "cat", "cd", "chmod", "chown", "cp", "cut", "dirname", "du", "echo", "env", "export",
 		"find", "grep", "gzip", "gunzip", "head", "kill", "less", "ls", "mkdir", "mv",
-		"printf", "ps", "pwd", "rm", "rmdir", "sort", "tail", "tar", "touch", "uniq", "wc", "whoami",
+		"printf", "ps", "pwd", "rm", "rmdir", "sed", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "wc", "whoami",
 	}
 	sort.Strings(commands)
-	return "Available lab commands:\n  " + strings.Join(commands, "  ") + "\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection.\n"
+	return "Available lab commands:\n  " + strings.Join(commands, "  ") + "\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection.\nUse help COMMAND for examples.\n", nil
+}
+
+var commandManuals = map[string]string{
+	"awk":      "awk '{print $N}' [FILE] — print a whitespace-separated field",
+	"cat":      "cat [FILE...] — concatenate files or pipeline input",
+	"cd":       "cd [DIR] — change directory; cd - returns to the previous directory",
+	"chmod":    "chmod MODE FILE... — change octal permissions, for example chmod 750 deploy.sh",
+	"chown":    "chown OWNER FILE... — change a file owner",
+	"cp":       "cp [-r] SOURCE... DEST — copy files or directory trees",
+	"cut":      "cut -d DELIMITER -f FIELD [FILE] — select a delimited field",
+	"du":       "du [-a|-s] [-b|-h] [PATH...] — show virtual file sizes",
+	"find":     "find [PATH] [-name GLOB] [-type f|d] [-exec COMMAND {} \\;]",
+	"grep":     "grep [-rilnvcF] PATTERN [FILE...] — print lines matching a pattern",
+	"head":     "head [-n COUNT] [FILE...] — print the first lines",
+	"ls":       "ls [-la] [PATH...] — list directory contents",
+	"mkdir":    "mkdir [-p] DIR... — create directories",
+	"mv":       "mv SOURCE... DEST — move or rename paths",
+	"ps":       "ps — list the mission's running processes",
+	"rm":       "rm [-rf] PATH... — remove paths inside the virtual filesystem",
+	"sed":      "sed [-i] 's/REGEX/REPLACEMENT/g' [FILE] — transform text",
+	"sort":     "sort [-nru] [FILE...] — sort lines",
+	"stat":     "stat PATH... — inspect type, size, owner, and mode",
+	"tail":     "tail [-n COUNT] [FILE...] — print the last lines",
+	"tar":      "tar -xf ARCHIVE [-C DIR] — extract; -cf creates and -tf lists",
+	"tr":       "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
+	"uniq":     "uniq [-c] [FILE] — collapse adjacent duplicate lines",
+	"wc":       "wc [-l|-w|-c] [FILE...] — count lines, words, or bytes",
 }
 
 func (s *Sandbox) expandWords(words []shellWord) []string {
