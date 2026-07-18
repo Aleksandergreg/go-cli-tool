@@ -3,15 +3,18 @@
 OpsQuest is **Duolingo meets a terminal sandbox**: a command-line game that teaches Linux and container operations through short, story-driven missions.
 
 ```console
-$ opsquest play
+$ opsquest play --once 4
 
 MISSION 04: The Missing Log File
 ================================
-Campaign: The Logpocalypse · Difficulty: beginner · Reward: 75 XP
+Linux · World 1/4: First Day · Stage 4/5
+Difficulty: beginner · Reward: 75 XP
 
+INCIDENT
 The web server is failing, and the monitoring dashboard has chosen this
 moment to become an abstract art installation.
 
+OBJECTIVE
 Find every file ending in .log inside /var/app that contains the word ERROR.
 
 opsquest:/var/app$ find . -name "*.log" -exec grep -l "ERROR" {} \;
@@ -29,11 +32,12 @@ The game validates the result, not a prescribed command. For example, the file-m
 
 Version 0.3 starts Docker Foundations while preserving the complete Linux campaign:
 
-- 19 hand-written Linux missions across four story chapters
+- 19 hand-written Linux missions across four ordered learning worlds
 - One optional, disposable Docker mission in **It Works on My Machine**
 - An isolated, in-memory filesystem and process table
 - Interactive line editing with Tab completion and Up/Down command recall
-- Continuous campaign play with detailed feedback for incomplete outcomes
+- A first-play guide covering objectives, hints, progression, navigation, and sandbox safety
+- World/stage maps, soft world jumping, and continuous play with clear transition feedback
 - Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
 - Safe virtual shell scripts with bounded nesting and line-numbered errors
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
@@ -59,7 +63,7 @@ It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
 
 OpsQuest requires Go 1.22 or newer. It uses the Go project's small `x/term` module for portable interactive line editing. Linux gameplay remains local and in memory; the optional Docker lab uses only explicitly prepared, disposable containers.
 
-Color automatically appears when output is connected to an interactive terminal. Piped or redirected output stays plain for scripts and logs; set `NO_COLOR=1` to disable decorative color explicitly.
+Color automatically appears when output is connected to an interactive terminal. Page headings, world/stage context, objectives, progress, rewards, and achievements use distinct semantic roles; red is reserved for actual failures. Piped or redirected output stays plain for scripts and logs; set `NO_COLOR=1` to disable decorative color explicitly.
 
 ```console
 $ go run ./cmd/opsquest play
@@ -90,9 +94,15 @@ $ opsquest play 17
 Useful commands:
 
 ```console
-$ opsquest list
+$ opsquest guide
+$ opsquest map
+$ opsquest map --ids
+$ opsquest map --track docker
+$ opsquest play --world 2
+$ opsquest list # alias for map; supports the same filters
 $ opsquest list --track docker
 $ opsquest play 4
+$ opsquest play --once 4
 $ opsquest play 17
 $ opsquest play 18
 $ opsquest play linux-find-logs
@@ -108,16 +118,20 @@ $ opsquest reset
 
 Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and, where available, `help COMMAND` for focused examples.
 
+A fresh Linux profile sees a concise quick start once before its first mission. `opsquest guide` provides the longer explanation whenever it is useful and records that onboarding has been viewed. Mission maps use compact numbered rows by default; add `--ids` when stable mission IDs are needed.
+
 You can navigate without leaving the mission prompt:
 
 ```console
 opsquest:/backups$ list --completed
+opsquest:/backups$ map
+opsquest:/backups$ world 1
 opsquest:/backups$ play 3
 opsquest:/workspace$ next
 opsquest:/srv/release$ previous
 ```
 
-The `opsquest` prefix is optional inside a mission, so `opsquest list --completed` and `opsquest play 3` also work. Listing preserves the current sandbox; switching missions starts the selected mission with a fresh sandbox while keeping persistent profile progress.
+The `opsquest` prefix is optional inside a mission, so `opsquest map` and `opsquest play 3` also work. Listing preserves the current sandbox; switching missions or worlds starts the selected stage with a fresh sandbox while keeping persistent profile progress. Type `?` for the full mission and line-editing guide.
 
 Interactive editing supports Left/Right cursor movement, Up/Down history, Home/End and Ctrl-A/E line boundaries, Option/Ctrl-Left/Right word movement, Tab completion, Backspace, Delete, and Ctrl-W. Command-arrow sequences are treated as Home/End when the terminal reports the modifier.
 
@@ -148,17 +162,19 @@ Each script runs with child-shell working-directory and environment scope: `cd` 
 
 This is not a complete POSIX shell. Options such as `sh -c`, positional arguments, stdin-fed scripts, standalone assignments, loops, conditionals, functions, substitutions, background jobs, external programs, and interactive `vi` calls from a script are rejected rather than approximated. Use `help sh` for the exact limits.
 
-With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the campaign. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission.
+`opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the Linux track. A mission argument such as `opsquest play 4` or `opsquest play linux-find-logs` chooses where that continuous session starts. `opsquest play --world 2` stays within World 2 and stops at its boundary. Add `--once` to return after one completed mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
 
 The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
 
-## Campaigns
+## Learning worlds
 
-- **First Day** — navigation, directories, and basic file operations
-- **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
-- **Production Friday** — logs, aggregation, text transformation, ownership, disk usage, and a multi-fault boss incident
-- **The Automation Shift** — modal editing, reusable shell scripts, executable modes, and child-shell scope
-- **It Works on My Machine** — an optional Docker Foundations campaign beginning with container lifecycle and inspection
+- **World 1 · First Day** (Missions 1–5) — orientation, directories, files, search, and movement
+- **World 2 · The Logpocalypse** (Missions 6–10) — permissions and environment first, then processes, archives, pipelines, and an advanced boss
+- **World 3 · Production Friday** — logs, aggregation, text transformation, ownership, disk usage, and a multi-fault boss incident
+- **World 4 · The Automation Shift** — modal editing, reusable shell scripts, executable modes, and child-shell scope
+- **Docker World 1 · It Works on My Machine** — an optional Docker Foundations world beginning with container lifecycle and inspection
+
+`opsquest map` shows world and stage progress without confusing stable global mission references with curriculum position. Completing a world does not lock or hide earlier content. The first two Linux worlds deliberately use five stages each: World 1 stays beginner-focused, while World 2 scales from beginner through intermediate to its advanced boss.
 
 Achievements reward learning behavior rather than decoration: completing a first fix, building a three-command pipeline, practicing ten commands, solving missions without hints, beating an advanced incident, and finishing Linux.
 
@@ -170,7 +186,7 @@ The simulator also rejects virtual-root/current-directory removal, prevents file
 
 Resource ceilings keep a lab deterministic: command lines are limited to 64 KiB, expanded token text to 2 MiB, expanded arguments to 4,096, pipelines to 64 stages, and one execution to 512 dispatches across pipelines, `find -exec`, and nested scripts. A virtual file and one command's output are limited to 2 MiB; total virtual-file content and logical archive payload are each limited to 8 MiB; virtual paths are limited to 4,096 bytes; and filesystem and archive metadata are each capped at 4,096 entries. The virtual environment is capped at 256 entries and 256 KiB. Expansion, pipeline shape, writes, recursive operations, environment updates, and archive operations preflight their affected state; extraction publishes filesystem and archive metadata together only after every entry succeeds. `tar -C` is intentionally limited to extraction rather than silently approximated for create or list operations.
 
-This makes the introductory campaign safe and portable, with two intentional tradeoffs:
+This makes the introductory Linux experience safe and portable, with two intentional tradeoffs:
 
 - It implements a useful subset of common command behavior rather than every shell feature and flag.
 - Mission state exists only for the current attempt; player progress persists separately.
@@ -181,7 +197,7 @@ Docker commands are parsed into a small teaching subset before any engine call. 
 
 ## Progress storage
 
-Profiles are stored as `profile.json` in the platform user configuration directory, under `opsquest`. Writes are atomic and use owner-only permissions.
+Profiles are stored as `profile.json` in the platform user configuration directory, under `opsquest`. Writes are atomic and use owner-only permissions. The additive onboarding marker prevents the first-run quick start from repeating after an immediate quit. Display names accept up to 40 printable Unicode characters; terminal controls and other non-printable text are rejected, while older unsafe names are normalized when loaded.
 
 Two environment variables are useful for development or portable installs:
 
@@ -196,13 +212,13 @@ internal/buildinfo/ Release Please-managed executable version
 internal/cli/       Top-level commands and presentation, independent of environment adapters
 internal/ui/        Terminal-aware ANSI styles and color policy
 internal/game/      Interactive session, terminal/editor integration, and outcome validation
-internal/mission/   Mission contracts, immutable catalog, and embedded mission data
+internal/mission/   Mission contracts, immutable world-aware catalog, and embedded mission data
 internal/profile/   XP, ranks, mastery, and atomic JSON persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
 internal/dockerlab/ Optional, label-scoped Docker lab adapter
 ```
 
-Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, missing or malformed suggested-command guides, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown or malformed validators, unsupported difficulties, hint counts outside one to five, oversized Docker setup, and non-contiguous numbering. Catalog results are deep copies, so adapters cannot mutate embedded mission state. A future external mission-pack loader can add YAML support without coupling content to the game engine.
+Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, missing or malformed suggested-command guides, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown or malformed validators, unsupported difficulties, hint counts outside one to five, oversized Docker setup, non-contiguous numbering, and a campaign that reappears as two worlds in the same track. World/stage placement is derived from ordered campaigns without changing stable mission IDs or profile data. Catalog results are deep copies, so adapters cannot mutate embedded mission state. A future external mission-pack loader can add YAML support without coupling content to the game engine.
 
 Each mission defines:
 

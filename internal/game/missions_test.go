@@ -229,6 +229,89 @@ func TestSearchMissionRejectsUnfilteredFindOutput(t *testing.T) {
 	}
 }
 
+func TestRebalancedMissionOutcomesRemainRouteIndependent(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(t *testing.T, missionID string, commands ...string) (mission.Mission, *sandbox.Sandbox, string) {
+		t.Helper()
+		item, found := catalog.Find(missionID)
+		if !found {
+			t.Fatalf("mission %q not found", missionID)
+		}
+		box, err := sandbox.New(item.Setup, item.StartDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lastOutput := ""
+		for _, command := range commands {
+			result, err := box.Execute(command)
+			if err != nil {
+				t.Fatalf("Execute(%q) error = %v", command, err)
+			}
+			lastOutput = result.Output
+		}
+		return item, box, lastOutput
+	}
+	assertComplete := func(t *testing.T, item mission.Mission, box *sandbox.Sandbox, output string, want bool) {
+		t.Helper()
+		complete, err := Validate(item.Validation, box, output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if complete != want {
+			t.Fatalf("mission complete = %v, want %v", complete, want)
+		}
+	}
+
+	t.Run("search accepts an explicit log-file grep route", func(t *testing.T) {
+		item, box, output := run(t, "linux-find-logs", `grep -l ERROR api/*.log worker/*.log assets/*.log`)
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("release move is complete", func(t *testing.T) {
+		item, box, output := run(t, "linux-release-shuffle", "mv incident-104.txt /archive/2026/incident-104.txt")
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("release copy without source removal is incomplete", func(t *testing.T) {
+		item, box, output := run(t, "linux-release-shuffle", "cp incident-104.txt /archive/2026/incident-104.txt")
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("pipeline accepts cut and sort unique", func(t *testing.T) {
+		item, box, output := run(t, "linux-pipeline-report", `grep ERROR incidents.log | cut -d " " -f 3 | sort -u > /reports/error-services.txt`)
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("pipeline without deduplication is incomplete", func(t *testing.T) {
+		item, box, output := run(t, "linux-pipeline-report", `grep ERROR incidents.log | awk '{print $3}' | sort > /reports/error-services.txt`)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("production boss accepts an alternative route", func(t *testing.T) {
+		item, box, output := run(t, "linux-production-friday",
+			"tar -xf release.tar -C /deploy",
+			`printf 'SERVICE=checkout\nLOG_LEVEL=info\n' > /deploy/app/app.env`,
+			"chmod 0750 /deploy/app/deploy.sh",
+			"kill -TERM 9001",
+		)
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("production boss rejects collateral process damage", func(t *testing.T) {
+		item, box, output := run(t, "linux-production-friday",
+			"tar -xf release.tar -C /deploy",
+			`sed -i 's/LOG_LEVEL=debug/LOG_LEVEL=info/' /deploy/app/app.env`,
+			"chmod 750 /deploy/app/deploy.sh",
+			"kill 9001 9002",
+		)
+		assertComplete(t, item, box, output, false)
+	})
+}
+
 func TestScriptMissionsAcceptAlternativesAndRejectIncompleteOutcomes(t *testing.T) {
 	catalog, err := mission.LoadCatalog()
 	if err != nil {

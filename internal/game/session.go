@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"strings"
 	"time"
 	"unicode"
@@ -85,7 +86,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 	}
 
 	hintsUsed := s.Player.MissionHints(s.Mission.ID)
-	printMission(s.Out, s.Mission, hintsUsed, s.Style)
+	printMission(s.Out, s.Mission, hintsUsed, s.Player.IsComplete(s.Mission.ID), s.Catalog, s.Style)
 	reader := s.Reader
 	if reader == nil {
 		reader = NewCommandLineReader(s.In, s.Out)
@@ -118,15 +119,59 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				continue
 			}
 			switch fields[0] {
-			case "list", "missions":
+			case "list", "missions", "map", "worlds":
 				if s.ListMissions == nil {
 					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("mission listing is unavailable in this session"))
 					continue
 				}
-				if err := s.ListMissions(fields[1:]); err != nil {
+				listArgs := fields[1:]
+				if fields[0] == "map" || fields[0] == "worlds" {
+					if len(fields) != 1 {
+						fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(fields[0]+" does not accept arguments"))
+						continue
+					}
+					listArgs = nil
+				}
+				if err := s.ListMissions(listArgs); err != nil {
 					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(err.Error()))
 				}
 				continue
+			case "world":
+				if len(fields) != 2 {
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: world NUMBER"))
+					continue
+				}
+				worldNumber, err := strconv.Atoi(fields[1])
+				if err != nil || worldNumber < 1 {
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("world number must be a positive integer; use map to see worlds"))
+					continue
+				}
+				target, found := s.Catalog.NextInWorld(s.Mission.EffectiveTrack(), worldNumber, s.Player.IsComplete)
+				replayingCompletedWorld := false
+				if !found {
+					if world, exists := s.Catalog.World(s.Mission.EffectiveTrack(), worldNumber); exists && len(world.Missions) > 0 {
+						target, found = world.Missions[0], true
+						replayingCompletedWorld = true
+					}
+				}
+				if !found {
+					message := fmt.Sprintf("world %d does not exist in the %s track; use map to see worlds", worldNumber, s.Mission.EffectiveTrack())
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
+					continue
+				}
+				if target.ID == s.Mission.ID {
+					message := fmt.Sprintf("Already playing the recommended stage in World %d.", worldNumber)
+					if replayingCompletedWorld {
+						message = fmt.Sprintf("World %d is complete; already replaying Stage 1.", worldNumber)
+					}
+					fmt.Fprintln(s.Out, s.Style.Accent(message))
+					continue
+				}
+				if replayingCompletedWorld {
+					fmt.Fprintln(s.Out, s.Style.Accent(fmt.Sprintf("World %d is complete; replaying Stage 1.", worldNumber)))
+				}
+				printMissionSwitch(s.Out, target, s.Style)
+				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
 			case "play":
 				if len(fields) != 2 {
 					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: play MISSION"))
@@ -168,23 +213,28 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 
 		switch line {
 		case "quit", "exit", ":q":
-			fmt.Fprintln(s.Out, s.Style.Muted("Mission paused. Your profile progress is safe."))
+			fmt.Fprintln(s.Out, s.Style.Accent("Mission paused. Your profile progress is safe."))
 			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
 		case "hint":
 			if hintsUsed >= len(s.Mission.Hints) {
 				fmt.Fprintln(s.Out, s.Style.Warning("No more hints. ByteWorks has exhausted its documentation budget."))
 				continue
 			}
+			before := AdjustedReward(s.Mission, hintsUsed)
 			hintsUsed = s.Player.RecordHint(s.Mission.ID)
 			if err := s.Saver.Save(*s.Player); err != nil {
 				return SessionResult{}, err
 			}
-			penalty := s.Mission.Rewards.HintPenalty
-			message := fmt.Sprintf("Hint %d/%d (-%d XP): %s", hintsUsed, len(s.Mission.Hints), penalty, s.Mission.Hints[hintsUsed-1])
-			fmt.Fprintln(s.Out, s.Style.Warning(message))
+			cost := before - AdjustedReward(s.Mission, hintsUsed)
+			costLabel := fmt.Sprintf("-%d XP", cost)
+			if cost == 0 {
+				costLabel = "no XP cost"
+			}
+			prefix := fmt.Sprintf("Hint %d/%d (%s):", hintsUsed, len(s.Mission.Hints), costLabel)
+			fmt.Fprintf(s.Out, "%s %s\n", s.Style.Warning(prefix), s.Mission.Hints[hintsUsed-1])
 			continue
 		case "objective":
-			fmt.Fprintf(s.Out, "%s\n\n%s\n", s.Mission.Objective, s.Style.CommandGuide(s.Mission.SuggestedCommands))
+			fmt.Fprintf(s.Out, "%s\n%s\n\n%s\n", s.Style.Section("OBJECTIVE"), s.Mission.Objective, s.Style.CommandGuide(s.Mission.SuggestedCommands))
 			continue
 		case "status":
 			outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, lastOutput)
@@ -204,7 +254,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			lastOutput = ""
 			fmt.Fprintln(s.Out, s.Style.Accent("Mission environment restarted. Hints and command mastery are retained."))
 			continue
-		case "?":
+		case "?", "guide":
 			printMissionControls(s.Out, s.Style)
 			continue
 		}
@@ -267,15 +317,15 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		}
 		if !allOutcomesSatisfied(outcomes) {
 			printAchievements(s.Out, unlocked, s.Style)
-			message := fmt.Sprintf("Not complete yet — %d/%d outcome checks satisfied. Type status to see what remains.", satisfiedOutcomeCount(outcomes), len(outcomes))
-			fmt.Fprintln(s.Out, s.Style.Warning(message))
+			message := fmt.Sprintf("Progress — %d/%d outcome checks satisfied. Type status to see what remains.", satisfiedOutcomeCount(outcomes), len(outcomes))
+			fmt.Fprintln(s.Out, s.Style.Accent(message))
 			continue
 		}
 		if err := environment.close(); err != nil {
 			return SessionResult{}, fmt.Errorf("complete mission: close environment before awarding XP: %w", err)
 		}
 
-		xp := currentReward(s.Mission, hintsUsed)
+		xp := AdjustedReward(s.Mission, hintsUsed)
 		completedAt := s.Now()
 		firstCompletion := s.Player.Complete(s.Mission.ID, xp, hintsUsed, completedAt)
 		if !firstCompletion {
@@ -291,33 +341,64 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 	}
 }
 
-func printMission(out io.Writer, item mission.Mission, hintsUsed int, style ui.Style) {
+func printMission(out io.Writer, item mission.Mission, hintsUsed int, completed bool, catalog mission.Catalog, style ui.Style) {
 	heading := fmt.Sprintf("MISSION %02d: %s", item.Number, item.Title)
 	fmt.Fprintf(out, "\n%s\n", style.Header(heading))
 	fmt.Fprintln(out, style.Muted(strings.Repeat("=", len(item.Title)+12)))
-	fmt.Fprintf(out, "Campaign: %s · Difficulty: %s · Reward: %s\n",
-		style.Accent(item.Campaign),
-		style.Difficulty(item.Difficulty),
-		style.Reward(fmt.Sprintf("%d XP", currentReward(item, hintsUsed))),
-	)
+	if placement, found := catalog.Placement(item.ID); found {
+		location := fmt.Sprintf("%s · World %d/%d: %s · Stage %d/%d",
+			displayTrackName(placement.Track), placement.WorldNumber, placement.WorldTotal,
+			placement.WorldName, placement.StageNumber, placement.StageTotal)
+		fmt.Fprintln(out, style.World(location))
+	} else {
+		fmt.Fprintf(out, "Campaign: %s\n", style.World(item.Campaign))
+	}
+	reward := style.Reward(fmt.Sprintf("%d XP", AdjustedReward(item, hintsUsed)))
+	if completed {
+		reward = style.Accent(fmt.Sprintf("already claimed · %d XP base", item.Rewards.XP))
+	}
+	fmt.Fprintf(out, "Difficulty: %s · Reward: %s\n", style.Difficulty(item.Difficulty), reward)
 	if hintsUsed > 0 {
 		fmt.Fprintln(out, style.Warning(fmt.Sprintf("Hints already used: %d/%d", hintsUsed, len(item.Hints))))
 	}
-	fmt.Fprintf(out, "\n%s\n\n%s\n\n", item.Story, item.Objective)
+	fmt.Fprintf(out, "\n%s\n%s\n\n", style.Section("INCIDENT"), item.Story)
+	fmt.Fprintf(out, "%s\n%s\n\n", style.Section("OBJECTIVE"), item.Objective)
 	fmt.Fprintf(out, "%s\n\n", style.CommandGuide(item.SuggestedCommands))
-	printMissionControls(out, style)
+	printCompactMissionControls(out, style)
+}
+
+func displayTrackName(track string) string {
+	switch track {
+	case mission.TrackDocker:
+		return "Docker"
+	case mission.TrackLinux:
+		return "Linux"
+	default:
+		return track
+	}
+}
+
+func printCompactMissionControls(out io.Writer, style ui.Style) {
+	fmt.Fprintf(out, "Controls: %s · %s · %s · %s · %s · %s for the full guide\n",
+		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"), style.Accent("?"))
+	fmt.Fprintf(out, "Navigate: %s · %s · %s · %s · %s\n",
+		style.Accent("map"), style.Accent("world N"), style.Accent("play NUMBER/ID"), style.Accent("next"), style.Accent("previous"))
+	fmt.Fprintf(out, "Lab: %s lists commands · %s completes · arrows edit and recall history\n",
+		style.Accent("help"), style.Accent("Tab"))
 }
 
 func printMissionControls(out io.Writer, style ui.Style) {
-	fmt.Fprintf(out, "Mission controls: %s, %s, %s, %s. Type %s to see completed and missing outcomes.\n",
-		style.Accent("hint"), style.Accent("objective"), style.Accent("restart"), style.Accent("quit"), style.Accent("status"))
-	fmt.Fprintf(out, "Navigation: %s, %s, %s, %s. An optional %s prefix also works.\n",
-		style.Accent("list --completed"), style.Accent("play NUMBER/ID"), style.Accent("next"), style.Accent("previous"), style.Accent("opsquest"))
-	fmt.Fprintf(out, "Type %s for lab commands; valid solutions are judged by their result, not by one command sequence.\n", style.Accent("help"))
-	fmt.Fprintf(out, "Prompt editing keys: arrows move and recall history; %s or %s jump across the line.\n",
+	fmt.Fprintln(out, style.Section("MISSION GUIDE"))
+	fmt.Fprintf(out, "  Controls: %s, %s, %s, %s, %s\n",
+		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"))
+	fmt.Fprintf(out, "  Navigate: %s, %s, %s, %s, %s\n",
+		style.Accent("map"), style.Accent("world N"), style.Accent("play NUMBER/ID"), style.Accent("next"), style.Accent("previous"))
+	fmt.Fprintf(out, "  Lab commands: %s or %s. Valid solutions are judged by their result.\n", style.Accent("help"), style.Accent("help COMMAND"))
+	fmt.Fprintf(out, "  Line editing: arrows move and recall history; %s or %s jump across the line.\n",
 		style.Accent("Home/End"), style.Accent("Ctrl-A/E"))
-	fmt.Fprintf(out, "%s move by word; %s completes; %s, %s, and %s remove text.\n",
+	fmt.Fprintf(out, "  %s move by word; %s completes; %s, %s, and %s remove text.\n",
 		style.Accent("Option/Ctrl-Left/Right"), style.Accent("Tab"), style.Accent("Backspace"), style.Accent("Delete"), style.Accent("Ctrl-W"))
+	fmt.Fprintln(out, "  Prefix navigation with opsquest if you prefer; both forms are equivalent inside a mission.")
 }
 
 func missionNavigationFields(line string) ([]string, bool, error) {
@@ -336,7 +417,7 @@ func missionNavigationFields(line string) ([]string, bool, error) {
 		}
 	}
 	switch fields[0] {
-	case "list", "missions", "play", "next", "previous", "prev":
+	case "list", "missions", "map", "worlds", "world", "play", "next", "previous", "prev":
 		return fields, true, err
 	default:
 		if prefixed && err != nil {
@@ -436,7 +517,9 @@ func printOutcomeStatus(out io.Writer, outcomes []outcomeResult, style ui.Style)
 	}
 }
 
-func currentReward(item mission.Mission, hintsUsed int) int {
+// AdjustedReward returns the XP still available after hints while preserving
+// the mission's minimum quarter-reward floor.
+func AdjustedReward(item mission.Mission, hintsUsed int) int {
 	xp := item.Rewards.XP - hintsUsed*item.Rewards.HintPenalty
 	minimum := item.Rewards.XP / 4
 	if xp < minimum {
@@ -450,7 +533,7 @@ func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, pr
 	if first {
 		fmt.Fprintln(out, style.Reward(fmt.Sprintf("+%d XP", xp)))
 	} else {
-		fmt.Fprintln(out, style.Muted("Replay complete — XP was already claimed."))
+		fmt.Fprintln(out, style.Accent("Replay complete — XP was already claimed."))
 	}
 	if len(discovered) == 1 {
 		fmt.Fprintln(out, style.Accent(fmt.Sprintf("New command discovered: %s", discovered[0])))
@@ -474,7 +557,6 @@ func unlock(player *profile.Profile, id string, now time.Time, unlocked []profil
 
 func printAchievements(out io.Writer, unlocked []profile.Achievement, style ui.Style) {
 	for _, achievement := range unlocked {
-		message := fmt.Sprintf("★ Achievement unlocked: %s — %s", achievement.Title, achievement.Description)
-		fmt.Fprintln(out, style.Achievement(message))
+		fmt.Fprintf(out, "%s %s — %s\n", style.Achievement("★ Achievement unlocked:"), achievement.Title, achievement.Description)
 	}
 }

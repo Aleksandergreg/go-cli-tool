@@ -48,6 +48,7 @@ func TestCompleteLineUsesCommandsControlsAndVirtualPaths(t *testing.T) {
 		{name: "vi command", line: "v", position: len("v"), want: "vi "},
 		{name: "mission control", line: "obj", position: len("obj"), want: "objective "},
 		{name: "navigation control", line: "previ", position: len("previ"), want: "previous "},
+		{name: "world navigation", line: "worl", position: len("worl"), want: "world"},
 		{name: "relative file", line: "cat W", position: len("cat W"), want: "cat WELCOME.txt "},
 		{name: "quoted file", line: `cat "W`, position: len(`cat "W`), want: `cat "WELCOME.txt" `},
 		{name: "absolute directory", line: "cd /srv/w", position: len("cd /srv/w"), want: "cd /srv/web/"},

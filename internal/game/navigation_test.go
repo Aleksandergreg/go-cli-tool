@@ -16,6 +16,8 @@ func TestMissionNavigationFieldsParsesQuotedAndEscapedArguments(t *testing.T) {
 		{name: "escaped whitespace", line: `play linux\ orientation`, want: []string{"play", "linux orientation"}},
 		{name: "escaped double quote", line: `list --campaign "First \"Day\""`, want: []string{"list", "--campaign", `First "Day"`}},
 		{name: "empty quoted argument", line: `list --campaign ''`, want: []string{"list", "--campaign", ""}},
+		{name: "world jump", line: `world 3`, want: []string{"world", "3"}},
+		{name: "map alias", line: `opsquest map`, want: []string{"map"}},
 		{name: "prefix alone", line: `opsquest`, want: []string{"missions"}},
 	}
 

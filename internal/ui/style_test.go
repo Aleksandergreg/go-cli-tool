@@ -25,6 +25,8 @@ func TestZeroValueStyleIsPlainText(t *testing.T) {
 		want string
 	}{
 		"header":        {got: style.Header("MISSION 01"), want: "MISSION 01"},
+		"section":       {got: style.Section("OBJECTIVE"), want: "OBJECTIVE"},
+		"world":         {got: style.World("First Day"), want: "First Day"},
 		"accent":        {got: style.Accent("next"), want: "next"},
 		"success":       {got: style.Success("complete"), want: "complete"},
 		"warning":       {got: style.Warning("incomplete"), want: "incomplete"},
@@ -58,6 +60,8 @@ func TestEnabledStyleUsesSemanticColors(t *testing.T) {
 		want string
 	}{
 		"header":        {got: style.Header("mission"), want: "\x1b[1;36mmission\x1b[0m"},
+		"section":       {got: style.Section("objective"), want: "\x1b[1mobjective\x1b[0m"},
+		"world":         {got: style.World("First Day"), want: "\x1b[35mFirst Day\x1b[0m"},
 		"accent":        {got: style.Accent("next"), want: "\x1b[36mnext\x1b[0m"},
 		"success":       {got: style.Success("done"), want: "\x1b[32mdone\x1b[0m"},
 		"warning":       {got: style.Warning("hint"), want: "\x1b[33mhint\x1b[0m"},
@@ -67,7 +71,7 @@ func TestEnabledStyleUsesSemanticColors(t *testing.T) {
 		"muted":         {got: style.Muted("locked"), want: "\x1b[2mlocked\x1b[0m"},
 		"prompt":        {got: style.Prompt("/tmp"), want: "\x1b[36mopsquest:/tmp$ \x1b[0m"},
 		"progress":      {got: style.Progress("██", "░░"), want: "\x1b[32m██\x1b[0m\x1b[2m░░\x1b[0m"},
-		"command guide": {got: style.CommandGuide([]string{"find", "grep"}), want: "Commands you may need to solve this level:\n  \x1b[36mfind, grep\x1b[0m"},
+		"command guide": {got: style.CommandGuide([]string{"find", "grep"}), want: "\x1b[1mCommands you may need to solve this level:\x1b[0m\n  \x1b[36mfind, grep\x1b[0m"},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
@@ -90,7 +94,7 @@ func TestDifficultyUsesKnownSemanticColors(t *testing.T) {
 	}{
 		{value: "beginner", want: "\x1b[32mbeginner\x1b[0m"},
 		{value: "Intermediate", want: "\x1b[33mIntermediate\x1b[0m"},
-		{value: " advanced ", want: "\x1b[31m advanced \x1b[0m"},
+		{value: " advanced ", want: "\x1b[35m advanced \x1b[0m"},
 		{value: "expert", want: "expert"},
 		{value: "", want: ""},
 	}

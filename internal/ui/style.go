@@ -13,11 +13,13 @@ import (
 
 const (
 	ansiReset       = "\x1b[0m"
+	ansiBold        = "\x1b[1m"
 	ansiBoldCyan    = "\x1b[1;36m"
 	ansiCyan        = "\x1b[36m"
 	ansiGreen       = "\x1b[32m"
 	ansiYellow      = "\x1b[33m"
 	ansiRed         = "\x1b[31m"
+	ansiMagenta     = "\x1b[35m"
 	ansiBoldYellow  = "\x1b[1;33m"
 	ansiBoldMagenta = "\x1b[1;35m"
 	ansiDim         = "\x1b[2m"
@@ -48,6 +50,18 @@ func (s Style) Enabled() bool {
 // Header styles prominent OpsQuest headings.
 func (s Style) Header(text string) string {
 	return s.paint(ansiBoldCyan, text)
+}
+
+// Section styles a heading within one screen without competing with the page
+// header's color. It is useful for labels such as Objective and Progress.
+func (s Style) Section(text string) string {
+	return s.paint(ansiBold, text)
+}
+
+// World styles campaign and narrative-world labels. Regular magenta keeps the
+// role distinct from bold-magenta achievement announcements.
+func (s Style) World(text string) string {
+	return s.paint(ansiMagenta, text)
 }
 
 // Accent styles navigation and other secondary highlights.
@@ -94,7 +108,9 @@ func (s Style) Difficulty(value string) string {
 	case "intermediate":
 		return s.Warning(value)
 	case "advanced":
-		return s.Failure(value)
+		// Advanced describes curriculum depth, not a failed or dangerous state.
+		// Keep red reserved for actual errors and failures.
+		return s.paint(ansiMagenta, value)
 	default:
 		return value
 	}
@@ -113,7 +129,7 @@ func (s Style) Progress(filled, empty string) string {
 // CommandGuide formats the free, non-prescriptive tool orientation shared by
 // mission introductions, previews, and objective recall.
 func (s Style) CommandGuide(commands []string) string {
-	return "Commands you may need to solve this level:\n  " + s.Accent(strings.Join(commands, ", "))
+	return s.Section("Commands you may need to solve this level:") + "\n  " + s.Accent(strings.Join(commands, ", "))
 }
 
 func (s Style) paint(code, text string) string {

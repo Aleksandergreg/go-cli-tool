@@ -18,9 +18,11 @@ import (
 var missionFiles embed.FS
 
 type Catalog struct {
-	missions []Mission
-	byID     map[string]int
-	byNumber map[int]int
+	missions      []Mission
+	byID          map[string]int
+	byNumber      map[int]int
+	worlds        map[string][]World
+	placementByID map[string]Placement
 }
 
 func LoadCatalog() (Catalog, error) {
@@ -62,12 +64,16 @@ func LoadCatalog() (Catalog, error) {
 			return Catalog{}, fmt.Errorf("mission numbers must be contiguous: expected %d, found %d", index+1, item.Number)
 		}
 	}
+	if err := validateWorldContiguity(catalog.missions); err != nil {
+		return Catalog{}, err
+	}
 	catalog.byID = make(map[string]int, len(catalog.missions))
 	catalog.byNumber = make(map[int]int, len(catalog.missions))
 	for index, item := range catalog.missions {
 		catalog.byID[item.ID] = index
 		catalog.byNumber[item.Number] = index
 	}
+	catalog.indexWorlds()
 	return catalog, nil
 }
 

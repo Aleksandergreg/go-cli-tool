@@ -10,7 +10,9 @@
   "suggested_commands": ["tar", "sed", "vi", "chmod", "ps", "kill"],
   "hints": [
     "Break the incident into outcomes: extract, edit, set permissions, then stop the stale process.",
-    "Use tar -xf with -C /deploy. sed -i can update app.env, and chmod changes deploy.sh.",
+    "Restore the archive first with tar -xf release.tar -C /deploy, then use status to see which outcomes remain.",
+    "Change only LOG_LEVEL in /deploy/app/app.env. sed -i can replace debug with info in place, or vi can edit the virtual file.",
+    "Set /deploy/app/deploy.sh to mode 750, then stop PID 9001 while leaving metrics-agent PID 9002 running.",
     "A complete route is: tar -xf release.tar -C /deploy; sed -i 's/LOG_LEVEL=debug/LOG_LEVEL=info/' /deploy/app/app.env; chmod 750 /deploy/app/deploy.sh; kill 9001. Enter each command separately."
   ],
   "explanation": "Real incidents combine independent faults. Work from observable outcomes, verify each change, and avoid collateral damage: restore the files, make the narrow config edit, grant only needed permissions, and terminate only the stale process.",

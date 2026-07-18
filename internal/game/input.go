@@ -474,7 +474,7 @@ func commandCandidates(completions CompletionSource, prefix string) []Completion
 	if completions != nil {
 		commands = append(commands, completions.CommandNames()...)
 	}
-	commands = append(commands, "?", ":q", "exit", "hint", "list", "missions", "next", "objective", "opsquest", "play", "prev", "previous", "quit", "restart", "status")
+	commands = append(commands, "?", ":q", "exit", "guide", "hint", "list", "map", "missions", "next", "objective", "opsquest", "play", "prev", "previous", "quit", "restart", "status", "world", "worlds")
 	sort.Strings(commands)
 	candidates := make([]CompletionCandidate, 0)
 	last := ""

@@ -99,6 +99,47 @@ func TestAutomationShiftCurriculum(t *testing.T) {
 	}
 }
 
+func TestRebalancedLinuxCurriculumMetadata(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	wants := []struct {
+		id         string
+		campaign   string
+		difficulty string
+		hints      int
+	}{
+		{id: "linux-find-logs", campaign: "First Day", difficulty: "beginner", hints: 3},
+		{id: "linux-release-shuffle", campaign: "First Day", difficulty: "beginner", hints: 3},
+		{id: "linux-permissions", campaign: "The Logpocalypse", difficulty: "beginner", hints: 3},
+		{id: "linux-pipeline-report", campaign: "The Logpocalypse", difficulty: "advanced", hints: 5},
+		{id: "linux-production-friday", campaign: "Production Friday", difficulty: "advanced", hints: 5},
+	}
+	for _, want := range wants {
+		item, found := catalog.Find(want.id)
+		if !found {
+			t.Errorf("mission %q missing", want.id)
+			continue
+		}
+		if item.Campaign != want.campaign || item.Difficulty != want.difficulty || len(item.Hints) != want.hints {
+			t.Errorf("mission %q curriculum metadata = campaign %q, difficulty %q, hints %d; want %q, %q, %d",
+				item.ID, item.Campaign, item.Difficulty, len(item.Hints), want.campaign, want.difficulty, want.hints)
+		}
+	}
+
+	items := catalog.InTrack(TrackLinux)
+	for _, item := range items {
+		switch {
+		case item.Number >= 1 && item.Number <= 5 && item.Campaign != "First Day":
+			t.Errorf("World 1 mission %d campaign = %q, want First Day", item.Number, item.Campaign)
+		case item.Number >= 6 && item.Number <= 10 && item.Campaign != "The Logpocalypse":
+			t.Errorf("World 2 mission %d campaign = %q, want The Logpocalypse", item.Number, item.Campaign)
+		}
+	}
+}
+
 func TestContainerCensusUsesTypedDockerSetup(t *testing.T) {
 	catalog, err := LoadCatalog()
 	if err != nil {

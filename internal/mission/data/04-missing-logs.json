@@ -2,7 +2,7 @@
   "id": "linux-find-logs",
   "number": 4,
   "title": "The Missing Log File",
-  "campaign": "The Logpocalypse",
+  "campaign": "First Day",
   "difficulty": "beginner",
   "story": "The web server is failing, and the monitoring dashboard has chosen this moment to become an abstract art installation.",
   "objective": "Find every file ending in .log inside /var/app that contains the word ERROR. Your command output must identify only the matching log files.",

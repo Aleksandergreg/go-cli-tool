@@ -1,7 +1,9 @@
 package profile
 
 import (
+	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 )
@@ -16,6 +18,7 @@ func TestStoreRoundTripAndReset(t *testing.T) {
 		t.Fatalf("new profile name = %q", player.Name)
 	}
 	player.RecordCommands([]string{"pwd", "pwd"})
+	player.Onboarded = true
 	if achievement, added := player.UnlockAchievement("first-fix", time.Unix(1, 0)); !added || achievement.Title != "First Fix" {
 		t.Fatalf("UnlockAchievement() = %#v, %v", achievement, added)
 	}
@@ -35,7 +38,7 @@ func TestStoreRoundTripAndReset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if loaded.XP != 40 || loaded.Commands["pwd"] != 2 || loaded.HintsUsed() != 1 || !loaded.HasAchievement("first-fix") {
+	if !loaded.Onboarded || loaded.XP != 40 || loaded.Commands["pwd"] != 2 || loaded.HintsUsed() != 1 || !loaded.HasAchievement("first-fix") {
 		t.Fatalf("loaded profile = %#v", loaded)
 	}
 	if next, needed, ok := loaded.NextRank(); !ok || next != "Operator" || needed != 60 {
@@ -48,6 +51,91 @@ func TestStoreRoundTripAndReset(t *testing.T) {
 	removed, err = store.Reset()
 	if err != nil || removed {
 		t.Fatalf("second Reset() = %v, %v", removed, err)
+	}
+}
+
+func TestValidateName(t *testing.T) {
+	maximum := strings.Repeat("a", MaxPlayerNameRunes)
+	tests := []struct {
+		name  string
+		value string
+		valid bool
+	}{
+		{name: "simple", value: "alex", valid: true},
+		{name: "spaces", value: "Alex Operator", valid: true},
+		{name: "unicode", value: "Åsa 🙂", valid: true},
+		{name: "maximum length", value: maximum, valid: true},
+		{name: "blank", value: "   ", valid: false},
+		{name: "escape", value: "alex\x1b[2J", valid: false},
+		{name: "newline", value: "alex\noperator", valid: false},
+		{name: "tab", value: "alex\toperator", valid: false},
+		{name: "unicode formatting control", value: "alex\u202eoperator", valid: false},
+		{name: "invalid UTF-8", value: string([]byte{'a', 0xff}), valid: false},
+		{name: "too long", value: maximum + "a", valid: false},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			err := ValidateName(test.value)
+			if (err == nil) != test.valid {
+				t.Fatalf("ValidateName(%q) error = %v, valid = %v", test.value, err, test.valid)
+			}
+		})
+	}
+}
+
+func TestStoreRejectsUnsafeNameWithoutReplacingProfile(t *testing.T) {
+	store := NewStore(filepath.Join(t.TempDir(), "profile.json"), "operator")
+	player := New("safe operator")
+	if err := store.Save(player); err != nil {
+		t.Fatal(err)
+	}
+
+	for _, invalid := range []string{"unsafe\x1b[2Joperator", "\n"} {
+		player.Name = invalid
+		if err := store.Save(player); err == nil || !strings.Contains(err.Error(), "invalid profile name") {
+			t.Fatalf("Save() with %q error = %v, want invalid profile name", invalid, err)
+		}
+	}
+	loaded, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Name != "safe operator" || strings.ContainsRune(loaded.Name, '\x1b') {
+		t.Fatalf("profile name after rejected save = %q", loaded.Name)
+	}
+}
+
+func TestLoadNormalizesUnsafeLegacyName(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profile.json")
+	data := []byte(`{"version":2,"name":"legacy\u001bname\n"}`)
+	if err := os.WriteFile(path, data, 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	loaded, err := NewStore(path, "operator").Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if loaded.Name != "legacyname" {
+		t.Fatalf("normalized legacy name = %q, want %q", loaded.Name, "legacyname")
+	}
+	if err := ValidateName(loaded.Name); err != nil {
+		t.Fatalf("normalized legacy name remains invalid: %v", err)
+	}
+}
+
+func TestNewNormalizesUnsafeAndOversizeDefaultNames(t *testing.T) {
+	unsafe := New("\x1b\n")
+	if unsafe.Name != defaultPlayerName {
+		t.Fatalf("unsafe default name = %q, want %q", unsafe.Name, defaultPlayerName)
+	}
+
+	overlong := New(strings.Repeat("é", MaxPlayerNameRunes+5))
+	if got := len([]rune(overlong.Name)); got != MaxPlayerNameRunes {
+		t.Fatalf("normalized name length = %d, want %d", got, MaxPlayerNameRunes)
+	}
+	if err := ValidateName(overlong.Name); err != nil {
+		t.Fatalf("normalized overlong name remains invalid: %v", err)
 	}
 }
 
@@ -73,6 +161,20 @@ func TestCompleteClearsReplayHintsWithoutChangingOriginalCompletion(t *testing.T
 	}
 	if got := player.Completed[missionID]; got != original {
 		t.Fatalf("replay changed original completion: got %#v, want %#v", got, original)
+	}
+}
+
+func TestActiveHintsCountsOnlyIncompleteProgress(t *testing.T) {
+	player := New("alex")
+	player.RecordHint("one")
+	player.RecordHint("two")
+	player.RecordHint("two")
+	if got := player.ActiveHints(); got != 3 {
+		t.Fatalf("ActiveHints() = %d, want 3", got)
+	}
+	player.Complete("one", 25, 1, time.Unix(1, 0))
+	if got := player.ActiveHints(); got != 2 {
+		t.Fatalf("ActiveHints() after completion = %d, want 2", got)
 	}
 }
 

@@ -2,6 +2,7 @@ package game
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"path/filepath"
 	"strings"
@@ -74,6 +75,9 @@ func TestSessionColorsChromeWithoutColoringSandboxOutput(t *testing.T) {
 	output := out.String()
 	for _, expected := range []string{
 		style.Header("MISSION 01: Where Am I?"),
+		style.World("Linux · World 1/4: First Day · Stage 1/5"),
+		style.Section("INCIDENT"),
+		style.Section("OBJECTIVE"),
 		style.Difficulty("beginner"),
 		style.CommandGuide(item.SuggestedCommands),
 		style.Accent("hint"),
@@ -90,6 +94,37 @@ func TestSessionColorsChromeWithoutColoringSandboxOutput(t *testing.T) {
 	// the value that also feeds outcome validation.
 	if !strings.Contains(output, "\n/home/operator\n") {
 		t.Fatalf("pwd output was not emitted as raw text:\n%q", output)
+	}
+}
+
+func TestSessionColorsOnlyTheHintPrefix(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("1")
+	player := profile.New("tester")
+	style := ui.New(true)
+	out := &bytes.Buffer{}
+	session := Session{
+		Mission: item,
+		Player:  &player,
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Out:     out,
+		ErrOut:  &bytes.Buffer{},
+		Reader:  &colorSessionReader{lines: []string{"hint", "quit"}},
+		Catalog: catalog,
+		Style:   style,
+	}
+	if _, err := session.Run(); err != nil {
+		t.Fatal(err)
+	}
+	prefix := fmt.Sprintf("Hint 1/%d (-10 XP):", len(item.Hints))
+	if !strings.Contains(out.String(), style.Warning(prefix)+" "+item.Hints[0]) {
+		t.Fatalf("hint prefix was not styled independently:\n%q", out.String())
+	}
+	if strings.Contains(out.String(), style.Warning(prefix+" "+item.Hints[0])) {
+		t.Fatalf("hint explanation was colored as one long warning:\n%q", out.String())
 	}
 }
 
