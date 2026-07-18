@@ -35,15 +35,36 @@ func TestIntegrationRealDockerContainerCensus(t *testing.T) {
 			t.Errorf("cleanup: %v", err)
 		}
 	}()
+	lab, ok := created.(*environment)
+	if !ok {
+		t.Fatalf("Docker factory returned %T, want *environment", created)
+	}
 
 	condition := mission.Condition{Type: "docker_container_running", Container: "api"}
 	if running, err := created.Observe(context.Background(), condition); err != nil || running {
 		t.Fatalf("initial api running = %v, %v", running, err)
 	}
+	if _, err := created.Execute(context.Background(), "docker ps -a"); err != nil {
+		t.Fatal(err)
+	}
 	if _, err := created.Execute(context.Background(), "docker start api"); err != nil {
 		t.Fatal(err)
 	}
-	if running, err := created.Observe(context.Background(), condition); err != nil || !running {
-		t.Fatalf("api running after start = %v, %v", running, err)
+	for _, outcome := range item.Validation.All {
+		if satisfied, err := created.Observe(context.Background(), outcome); err != nil || !satisfied {
+			t.Fatalf("outcome %#v after canonical solution = %v, %v", outcome, satisfied, err)
+		}
+	}
+	ids := make([]string, 0, len(lab.containers))
+	for _, tracked := range lab.snapshotContainers() {
+		ids = append(ids, tracked.id)
+	}
+	if err := created.Close(); err != nil {
+		t.Fatal(err)
+	}
+	for _, id := range ids {
+		if _, exists, err := lab.inspectReferenceUnchecked(context.Background(), id); err != nil || exists {
+			t.Fatalf("fixture %s after cleanup exists = %v, error = %v", id, exists, err)
+		}
 	}
 }

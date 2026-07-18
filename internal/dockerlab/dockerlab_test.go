@@ -18,6 +18,7 @@ const testImageReference = "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee
 
 type fakeContainer struct {
 	labels  map[string]string
+	name    string
 	running bool
 	status  string
 }
@@ -25,14 +26,15 @@ type fakeContainer struct {
 type fakeDockerRunner struct {
 	mutex sync.Mutex
 
-	calls          [][]string
-	containers     map[string]*fakeContainer
-	containerOrder []string
-	daemonErr      error
-	imageAvailable bool
-	failCreateAt   int
-	createAttempts int
-	failNextStart  bool
+	calls             [][]string
+	containers        map[string]*fakeContainer
+	containerOrder    []string
+	daemonErr         error
+	imageAvailable    bool
+	failCreateAt      int
+	failAfterCreateAt int
+	createAttempts    int
+	failNextStart     bool
 }
 
 func newFakeDockerRunner() *fakeDockerRunner {
@@ -65,17 +67,23 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		}
 		id := strings.Repeat(string(rune('b'+len(r.containerOrder))), 64)
 		labels := make(map[string]string)
+		name := ""
 		for index := 0; index+1 < len(args); index++ {
-			if args[index] != "--label" {
-				continue
-			}
-			name, value, found := strings.Cut(args[index+1], "=")
-			if found {
-				labels[name] = value
+			switch args[index] {
+			case "--name":
+				name = args[index+1]
+			case "--label":
+				labelName, value, found := strings.Cut(args[index+1], "=")
+				if found {
+					labels[labelName] = value
+				}
 			}
 		}
-		r.containers[id] = &fakeContainer{labels: labels, status: "created"}
+		r.containers[id] = &fakeContainer{labels: labels, name: name, status: "created"}
 		r.containerOrder = append(r.containerOrder, id)
+		if r.failAfterCreateAt == r.createAttempts {
+			return runResult{stderr: "connection lost after create"}, errors.New("exit status 1")
+		}
 		return runResult{stdout: id + "\n"}, nil
 	case hasPrefix(args, "container", "start") || hasPrefix(args, "container", "restart"):
 		if r.failNextStart {
@@ -91,7 +99,7 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		container.status = "running"
 		return runResult{stdout: id + "\n"}, nil
 	case hasPrefix(args, "container", "inspect", "--format"):
-		id := args[len(args)-1]
+		id := r.resolveContainer(args[len(args)-1])
 		container, exists := r.containers[id]
 		if !exists {
 			return missingContainerResult(id)
@@ -105,6 +113,28 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 			return runResult{}, err
 		}
 		return runResult{stdout: string(encoded) + "\n"}, nil
+	case hasPrefix(args, "container", "ls", "--all", "--quiet", "--no-trunc"):
+		filters := make(map[string]string)
+		for index := 0; index+1 < len(args); index++ {
+			if args[index] != "--filter" {
+				continue
+			}
+			filter := strings.TrimPrefix(args[index+1], "label=")
+			name, value, found := strings.Cut(filter, "=")
+			if found {
+				filters[name] = value
+			}
+		}
+		var output strings.Builder
+		for _, id := range r.containerOrder {
+			container, exists := r.containers[id]
+			if !exists || !labelsMatch(container.labels, filters) {
+				continue
+			}
+			output.WriteString(id)
+			output.WriteByte('\n')
+		}
+		return runResult{stdout: output.String()}, nil
 	case hasPrefix(args, "container", "rm", "--force"):
 		id := args[len(args)-1]
 		if _, exists := r.containers[id]; !exists {
@@ -115,6 +145,27 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 	default:
 		return runResult{stderr: "unexpected fake Docker invocation"}, fmt.Errorf("unexpected Docker args: %q", args)
 	}
+}
+
+func (r *fakeDockerRunner) resolveContainer(reference string) string {
+	if _, exists := r.containers[reference]; exists {
+		return reference
+	}
+	for id, container := range r.containers {
+		if container.name == reference {
+			return id
+		}
+	}
+	return reference
+}
+
+func labelsMatch(labels, filters map[string]string) bool {
+	for name, value := range filters {
+		if labels[name] != value {
+			return false
+		}
+	}
+	return true
 }
 
 func (r *fakeDockerRunner) resetCalls() {
@@ -345,6 +396,22 @@ func TestLogicalCommandsAndOutcomeObservation(t *testing.T) {
 	if got, err := environment.Observe(context.Background(), containerCount); err != nil || !got {
 		t.Fatalf("container count outcome = %v, %v", got, err)
 	}
+	extraID := strings.Repeat("e", 64)
+	commandRunner.mutex.Lock()
+	commandRunner.containers[extraID] = &fakeContainer{
+		labels: map[string]string{
+			managedLabel: "true", schemaLabel: "1", sessionLabel: environment.sessionID, missionLabel: environment.missionID,
+		},
+		name: "opsquest-extra",
+	}
+	commandRunner.containerOrder = append(commandRunner.containerOrder, extraID)
+	commandRunner.mutex.Unlock()
+	if got, err := environment.Observe(context.Background(), containerCount); err != nil || got {
+		t.Fatalf("container count with extra attempt-owned fixture = %v, %v", got, err)
+	}
+	commandRunner.mutex.Lock()
+	delete(commandRunner.containers, extraID)
+	commandRunner.mutex.Unlock()
 
 	listed, err := environment.Execute(context.Background(), "docker ps")
 	if err != nil {
@@ -467,6 +534,28 @@ func TestSetupFailureCleansAlreadyCreatedContainers(t *testing.T) {
 		}
 	})
 
+	t.Run("ambiguous create is recovered by owned name", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.failAfterCreateAt = 2
+		if _, err := testFactory(commandRunner).Create(context.Background(), testDockerMission()); err == nil {
+			t.Fatal("Create() unexpectedly succeeded")
+		}
+		if commandRunner.containerCount() != 0 {
+			t.Fatalf("containers after ambiguous create = %d", commandRunner.containerCount())
+		}
+		calls := commandRunner.snapshotCalls()
+		ambiguousName := "opsquest-aaaaaaaaaaaaaaaaaaaaaaaa-c02"
+		foundRecoveryInspect := false
+		for _, call := range calls {
+			if reflect.DeepEqual(call, []string{"container", "inspect", "--format", "{{json .}}", ambiguousName}) {
+				foundRecoveryInspect = true
+			}
+		}
+		if !foundRecoveryInspect {
+			t.Fatalf("ambiguous create did not reconcile by generated name: %q", calls)
+		}
+	})
+
 	t.Run("fixture start fails", func(t *testing.T) {
 		commandRunner := newFakeDockerRunner()
 		commandRunner.failNextStart = true
@@ -565,6 +654,20 @@ func TestInvalidDockerSetupNeverReachesRunner(t *testing.T) {
 	}
 	if len(commandRunner.snapshotCalls()) != 0 {
 		t.Fatalf("invalid setup reached Docker runner: %q", commandRunner.snapshotCalls())
+	}
+}
+
+func TestRuntimeUsesCatalogDockerNameRules(t *testing.T) {
+	item := testDockerMission()
+	item.Docker.Images[0].Alias = "fixture.v1"
+	item.Docker.Containers[0].Image = "fixture.v1"
+	item.Docker.Containers[1].Image = "fixture.v1"
+	item.Docker.Containers[0].Name = "api_worker"
+	if err := validateDockerSetup(*item.Docker); err != nil {
+		t.Fatalf("catalog-valid Docker names were rejected at runtime: %v", err)
+	}
+	if action, err := parseAction("docker start api_worker"); err != nil || action.alias != "api_worker" {
+		t.Fatalf("parse catalog-valid alias = %#v, %v", action, err)
 	}
 }
 

@@ -34,7 +34,7 @@ The delivered typed subset is `docker ps`, `docker container ls`, `start`, `rest
 - Docker remains optional; all Linux missions work without it.
 - Player input is parsed and allowlisted by OpsQuest, never passed to a host shell.
 - Every resource receives unique OpsQuest labels and resource limits.
-- Success, restart, quit, terminal EOF/Ctrl-C, switching, setup failure, and ordinary errors clean up only exact OpsQuest-owned resources.
+- Success, restart, quit, terminal EOF/Ctrl-C, switching, setup failure, and ordinary errors reconcile and clean up only exact OpsQuest-owned resources.
 - No privileged containers, host bind mounts, or Docker socket exposure inside labs.
 - Dockerfiles, volumes, networking, Compose, and Kubernetes remain follow-up iterations.
 

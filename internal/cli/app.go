@@ -32,6 +32,13 @@ type App struct {
 }
 
 func New(in io.Reader, out, errOut io.Writer) (*App, error) {
+	return NewWithContext(context.Background(), in, out, errOut)
+}
+
+// NewWithContext constructs the CLI with a process-lifecycle context. The
+// executable uses a signal-aware context so Docker operations can stop and
+// attempt cleanup before the process exits.
+func NewWithContext(ctx context.Context, in io.Reader, out, errOut io.Writer) (*App, error) {
 	catalog, err := mission.LoadCatalog()
 	if err != nil {
 		return nil, err
@@ -40,7 +47,11 @@ func New(in io.Reader, out, errOut io.Writer) (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	return NewWithDependencies(in, out, errOut, catalog, store), nil
+	app := NewWithDependencies(in, out, errOut, catalog, store)
+	if ctx != nil {
+		app.context = ctx
+	}
+	return app, nil
 }
 
 func NewWithDependencies(in io.Reader, out, errOut io.Writer, catalog mission.Catalog, store profile.Store) *App {
@@ -564,7 +575,7 @@ func (a *App) runDoctor(args []string) error {
 	fmt.Fprintf(a.out, "  %s embedded catalog: %d missions (%d Linux, %d Docker)\n", check, len(a.catalog.All()), len(a.catalog.InTrack(mission.TrackLinux)), len(a.catalog.InTrack(mission.TrackDocker)))
 	fmt.Fprintf(a.out, "  %s profile: version %d, %d completed missions\n", check, player.Version, len(player.Completed))
 	fmt.Fprintf(a.out, "  %s profile path: %s\n", check, a.store.Path())
-	fmt.Fprintf(a.out, "  %s sandbox: in-memory; host command execution disabled\n", check)
+	fmt.Fprintf(a.out, "  %s Linux labs: in-memory; no host shell or filesystem access\n", check)
 	if item, found := firstMissionInTrack(a.catalog, mission.TrackDocker); found {
 		availability := game.EnvironmentAvailability(a.context, a.factory, item)
 		if availability.Available {

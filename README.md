@@ -37,7 +37,8 @@ Version 0.3 starts Docker Foundations while preserving the complete Linux campai
 - Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
 - Safe virtual shell scripts with bounded nesting and line-numbered errors
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
-- Hints with persistent XP penalties, plus mission status and environment restart controls
+- Progressive hints that introduce relevant tools and syntax, with persistent XP penalties
+- Mission status and environment restart controls
 - Persistent XP, ranks, mission completion, command mastery, and six learning achievements
 - Replayable missions without duplicate XP
 - Mission previews, campaign filters, profile naming, and built-in diagnostics

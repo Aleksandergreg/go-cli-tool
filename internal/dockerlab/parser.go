@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 	"unicode"
+
+	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
 
 const maxDockerCommandLineBytes = 64 * 1024
@@ -75,7 +77,7 @@ func parseAction(line string) (dockerAction, error) {
 		}
 		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all]")
 	case "start", "restart", "inspect":
-		if len(fields) != 2 || !logicalNamePattern.MatchString(fields[1]) {
+		if len(fields) != 2 || !mission.ValidDockerLogicalName(fields[1]) {
 			return dockerAction{}, fmt.Errorf("usage: docker %s ALIAS", fields[0])
 		}
 		kind := actionStart

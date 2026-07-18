@@ -21,9 +21,7 @@ const (
 )
 
 var (
-	logicalNamePattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
 	containerIDPattern = regexp.MustCompile(`^[a-f0-9]{12,64}$`)
-	digestPattern      = regexp.MustCompile(`^[^[:space:]]+@sha256:[a-f0-9]{64}$`)
 )
 
 // Factory routes simulated missions to the existing fallback and owns the
@@ -107,11 +105,13 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 	}
 	for index, fixture := range item.Docker.Containers {
 		tracked, createErr := environment.createContainer(ctx, index, fixture, images[fixture.Image])
+		if tracked != nil {
+			environment.containers = append(environment.containers, tracked)
+			environment.byAlias[tracked.alias] = tracked
+		}
 		if createErr != nil {
 			return nil, joinSetupCleanupError(createErr, environment.Close())
 		}
-		environment.containers = append(environment.containers, tracked)
-		environment.byAlias[tracked.alias] = tracked
 	}
 	for _, fixture := range item.Docker.Containers {
 		if fixture.State != "running" {
@@ -195,20 +195,20 @@ func validateDockerSetup(setup mission.DockerSetup) error {
 	}
 	images := make(map[string]bool, len(setup.Images))
 	for _, image := range setup.Images {
-		if !logicalNamePattern.MatchString(image.Alias) {
+		if !mission.ValidDockerLogicalName(image.Alias) {
 			return fmt.Errorf("invalid image alias %q", image.Alias)
 		}
 		if images[image.Alias] {
 			return fmt.Errorf("duplicate image alias %q", image.Alias)
 		}
-		if !digestPattern.MatchString(image.Reference) || strings.HasPrefix(image.Reference, "-") {
+		if !mission.ValidDockerImageReference(image.Reference) {
 			return fmt.Errorf("image %s must use a digest-pinned reference", image.Alias)
 		}
 		images[image.Alias] = true
 	}
 	containers := make(map[string]bool, len(setup.Containers))
 	for _, fixture := range setup.Containers {
-		if !logicalNamePattern.MatchString(fixture.Name) {
+		if !mission.ValidDockerLogicalName(fixture.Name) {
 			return fmt.Errorf("invalid container name %q", fixture.Name)
 		}
 		if containers[fixture.Name] {

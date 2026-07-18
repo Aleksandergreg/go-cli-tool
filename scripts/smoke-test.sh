@@ -86,7 +86,7 @@ doctor_output="$(run_opsquest doctor)"
 assert_no_ansi "doctor" "${doctor_output}"
 assert_contains "doctor" "${doctor_output}" "embedded catalog: 17 missions"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
-assert_contains "doctor" "${doctor_output}" "sandbox: in-memory; host command execution disabled"
+assert_contains "doctor" "${doctor_output}" "Linux labs: in-memory; no host shell or filesystem access"
 assert_contains "doctor" "${doctor_output}" "docker labs:"
 
 play_output="$(printf 'pwd\nopsquest list --completed\nplay 3\nquit\n' | run_opsquest play)"

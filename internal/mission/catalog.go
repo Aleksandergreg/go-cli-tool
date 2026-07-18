@@ -86,6 +86,19 @@ var (
 	dockerImageReferencePattern = regexp.MustCompile(`^[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_.-]+)?@sha256:[a-f0-9]{64}$`)
 )
 
+// ValidDockerLogicalName reports whether value is safe to use as a stable
+// mission alias. Runtime adapters use this same rule so catalog-valid content
+// cannot become unplayable at environment setup time.
+func ValidDockerLogicalName(value string) bool {
+	return dockerLogicalNamePattern.MatchString(value)
+}
+
+// ValidDockerImageReference accepts only explicit repository references
+// pinned to a sha256 digest.
+func ValidDockerImageReference(value string) bool {
+	return dockerImageReferencePattern.MatchString(value)
+}
+
 func validateMission(item Mission) error {
 	if !missionIDPattern.MatchString(item.ID) {
 		return fmt.Errorf("id %q must use lowercase words separated by hyphens", item.ID)
@@ -176,20 +189,20 @@ func validateDockerSetup(setup DockerSetup) error {
 	}
 	images := make(map[string]bool, len(setup.Images))
 	for _, image := range setup.Images {
-		if !dockerLogicalNamePattern.MatchString(image.Alias) {
+		if !ValidDockerLogicalName(image.Alias) {
 			return fmt.Errorf("docker image alias %q must be a lowercase logical name", image.Alias)
 		}
 		if images[image.Alias] {
 			return fmt.Errorf("duplicate docker image alias %q", image.Alias)
 		}
-		if !dockerImageReferencePattern.MatchString(image.Reference) {
+		if !ValidDockerImageReference(image.Reference) {
 			return fmt.Errorf("docker image %q reference must be pinned by sha256 digest", image.Alias)
 		}
 		images[image.Alias] = true
 	}
 	containers := make(map[string]bool, len(setup.Containers))
 	for _, container := range setup.Containers {
-		if !dockerLogicalNamePattern.MatchString(container.Name) {
+		if !ValidDockerLogicalName(container.Name) {
 			return fmt.Errorf("docker container name %q must be a lowercase logical name", container.Name)
 		}
 		if containers[container.Name] {
@@ -398,7 +411,7 @@ func validateCondition(condition Condition, environment string) error {
 		if environment != EnvironmentDocker {
 			return fmt.Errorf("docker_container_running requires a docker environment")
 		}
-		if !dockerLogicalNamePattern.MatchString(condition.Container) {
+		if !ValidDockerLogicalName(condition.Container) {
 			return fmt.Errorf("container %q must be a lowercase logical name", condition.Container)
 		}
 		if condition.Path != "" || condition.Value != "" || len(condition.Values) != 0 || condition.PID != 0 || condition.Count != nil {

@@ -106,15 +106,9 @@ func (e *environment) Observe(ctx context.Context, condition mission.Condition) 
 		if condition.Count == nil {
 			return false, fmt.Errorf("docker_container_count_equals requires count")
 		}
-		count := 0
-		for _, tracked := range e.snapshotContainers() {
-			_, exists, err := e.inspect(ctx, tracked.id)
-			if err != nil {
-				return false, err
-			}
-			if exists {
-				count++
-			}
+		count, err := e.countOwnedContainers(ctx)
+		if err != nil {
+			return false, err
 		}
 		return count == *condition.Count, nil
 	default:
@@ -159,6 +153,12 @@ func (e *environment) Close() error {
 
 func (e *environment) createContainer(ctx context.Context, index int, fixture mission.DockerContainerSpec, reference string) (*trackedContainer, error) {
 	actualName := fmt.Sprintf("opsquest-%s-c%02d", e.sessionID, index+1)
+	tracked := &trackedContainer{
+		logicalID:  fmt.Sprintf("lab-%02d", index+1),
+		alias:      fixture.Name,
+		imageAlias: fixture.Image,
+		actualName: actualName,
+	}
 	args := []string{
 		"container", "create",
 		"--pull", "never",
@@ -187,19 +187,41 @@ func (e *environment) createContainer(ctx context.Context, index int, fixture mi
 	}
 	result, err := e.run(ctx, args...)
 	if err != nil {
-		return nil, fmt.Errorf("create Docker fixture %s: %w", fixture.Name, err)
+		createErr := fmt.Errorf("create Docker fixture %s: %w", fixture.Name, err)
+		return e.reconcileAmbiguousCreate(tracked, createErr)
 	}
 	id := strings.TrimSpace(result.stdout)
 	if !containerIDPattern.MatchString(id) {
-		return nil, fmt.Errorf("create Docker fixture %s: Docker returned an invalid container ID", fixture.Name)
+		createErr := fmt.Errorf("create Docker fixture %s: Docker returned an invalid container ID", fixture.Name)
+		return e.reconcileAmbiguousCreate(tracked, createErr)
 	}
-	return &trackedContainer{
-		id:         id,
-		logicalID:  fmt.Sprintf("lab-%02d", index+1),
-		alias:      fixture.Name,
-		imageAlias: fixture.Image,
-		actualName: actualName,
-	}, nil
+	tracked.id = id
+	return tracked, nil
+}
+
+// reconcileAmbiguousCreate handles the case where the Docker CLI reports an
+// error or malformed output after the daemon may already have created the
+// container. The generated name is internal, and ownership labels must match
+// before the recovered exact ID is admitted to the cleanup set.
+func (e *environment) reconcileAmbiguousCreate(tracked *trackedContainer, createErr error) (*trackedContainer, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
+	defer cancel()
+	inspection, exists, err := e.inspectReferenceUnchecked(ctx, tracked.actualName)
+	if err != nil {
+		return nil, errors.Join(createErr, fmt.Errorf("reconcile Docker fixture %s: %w", tracked.alias, err))
+	}
+	if !exists {
+		return nil, createErr
+	}
+	labels := inspection.Config.Labels
+	if labels[managedLabel] != "true" || labels[sessionLabel] != e.sessionID || labels[missionLabel] != e.missionID || labels[aliasLabel] != tracked.alias {
+		return nil, errors.Join(createErr, fmt.Errorf("refusing to recover Docker fixture %s because its ownership labels do not match", tracked.alias))
+	}
+	if !containerIDPattern.MatchString(inspection.ID) {
+		return nil, errors.Join(createErr, fmt.Errorf("reconcile Docker fixture %s: Docker returned an invalid container ID", tracked.alias))
+	}
+	tracked.id = inspection.ID
+	return tracked, createErr
 }
 
 func (e *environment) startContainer(ctx context.Context, alias string) error {
@@ -293,7 +315,18 @@ func (e *environment) inspect(ctx context.Context, id string) (containerInspecti
 }
 
 func (e *environment) inspectUnchecked(ctx context.Context, id string) (containerInspection, bool, error) {
-	result, err := e.run(ctx, "container", "inspect", "--format", "{{json .}}", id)
+	inspection, exists, err := e.inspectReferenceUnchecked(ctx, id)
+	if err != nil || !exists {
+		return inspection, exists, err
+	}
+	if inspection.ID != id {
+		return containerInspection{}, false, fmt.Errorf("Docker inspection returned an unexpected container ID")
+	}
+	return inspection, true, nil
+}
+
+func (e *environment) inspectReferenceUnchecked(ctx context.Context, reference string) (containerInspection, bool, error) {
+	result, err := e.run(ctx, "container", "inspect", "--format", "{{json .}}", reference)
 	if err != nil {
 		if isMissingContainer(result) {
 			return containerInspection{}, false, nil
@@ -304,10 +337,36 @@ func (e *environment) inspectUnchecked(ctx context.Context, id string) (containe
 	if err := json.Unmarshal([]byte(result.stdout), &inspection); err != nil {
 		return containerInspection{}, false, fmt.Errorf("decode Docker inspection: %w", err)
 	}
-	if inspection.ID != "" && inspection.ID != id {
-		return containerInspection{}, false, fmt.Errorf("Docker inspection returned an unexpected container ID")
-	}
 	return inspection, true, nil
+}
+
+func (e *environment) countOwnedContainers(ctx context.Context) (int, error) {
+	result, err := e.run(ctx,
+		"container", "ls", "--all", "--quiet", "--no-trunc",
+		"--filter", "label="+sessionLabel+"="+e.sessionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	ids := strings.Fields(result.stdout)
+	count := 0
+	for _, id := range ids {
+		if !containerIDPattern.MatchString(id) {
+			return 0, fmt.Errorf("Docker container listing returned an invalid container ID")
+		}
+		inspection, exists, err := e.inspect(ctx, id)
+		if err != nil {
+			return 0, err
+		}
+		if !exists {
+			continue
+		}
+		labels := inspection.Config.Labels
+		if labels[managedLabel] == "true" && labels[schemaLabel] == "1" && labels[sessionLabel] == e.sessionID && labels[missionLabel] == e.missionID {
+			count++
+		}
+	}
+	return count, nil
 }
 
 func (e *environment) run(ctx context.Context, args ...string) (runResult, error) {

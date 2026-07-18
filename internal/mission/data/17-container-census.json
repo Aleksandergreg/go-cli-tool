@@ -7,7 +7,7 @@
   "campaign": "It Works on My Machine",
   "difficulty": "beginner",
   "story": "The welcome API vanished from the dashboard, but its container still exists. Metrics is healthy, and replacing things before checking their state is how last Friday became a retrospective.",
-  "objective": "Start the existing api container without creating a replacement or disturbing the running metrics container.",
+  "objective": "Ensure both existing api and metrics containers are running, with exactly two mission containers remaining.",
   "hints": [
     "Images are reusable templates; containers are instances with their own running or stopped lifecycle state.",
     "Use docker ps -a to include stopped containers and inspect api before changing anything.",

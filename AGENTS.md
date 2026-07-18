@@ -45,6 +45,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Embedded mission integrity: `make validate-missions`.
 - Agent harness structure: `make check-agent-docs`.
 - Deterministic CLI path: `make smoke-test`.
+- Real Docker lifecycle (for Docker changes when prerequisites are available): `make docker-integration`.
 - Normal local gate: `make check`.
 - Comprehensive gate, including race detection: `make check-all`.
 
