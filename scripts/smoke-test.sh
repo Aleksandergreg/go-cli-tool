@@ -78,6 +78,14 @@ assert_contains "fresh play" "${fresh_play_output}" "WELCOME TO OPSQUEST"
 returning_play_output="$(printf 'quit\n' | run_fresh_opsquest play 1)"
 assert_not_contains "returning play" "${returning_play_output}" "WELCOME TO OPSQUEST"
 
+selected_play_output="$(printf 'pwd\nquit\n' | run_fresh_opsquest play 1)"
+assert_contains "selected continuous play" "${selected_play_output}" "Continuing to Mission 02: Configuration Crawl"
+assert_contains "selected continuous play" "${selected_play_output}" "MISSION 02: Configuration Crawl"
+
+once_output="$(printf 'pwd\n' | run_fresh_opsquest play --once 1)"
+assert_contains "one-shot play" "${once_output}" "NEXT RECOMMENDED"
+assert_not_contains "one-shot play" "${once_output}" "MISSION 02: Configuration Crawl"
+
 guide_output="$(run_opsquest guide)"
 assert_no_ansi "guide" "${guide_output}"
 assert_contains "guide" "${guide_output}" "WELCOME TO OPSQUEST"
@@ -148,4 +156,4 @@ assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: onboarding, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'
+printf 'smoke-test: onboarding, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'

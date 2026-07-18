@@ -131,6 +131,7 @@ func (a *App) runPlay(args []string) error {
 	flags.SetOutput(a.errOut)
 	track := flags.String("track", mission.TrackLinux, "play the linux or docker track")
 	worldNumber := flags.Int("world", 0, "start the next incomplete stage in a world")
+	once := flags.Bool("once", false, "return after one completed mission")
 	flags.Usage = func() { a.printPlayUsage(a.errOut) }
 	if err := flags.Parse(args); err != nil {
 		if errors.Is(err, flag.ErrHelp) {
@@ -139,7 +140,7 @@ func (a *App) runPlay(args []string) error {
 		return err
 	}
 	if flags.NArg() > 1 {
-		return fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [MISSION]")
+		return fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [MISSION]")
 	}
 	trackProvided := false
 	worldProvided := false
@@ -199,10 +200,11 @@ func (a *App) runPlay(args []string) error {
 			return err
 		}
 	}
-	continuous := flags.NArg() == 0
+	continuous := !*once
 	reader := game.NewCommandLineReader(a.in, a.out)
 	for {
 		currentTrack := item.EffectiveTrack()
+		wasComplete := player.IsComplete(item.ID)
 		session := game.Session{
 			Mission: item,
 			Player:  &player,
@@ -230,7 +232,6 @@ func (a *App) runPlay(args []string) error {
 		if result.SwitchMission != "" {
 			item, _ = a.catalog.Find(result.SwitchMission)
 			*worldNumber = 0
-			continuous = false
 			continue
 		}
 		if !result.Completed {
@@ -257,7 +258,7 @@ func (a *App) runPlay(args []string) error {
 			return nil
 		}
 		if current, ok := a.catalog.Placement(item.ID); ok {
-			if upcoming, ok := a.catalog.Placement(next.ID); ok && upcoming.WorldNumber != current.WorldNumber {
+			if upcoming, ok := a.catalog.Placement(next.ID); ok && upcoming.WorldNumber != current.WorldNumber && !wasComplete && a.worldComplete(current, player) {
 				fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("✓ World %d complete: %s", current.WorldNumber, current.WorldName)))
 				transition := "Entering"
 				if world, found := a.catalog.World(upcoming.Track, upcoming.WorldNumber); found {
@@ -274,6 +275,19 @@ func (a *App) runPlay(args []string) error {
 		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("→ Continuing to Mission %02d: %s", next.Number, next.Title)))
 		item = next
 	}
+}
+
+func (a *App) worldComplete(placement mission.Placement, player profile.Profile) bool {
+	world, found := a.catalog.World(placement.Track, placement.WorldNumber)
+	if !found {
+		return false
+	}
+	for _, stage := range world.Missions {
+		if !player.IsComplete(stage.ID) {
+			return false
+		}
+	}
+	return true
 }
 
 func (a *App) printNextRecommendation(completed mission.Mission, player profile.Profile) {
@@ -819,9 +833,9 @@ func (a *App) runHelp(args []string) error {
 }
 
 func (a *App) printPlayUsage(out io.Writer) {
-	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker] [--world NUMBER] [MISSION]")
-	fmt.Fprintln(out, "Without MISSION, continue through incomplete missions until you quit or finish the selected world/track.")
-	fmt.Fprintln(out, "With a mission number or ID, play only that selected mission.")
+	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [MISSION]")
+	fmt.Fprintln(out, "Continue through incomplete missions until you quit or finish the selected world/track.")
+	fmt.Fprintln(out, "A mission number or ID chooses where to start; --once returns after that mission is completed.")
 }
 
 func (a *App) printListUsage(out io.Writer) {

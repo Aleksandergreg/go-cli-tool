@@ -3,7 +3,7 @@
 OpsQuest is **Duolingo meets a terminal sandbox**: a command-line game that teaches Linux and container operations through short, story-driven missions.
 
 ```console
-$ opsquest play 4
+$ opsquest play --once 4
 
 MISSION 04: The Missing Log File
 ================================
@@ -102,6 +102,7 @@ $ opsquest play --world 2
 $ opsquest list # alias for map; supports the same filters
 $ opsquest list --track docker
 $ opsquest play 4
+$ opsquest play --once 4
 $ opsquest play 17
 $ opsquest play 18
 $ opsquest play linux-find-logs
@@ -161,7 +162,7 @@ Each script runs with child-shell working-directory and environment scope: `cd` 
 
 This is not a complete POSIX shell. Options such as `sh -c`, positional arguments, stdin-fed scripts, standalone assignments, loops, conditionals, functions, substitutions, background jobs, external programs, and interactive `vi` calls from a script are rejected rather than approximated. Use `help sh` for the exact limits.
 
-With no mission argument, `opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the Linux track. `opsquest play --world 2` starts the first incomplete stage in World 2 and stops at that world's boundary. `opsquest play 4` and `opsquest play linux-find-logs` run only the selected mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
+`opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the Linux track. A mission argument such as `opsquest play 4` or `opsquest play linux-find-logs` chooses where that continuous session starts. `opsquest play --world 2` stays within World 2 and stops at its boundary. Add `--once` to return after one completed mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
 
 The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
 

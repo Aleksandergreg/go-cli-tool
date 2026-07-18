@@ -40,7 +40,7 @@ Each mission contains:
 For example:
 
 ```console
-$ opsquest play 4
+$ opsquest play --once 4
 
 MISSION 04: The Missing Log File
 ================================
@@ -86,7 +86,7 @@ reset      version             help
 
 Inside a mission, players can use `hint`, `objective`, `status`, `restart`, `quit`, and `?` for the expanded control guide. They can navigate with `map`, `world NUMBER`, `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
 
-Bare `opsquest play` continues through incomplete Linux missions after a success. `opsquest play --world NUMBER` follows one world's incomplete stages and stops at its boundary. `opsquest play NUMBER_OR_ID` runs only the selected mission, including an explicitly selected Docker lab. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
+`opsquest play` continues through incomplete Linux missions after a success. `opsquest play NUMBER_OR_ID` starts that continuous session at a chosen mission, while `--once` returns after one completion. `opsquest play --world NUMBER` follows one world's incomplete stages and stops at its boundary. An explicitly selected Docker lab follows the same rule. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
 
 ## Teaching shell
 

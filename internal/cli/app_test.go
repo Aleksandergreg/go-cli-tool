@@ -187,17 +187,55 @@ func TestBarePlayContinuesThroughIncompleteMissions(t *testing.T) {
 	}
 }
 
-func TestSelectedMissionReturnsAfterCompletion(t *testing.T) {
+func TestSelectedMissionContinuesAfterCompletion(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	app, out, errOut := testApp(t, "pwd\ncd /srv/web/config/live\n", store)
+	app, out, errOut := testApp(t, "pwd\nquit\n", store)
 	if err := app.Run([]string{"play", "1"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
+	for _, expected := range []string{"Continuing to Mission 02: Configuration Crawl", "MISSION 02", "Mission paused"} {
+		if !strings.Contains(out.String(), expected) {
+			t.Fatalf("selected mission did not continue with %q:\n%s", expected, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "NEXT RECOMMENDED") {
+		t.Fatalf("continuous mission unexpectedly returned a one-shot recommendation:\n%s", out.String())
+	}
+}
+
+func TestSelectedMissionReplayContinuesWithoutRepeatingWorldCompletion(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	player := profile.New("alex")
+	player.Complete("linux-orientation", 40, 0, time.Unix(1, 0))
+	if err := store.Save(player); err != nil {
+		t.Fatal(err)
+	}
+
+	app, out, errOut := testApp(t, "pwd\nquit\n", store)
+	if err := app.Run([]string{"play", "1"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{"Replay complete", "Continuing to Mission 02: Configuration Crawl", "MISSION 02"} {
+		if !strings.Contains(out.String(), expected) {
+			t.Fatalf("selected replay did not continue with %q:\n%s", expected, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "World 1 complete") {
+		t.Fatalf("replay repeated an already-earned world completion:\n%s", out.String())
+	}
+}
+
+func TestPlayOnceReturnsAfterSelectedMission(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "pwd\n", store)
+	if err := app.Run([]string{"play", "--once", "1"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
 	if strings.Contains(out.String(), "MISSION 02") {
-		t.Fatalf("selected mission unexpectedly continued:\n%s", out.String())
+		t.Fatalf("--once unexpectedly continued:\n%s", out.String())
 	}
 	if !strings.Contains(out.String(), "NEXT RECOMMENDED") || !strings.Contains(out.String(), "Mission 02: Configuration Crawl") {
-		t.Fatalf("selected mission did not explain the next step:\n%s", out.String())
+		t.Fatalf("--once did not explain the next step:\n%s", out.String())
 	}
 }
 
