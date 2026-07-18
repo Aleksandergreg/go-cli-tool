@@ -161,7 +161,7 @@ func (a *App) runPlay(args []string) error {
 	continuous := flags.NArg() == 0
 	reader := game.NewCommandLineReader(a.in, a.out)
 	for {
-			session := game.Session{
+		session := game.Session{
 			Mission: item,
 			Player:  &player,
 			Store:   a.store,
@@ -570,9 +570,9 @@ func (a *App) printProfileUsage(out io.Writer) {
 }
 
 func (a *App) printUsage() {
-	fmt.Fprintln(a.out, `OpsQuest — learn operations by fixing fictional production
-
-Usage:
+	fmt.Fprintln(a.out, a.style.Header("OpsQuest")+" — learn operations by fixing fictional production")
+	fmt.Fprintln(a.out)
+	fmt.Fprintln(a.out, `Usage:
   opsquest play [MISSION]  Continue the campaign or play one selected mission
   opsquest list            List the Linux campaign and completion status
   opsquest profile         Show rank, XP, and campaign progress
@@ -587,6 +587,16 @@ Start with: opsquest play`)
 }
 
 func progressBar(value, total, width int) string {
+	filled := progressFilled(value, total, width)
+	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+}
+
+func styledProgressBar(style ui.Style, value, total, width int) string {
+	filled := progressFilled(value, total, width)
+	return style.Progress(strings.Repeat("█", filled), strings.Repeat("░", width-filled))
+}
+
+func progressFilled(value, total, width int) int {
 	filled := 0
 	if total > 0 {
 		filled = value * width / total
@@ -597,7 +607,7 @@ func progressBar(value, total, width int) string {
 	if filled > width {
 		filled = width
 	}
-	return strings.Repeat("█", filled) + strings.Repeat("░", width-filled)
+	return filled
 }
 
 func percentage(value, total int) int {

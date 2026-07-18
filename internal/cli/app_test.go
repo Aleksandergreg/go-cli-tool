@@ -3,13 +3,17 @@ package cli
 import (
 	"bytes"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
+	"github.com/aleksandergregersen/opsquest/internal/ui"
 )
+
+var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
 func testApp(t *testing.T, input string, store profile.Store) (*App, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
@@ -19,6 +23,38 @@ func testApp(t *testing.T, input string, store profile.Store) (*App, *bytes.Buff
 	}
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
 	return NewWithDependencies(strings.NewReader(input), out, errOut, catalog, store), out, errOut
+}
+
+func TestNonTerminalOutputRemainsPlain(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "", store)
+	if err := app.Run([]string{"list"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if strings.Contains(out.String(), "\x1b[") {
+		t.Fatalf("buffered output contains ANSI escapes:\n%q", out.String())
+	}
+}
+
+func TestForcedColorPreservesCLIText(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	plainApp, plainOut, plainErr := testApp(t, "", store)
+	if err := plainApp.Run([]string{"show", "3"}); err != nil {
+		t.Fatalf("plain Run() error = %v; stderr = %s", err, plainErr.String())
+	}
+
+	colorApp, colorOut, colorErr := testApp(t, "", store)
+	colorApp.style = ui.New(true)
+	colorApp.errorStyle = ui.New(true)
+	if err := colorApp.Run([]string{"show", "3"}); err != nil {
+		t.Fatalf("color Run() error = %v; stderr = %s", err, colorErr.String())
+	}
+	if !strings.Contains(colorOut.String(), "\x1b[") {
+		t.Fatalf("forced-color output contains no ANSI styling:\n%q", colorOut.String())
+	}
+	if got := sgrPattern.ReplaceAllString(colorOut.String(), ""); got != plainOut.String() {
+		t.Fatalf("color changed CLI text\ncolored without SGR:\n%q\nplain:\n%q", got, plainOut.String())
+	}
 }
 
 func TestPlayAwardsHintAdjustedXPAndPersistsProgress(t *testing.T) {

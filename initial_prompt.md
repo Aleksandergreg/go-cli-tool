@@ -108,7 +108,7 @@ Unknown commands fail. There is no fallback to a host executable.
 
 The mission prompt supports Tab completion against the virtual filesystem, Up/Down history, arrows, Home/End, common word movement, Backspace, forward Delete, and bracketed-paste isolation.
 
-Decorative color automatically enables on an interactive output terminal. Piped and redirected output remains plain, and a non-empty `NO_COLOR` environment variable disables color. Color belongs to the presentation layer: sandbox command results and mission validation continue to use unstyled text.
+Decorative color automatically enables on an interactive output terminal. Piped and redirected output remains plain, and the presence of the `NO_COLOR` environment variable disables color. Color belongs to the presentation layer: sandbox command results and mission validation continue to use unstyled text.
 
 `vi FILE` opens one virtual UTF-8 text file up to 256 KiB. Its deliberate teaching subset includes:
 
