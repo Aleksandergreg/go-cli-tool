@@ -10,6 +10,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/aleksandergregersen/opsquest/internal/buildinfo"
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
@@ -58,6 +59,17 @@ func TestNewUsesSafeContextAndFactoryDefaults(t *testing.T) {
 	})
 	if configured.ctx != ctx || configured.factory != factory {
 		t.Fatalf("configured dependencies were not retained: context match %v, factory = %T", configured.ctx == ctx, configured.factory)
+	}
+}
+
+func TestVersionUsesBuildInfo(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "", store)
+	if err := app.Run([]string{"version"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if got, want := out.String(), "OpsQuest "+buildinfo.Version+"\n"; got != want {
+		t.Fatalf("version output = %q, want %q", got, want)
 	}
 }
 

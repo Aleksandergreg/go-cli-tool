@@ -5,6 +5,7 @@ OpsQuest is a Go 1.22 CLI game with 19 in-memory Linux missions and an optional 
 ## Repository map
 
 - `cmd/opsquest`: process entry point, dependency construction, and exit reporting.
+- `internal/buildinfo`: Release Please-managed executable version metadata.
 - `internal/cli`: public CLI commands, flags, help, and presentation.
 - `internal/ui`: terminal-aware ANSI styling and the shared color policy for presentation.
 - `internal/game`: mission sessions, rewards, and observable-outcome validation.
@@ -46,6 +47,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Agent harness structure: `make check-agent-docs`.
 - Deterministic CLI path: `make smoke-test`.
 - Real Docker lifecycle (for Docker changes when prerequisites are available): `make docker-integration`.
+- GoReleaser configuration and local packages (for release automation changes): `make release-check` and `make release-snapshot`.
 - Normal local gate: `make check`.
 - Comprehensive gate, including race detection: `make check-all`.
 
