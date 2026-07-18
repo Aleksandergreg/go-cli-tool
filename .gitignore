@@ -1,6 +1,6 @@
 /opsquest
 /bin/
+/dist/
 *.test
 *.out
 .DS_Store
-

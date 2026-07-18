@@ -2,7 +2,7 @@
 
 OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. Its Linux curriculum runs through short, story-driven operations missions in deterministic, in-memory environments; the current release also includes one optional Docker Foundations lab backed by isolated, attempt-owned containers.
 
-The current executable reports version **0.3.0**. Kubernetes remains a later expansion and is not implemented.
+The current executable reports version **0.3.0**. <!-- x-release-please-version --> Kubernetes remains a later expansion and is not implemented.
 
 ## Product today
 
@@ -215,6 +215,7 @@ Mission content remains declarative. Parser, command, filesystem, profile, and v
 
 ```text
 cmd/opsquest/       Composition root and executable entry point
+internal/buildinfo/ Release Please-managed executable version
 internal/cli/       Top-level commands, flags, help, and adapter-independent presentation
 internal/ui/        Terminal-aware ANSI styles and color policy
 internal/game/      Sessions, rewards, terminal input, vi, and outcome validation
@@ -253,12 +254,16 @@ $ make vet
 $ make build
 $ make smoke-test
 $ make docker-integration
+$ make release-check
+$ make release-snapshot
 $ make race
 $ make check
 $ make check-all
 ```
 
-`make check-all` is the comprehensive Docker-independent gate. It validates agent documentation, runs all Go tests and embedded mission integrity checks through fake Docker contracts, vets, builds, executes an isolated CLI smoke test, and runs race detection. GitHub Actions invokes the same target. `make docker-integration` is an explicit, separately gated lifecycle test for a development machine with Docker and the pinned fixture image.
+`make check-all` is the comprehensive Docker-independent gate. It validates agent documentation, runs all Go tests and embedded mission integrity checks through fake Docker contracts, vets, builds, executes an isolated CLI smoke test, and runs race detection. GitHub Actions invokes the same target. `make docker-integration` is an explicit, separately gated lifecycle test for a development machine with Docker and the pinned fixture image. GoReleaser v2 provides the separate `release-check` and non-publishing `release-snapshot` targets.
+
+Release Please maintains the changelog, semantic version, release pull request, `vX.Y.Z` tag, and GitHub release from Conventional Commits. After a release is created, GoReleaser attaches cross-platform archives and SHA-256 checksums in the same workflow. The repository-managed CodeQL advanced workflow analyzes the Go build on pull requests, `main`, a weekly schedule, and manual dispatch.
 
 ## Roadmap
 

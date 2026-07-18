@@ -192,6 +192,7 @@ Two environment variables are useful for development or portable installs:
 
 ```text
 cmd/opsquest/       Composition root and executable entry point
+internal/buildinfo/ Release Please-managed executable version
 internal/cli/       Top-level commands and presentation, independent of environment adapters
 internal/ui/        Terminal-aware ANSI styles and color policy
 internal/game/      Interactive session, terminal/editor integration, and outcome validation
@@ -230,6 +231,8 @@ $ make validate-missions
 $ make check-agent-docs
 $ make smoke-test
 $ make docker-integration # requires an available Docker daemon and pinned fixture image
+$ make release-check      # requires GoReleaser v2
+$ make release-snapshot   # builds local archives in dist/ without publishing
 $ make vet
 $ make build
 $ make race
@@ -237,11 +240,21 @@ $ make check
 $ make check-all
 ```
 
-`make check` runs agent-document validation, all Docker-independent Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete portable quality gate and adds race detection. GitHub Actions runs that same target for pull requests and pushes to `main` without requiring Docker; superseded runs for the same PR are canceled. `make docker-integration` is the explicit real-engine lifecycle gate for machines that have Docker and the pinned fixture image available.
+`make check` runs agent-document validation, all Docker-independent Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete portable quality gate and adds race detection. GitHub Actions runs that same target for pull requests and pushes to `main` without requiring Docker; superseded runs for the same PR are canceled. `make docker-integration` is the explicit real-engine lifecycle gate for machines that have Docker and the pinned fixture image available. `make release-check` validates `.goreleaser.yml`, while `make release-snapshot` also exercises every release build and archive locally without contacting GitHub.
 
 The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary, uses a temporary `OPSQUEST_HOME`, and removes Docker from its controlled `PATH`, so it neither writes to the developer's real profile nor contacts a local daemon.
 
 Third-party module licenses are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
+## Releases and security scanning
+
+Release Please maintains a release pull request from Conventional Commit messages merged to `main`. Use `fix:` for patch changes, `feat:` for minor changes, and a `!` or `BREAKING CHANGE` footer for incompatible changes; before 1.0, breaking changes intentionally bump the minor version. Squash-merge titles should follow the same convention. The release pull request updates [`CHANGELOG.md`](CHANGELOG.md), the manifest, `internal/buildinfo.Version`, and the version reference in [`initial_prompt.md`](initial_prompt.md).
+
+Merging that release pull request creates a `vX.Y.Z` tag and GitHub release. The same workflow then uses GoReleaser to attach SHA-256-checked archives for macOS and Linux on amd64/arm64 and Windows on amd64. Archives contain the executable, README, changelog, Beer-Ware license, and third-party notices. Release Please and GoReleaser share one workflow because GitHub does not start a second workflow for a release created by the default repository token.
+
+The release workflow uses only `GITHUB_TOKEN`; no publishing secret is required. Repository Actions settings must allow workflows to create pull requests. GitHub may require approval before checks run on a release pull request created by that token; use a narrowly scoped GitHub App or fine-grained token only if unattended release-PR checks become necessary. `workflow_dispatch` is available to retry reconciliation, but it does not bypass the release-pull-request process.
+
+The repository-managed CodeQL workflow analyzes Go on pull requests, pushes to `main`, a weekly schedule, and manual dispatch. It uses manual build mode with `make build`. Do not enable GitHub's CodeQL default setup at the same time, because this workflow is the advanced setup and duplicate configurations can block or duplicate uploads.
 
 ## Roadmap
 

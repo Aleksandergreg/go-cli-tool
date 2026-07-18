@@ -10,13 +10,12 @@ import (
 	"strings"
 	"time"
 
+	"github.com/aleksandergregersen/opsquest/internal/buildinfo"
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 	"github.com/aleksandergregersen/opsquest/internal/ui"
 )
-
-const version = "0.3.0"
 
 type App struct {
 	in         io.Reader
@@ -116,7 +115,7 @@ func (a *App) Run(args []string) error {
 		if len(args) > 1 {
 			return fmt.Errorf("version does not accept arguments")
 		}
-		fmt.Fprintf(a.out, "%s %s\n", a.style.Header("OpsQuest"), a.style.Accent(version))
+		fmt.Fprintf(a.out, "%s %s\n", a.style.Header("OpsQuest"), a.style.Accent(buildinfo.Version))
 		return nil
 	case "help", "--help", "-h":
 		return a.runHelp(args[1:])

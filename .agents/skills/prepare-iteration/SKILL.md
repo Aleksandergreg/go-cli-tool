@@ -21,11 +21,12 @@ Use [references/iteration-template.md](references/iteration-template.md) for the
 3. Audit compatibility and documentation.
    - Call out CLI output/flag changes, mission schema changes, profile-version or migration effects, and any dependency change.
    - Update README feature descriptions, commands, supported sandbox list, development instructions, and roadmap only where delivered behavior changed.
-   - Keep the version constant in `internal/cli/app.go`, README version statements, and the iteration report consistent when releasing a new version.
+   - Keep `internal/buildinfo.Version`, the Release Please manifest, README version statements, and the iteration report consistent when releasing a new version.
 
 4. Run release validation.
    - Run focused tests for touched packages first if they were not already observed.
    - Run `make check-all`; this is the comprehensive source-of-truth gate and includes agent docs, all Go tests and mission integrity, vet, the release binary build, deterministic CLI smoke testing, and race detection.
+   - For changes to `.goreleaser.yml` or the release workflow, run `make release-check` followed by `make release-snapshot`. These targets require GoReleaser v2 and never publish; record the exact reason if the tool is unavailable.
    - Use individual targets such as `make build` or `make smoke-test` only to isolate a failure or when the full target cannot run. Verify the built release binary with `./bin/opsquest version` when the version changes.
    - Record exact commands, exit results, and relevant observed output. Never infer that an unrun check passed because a related command succeeded.
 

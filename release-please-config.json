@@ -1,0 +1,19 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "2fbb97c7d421ab60a6471e2ff6079ed6d7092d40",
+  "release-type": "go",
+  "include-component-in-tag": false,
+  "bump-minor-pre-major": true,
+  "packages": {
+    ".": {
+      "package-name": "opsquest",
+      "version-file": "internal/buildinfo/version.go",
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "initial_prompt.md"
+        }
+      ]
+    }
+  }
+}
