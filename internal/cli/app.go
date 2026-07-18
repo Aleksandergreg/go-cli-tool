@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/aleksandergregersen/opsquest/internal/dockerlab"
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
@@ -25,44 +24,54 @@ type App struct {
 	errOut     io.Writer
 	catalog    mission.Catalog
 	store      profile.Store
-	context    context.Context
+	ctx        context.Context
 	factory    game.Factory
 	style      ui.Style
 	errorStyle ui.Style
 }
 
-func New(in io.Reader, out, errOut io.Writer) (*App, error) {
-	return NewWithContext(context.Background(), in, out, errOut)
+// Config contains the process-level dependencies required by the CLI. The
+// executable supplies persistent storage and the combined environment factory;
+// focused tests may omit Context and Factory to use safe in-process defaults.
+type Config struct {
+	Context context.Context
+	In      io.Reader
+	Out     io.Writer
+	ErrOut  io.Writer
+	Catalog mission.Catalog
+	Store   profile.Store
+	Factory game.Factory
 }
 
-// NewWithContext constructs the CLI with a process-lifecycle context. The
-// executable uses a signal-aware context so Docker operations can stop and
-// attempt cleanup before the process exits.
-func NewWithContext(ctx context.Context, in io.Reader, out, errOut io.Writer) (*App, error) {
-	catalog, err := mission.LoadCatalog()
-	if err != nil {
-		return nil, err
+func New(config Config) *App {
+	in := config.In
+	if in == nil {
+		in = strings.NewReader("")
 	}
-	store, err := profile.DefaultStore()
-	if err != nil {
-		return nil, err
+	out := config.Out
+	if out == nil {
+		out = io.Discard
 	}
-	app := NewWithDependencies(in, out, errOut, catalog, store)
-	if ctx != nil {
-		app.context = ctx
+	errOut := config.ErrOut
+	if errOut == nil {
+		errOut = io.Discard
 	}
-	return app, nil
-}
-
-func NewWithDependencies(in io.Reader, out, errOut io.Writer, catalog mission.Catalog, store profile.Store) *App {
+	ctx := config.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	factory := config.Factory
+	if factory == nil {
+		factory = game.SandboxFactory{}
+	}
 	return &App{
 		in:         in,
 		out:        out,
 		errOut:     errOut,
-		catalog:    catalog,
-		store:      store,
-		context:    context.Background(),
-		factory:    dockerlab.NewFactory(game.SandboxFactory{}),
+		catalog:    config.Catalog,
+		store:      config.Store,
+		ctx:        ctx,
+		factory:    factory,
 		style:      ui.Auto(out),
 		errorStyle: ui.Auto(errOut),
 	}
@@ -73,34 +82,7 @@ func (a *App) loadPlayer() (profile.Profile, error) {
 	if err != nil {
 		return profile.Profile{}, err
 	}
-	now := time.Now()
-	changed := false
-	unlock := func(id string) {
-		if _, added := player.UnlockAchievement(id, now); added {
-			changed = true
-		}
-	}
-	if len(player.Completed) > 0 {
-		unlock("first-fix")
-	}
-	if len(player.Commands) >= 10 {
-		unlock("command-collector")
-	}
-	if player.HintFreeCompletions() >= 5 {
-		unlock("self-reliant")
-	}
-	for _, item := range a.catalog.All() {
-		if !player.IsComplete(item.ID) {
-			continue
-		}
-		if item.Difficulty == "advanced" {
-			unlock("boss-slayer")
-		}
-	}
-	if game.HasCompletedCatalog(player, a.catalog) {
-		unlock("linux-completionist")
-	}
-	if changed {
+	if unlocked := game.ReconcileAchievements(&player, a.catalog, time.Now()); len(unlocked) > 0 {
 		if err := a.store.Save(player); err != nil {
 			return profile.Profile{}, err
 		}
@@ -178,18 +160,14 @@ func (a *App) runPlay(args []string) error {
 	continuous := flags.NArg() == 0
 	reader := game.NewCommandLineReader(a.in, a.out)
 	for {
-		availability := game.EnvironmentAvailability(a.context, a.factory, item)
-		if !availability.Available {
-			return errors.New(availability.Detail)
-		}
 		currentTrack := item.EffectiveTrack()
 		session := game.Session{
 			Mission: item,
 			Player:  &player,
-			Store:   a.store,
+			Saver:   a.store,
 			In:      a.in,
 			Out:     a.out,
-			Err:     a.errOut,
+			ErrOut:  a.errOut,
 			Reader:  reader,
 			Catalog: a.catalog,
 			ListMissions: func(args []string) error {
@@ -198,7 +176,7 @@ func (a *App) runPlay(args []string) error {
 				}
 				return a.listMissions(args, player)
 			},
-			Context:    a.context,
+			Context:    a.ctx,
 			Factory:    a.factory,
 			Style:      a.style,
 			ErrorStyle: a.errorStyle,
@@ -266,18 +244,21 @@ func (a *App) listMissions(args []string, player profile.Profile) error {
 	if selectedTrack != mission.TrackLinux && selectedTrack != mission.TrackDocker && selectedTrack != "all" {
 		return fmt.Errorf("unknown track %q; use linux, docker, or all", *track)
 	}
+	matchesScope := func(item mission.Mission) bool {
+		if selectedTrack != "all" && item.EffectiveTrack() != selectedTrack {
+			return false
+		}
+		return *campaign == "" || strings.EqualFold(item.Campaign, *campaign)
+	}
 	fmt.Fprintln(a.out, a.style.Header(trackHeading(selectedTrack)))
 	lastCampaign := ""
 	shown := 0
 	for _, item := range a.catalog.All() {
-		if selectedTrack != "all" && item.EffectiveTrack() != selectedTrack {
+		if !matchesScope(item) {
 			continue
 		}
 		isComplete := player.IsComplete(item.ID)
 		if *completedOnly && !isComplete || *remainingOnly && isComplete {
-			continue
-		}
-		if *campaign != "" && !strings.EqualFold(item.Campaign, *campaign) {
 			continue
 		}
 		if item.Campaign != lastCampaign {
@@ -305,7 +286,7 @@ func (a *App) listMissions(args []string, player profile.Profile) error {
 	completed := 0
 	total := 0
 	for _, item := range a.catalog.All() {
-		if selectedTrack != "all" && item.EffectiveTrack() != selectedTrack {
+		if !matchesScope(item) {
 			continue
 		}
 		total++
@@ -315,8 +296,8 @@ func (a *App) listMissions(args []string, player profile.Profile) error {
 	}
 	fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("%d/%d missions complete · %d XP", completed, total, player.XP)))
 	if selectedTrack == mission.TrackDocker {
-		if item, found := firstMissionInTrack(a.catalog, mission.TrackDocker); found {
-			availability := game.EnvironmentAvailability(a.context, a.factory, item)
+		if item, found := a.catalog.FirstInTrack(mission.TrackDocker); found {
+			availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
 			if availability.Available {
 				fmt.Fprintln(a.out, a.style.Success("Docker labs ready."))
 			} else {
@@ -410,12 +391,7 @@ func (a *App) runProfile(args []string) error {
 		}
 		fmt.Fprintf(a.out, "  %-19s %s %3d%%\n", campaign.name, styledProgressBar(a.style, campaign.completed, campaign.total, 10), percentage(campaign.completed, campaign.total))
 	}
-	dockerState := "unavailable"
-	if item, found := firstMissionInTrack(a.catalog, mission.TrackDocker); found {
-		if game.EnvironmentAvailability(a.context, a.factory, item).Available {
-			dockerState = "ready"
-		}
-	}
+	dockerState := "readiness: run opsquest doctor"
 	fmt.Fprintf(a.out, "Docker %s %3d%%  %s\n", styledProgressBar(a.style, dockerCompleted, dockerTotal, 20), percentage(dockerCompleted, dockerTotal), dockerState)
 	for _, campaign := range campaigns {
 		if campaign.track != mission.TrackDocker {
@@ -519,10 +495,7 @@ func (a *App) runShow(args []string) error {
 	} else {
 		item, found = a.catalog.NextInTrack(mission.TrackLinux, player.IsComplete)
 		if !found {
-			items := a.catalog.InTrack(mission.TrackLinux)
-			if len(items) > 0 {
-				item, found = items[len(items)-1], true
-			}
+			item, found = a.catalog.LastInTrack(mission.TrackLinux)
 		}
 	}
 	if !found {
@@ -539,9 +512,9 @@ func (a *App) runShow(args []string) error {
 		styledStatus = a.style.Success(status)
 	}
 	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints available: %d\n\n", styledStatus, len(item.Validation.All), len(item.Hints))
-	fmt.Fprintf(a.out, "%s\n\n%s\n", item.Story, item.Objective)
+	fmt.Fprintf(a.out, "%s\n\n%s\n\n%s\n", item.Story, item.Objective, a.style.CommandGuide(item.SuggestedCommands))
 	if item.EffectiveEnvironment() == mission.EnvironmentDocker {
-		availability := game.EnvironmentAvailability(a.context, a.factory, item)
+		availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
 		fmt.Fprintln(a.out)
 		if availability.Available {
 			fmt.Fprintln(a.out, a.style.Success("Docker lab ready."))
@@ -576,8 +549,8 @@ func (a *App) runDoctor(args []string) error {
 	fmt.Fprintf(a.out, "  %s profile: version %d, %d completed missions\n", check, player.Version, len(player.Completed))
 	fmt.Fprintf(a.out, "  %s profile path: %s\n", check, a.store.Path())
 	fmt.Fprintf(a.out, "  %s Linux labs: in-memory; no host shell or filesystem access\n", check)
-	if item, found := firstMissionInTrack(a.catalog, mission.TrackDocker); found {
-		availability := game.EnvironmentAvailability(a.context, a.factory, item)
+	if item, found := a.catalog.FirstInTrack(mission.TrackDocker); found {
+		availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
 		if availability.Available {
 			fmt.Fprintf(a.out, "  %s docker labs: ready · %s\n", check, availability.Detail)
 		} else {
@@ -735,14 +708,6 @@ func hasFlag(args []string, name string) bool {
 		}
 	}
 	return false
-}
-
-func firstMissionInTrack(catalog mission.Catalog, track string) (mission.Mission, bool) {
-	items := catalog.InTrack(track)
-	if len(items) == 0 {
-		return mission.Mission{}, false
-	}
-	return items[0], true
 }
 
 func trackDisplayName(track string) string {

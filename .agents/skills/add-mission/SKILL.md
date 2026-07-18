@@ -28,6 +28,7 @@ Read [references/mission-checklist.md](references/mission-checklist.md) before e
 4. Keep content consistent.
    - Use a zero-padded numeric filename, a contiguous `number`, a stable lowercase hyphenated `id`, and the exact existing campaign name when joining a campaign.
    - Make the story and objective describe the incident and outcome without prescribing the solution.
+   - Curate `suggested_commands` as unique base command names supported by the mission environment. Keep this free orientation broader than one canonical route, but do not include flags, arguments, or an exact solution.
    - Order hints from conceptual nudge to increasingly concrete syntax. Write an explanation that teaches why the solution works.
    - Calibrate `difficulty`, `xp`, and `hint_penalty` against adjacent missions; keep boss missions and campaign numbering coherent.
 

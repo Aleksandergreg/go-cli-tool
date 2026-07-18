@@ -90,13 +90,11 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	}
 
 	savedCWD := s.CWD
-	savedPrevious := s.Previous
 	savedEnv := cloneEnvironment(s.Env)
 	context.scriptStack = append(context.scriptStack, scriptPath)
 	defer func() {
 		context.scriptStack = context.scriptStack[:len(context.scriptStack)-1]
 		s.CWD = savedCWD
-		s.Previous = savedPrevious
 		s.Env = savedEnv
 	}()
 
@@ -111,7 +109,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		if err := validateScriptLine(line, s.Env); err != nil {
+		if err := validateScriptSyntax(line); err != nil {
 			return "", fmt.Errorf("%s:%d: %w", scriptPath, lineNumber, err)
 		}
 		result, err := s.executeLine(line, context, false)
@@ -126,7 +124,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	return output.String(), nil
 }
 
-func validateScriptLine(line string, env map[string]string) error {
+func validateScriptSyntax(line string) error {
 	runes := []rune(line)
 	var quote rune
 	escaped := false
@@ -193,23 +191,26 @@ func validateScriptLine(line string, env map[string]string) error {
 		tokenStarted = true
 	}
 
-	tokens, err := lex(line, env)
-	if err != nil || len(tokens) == 0 || tokens[0].kind != wordToken {
-		return nil
-	}
-	first := tokens[0].value
-	unsupportedKeywords := map[string]bool{
-		"if": true, "then": true, "elif": true, "else": true, "fi": true,
-		"for": true, "while": true, "until": true, "do": true, "done": true,
-		"case": true, "esac": true, "select": true, "function": true,
-	}
-	if unsupportedKeywords[first] {
-		return fmt.Errorf("shell language keyword %q is not supported", first)
-	}
-	if name, _, found := strings.Cut(first, "="); found && validScriptVariableName(name) {
-		return fmt.Errorf("standalone assignments are not supported; use export NAME=value")
+	return nil
+}
+
+func validateScriptCommands(parsed commandLine) error {
+	for _, stage := range parsed.stages {
+		first := stage.args[0].value
+		if _, unsupported := unsupportedScriptKeywords[first]; unsupported {
+			return fmt.Errorf("shell language keyword %q is not supported", first)
+		}
+		if name, _, found := strings.Cut(first, "="); found && validScriptVariableName(name) {
+			return fmt.Errorf("standalone assignments are not supported; use export NAME=value")
+		}
 	}
 	return nil
+}
+
+var unsupportedScriptKeywords = map[string]struct{}{
+	"if": {}, "then": {}, "elif": {}, "else": {}, "fi": {},
+	"for": {}, "while": {}, "until": {}, "do": {}, "done": {},
+	"case": {}, "esac": {}, "select": {}, "function": {},
 }
 
 func isUnsupportedScriptParameter(input []rune) bool {

@@ -95,6 +95,28 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 	}
 }
 
+func TestEveryMissionSuggestsCommandsSupportedByItsEnvironment(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	linuxCommands := make(map[string]bool)
+	for _, command := range sandbox.CommandNames() {
+		linuxCommands[command] = true
+	}
+	for _, item := range catalog.All() {
+		for _, command := range item.SuggestedCommands {
+			supported := linuxCommands[command]
+			if item.EffectiveEnvironment() == mission.EnvironmentDocker {
+				supported = command == "docker"
+			}
+			if !supported {
+				t.Errorf("mission %s suggests unsupported %s command %q", item.ID, item.EffectiveEnvironment(), command)
+			}
+		}
+	}
+}
+
 func canonicalMissionEnvironment(item mission.Mission) (Environment, error) {
 	if item.EffectiveEnvironment() == mission.EnvironmentDocker {
 		return newMissionDockerEnvironment(), nil
@@ -116,12 +138,12 @@ func (e *missionDockerEnvironment) PromptLabel() string { return "docker" }
 func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Execution, error) {
 	switch strings.TrimSpace(line) {
 	case "docker ps -a", "docker ps --all", "docker container ls -a", "docker container ls --all":
-		return Execution{Output: "api stopped\nmetrics running\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return Execution{Output: "api stopped\nmetrics running\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	case "docker start api", "docker container start api":
 		e.running["api"] = true
-		return Execution{Output: "api\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return Execution{Output: "api\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	case "docker start metrics", "docker container start metrics":
-		return Execution{Output: "metrics\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return Execution{Output: "metrics\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	default:
 		return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
 	}

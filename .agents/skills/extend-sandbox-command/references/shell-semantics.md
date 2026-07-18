@@ -2,7 +2,7 @@
 
 ## Execution boundary
 
-`Sandbox.Execute` is the sole entry for a player command. It records bounded in-memory history, lexes the line, parses a pipeline, expands virtual globs, dispatches only whitelisted handlers, and returns output plus a command trace. A command handler may touch only `Sandbox` state: `FileSystem`, `Env`, `Processes`, `Archives`, navigation state, and history.
+`Sandbox.Execute` is the sole entry for a player command. It records bounded in-memory history, lexes the line, parses a pipeline, expands virtual globs once, preflights the expanded command, dispatches only whitelisted handlers, and returns output plus a command trace. A command handler may touch only `Sandbox` state: `FileSystem`, `Env`, `Processes`, `Archives`, navigation state, and history.
 
 `sh FILE` and executable virtual paths reuse the private line executor with one shared execution context. Script source is never added to interactive history, while nested commands contribute to the returned command trace and maximum pipeline width. Script execution is bounded by source, line, nesting, dispatched-command, and output limits.
 
@@ -36,9 +36,9 @@ Keep a parser change narrow. If a new syntax form is not implemented faithfully 
 - Paths use Go's `path` package so lab behavior is slash-based on every host OS.
 - `Sandbox.Resolve` cleans absolute or CWD-relative paths and expands `~` or `~/` through the virtual `HOME`.
 - `FileSystem` owns all entries, content, modes, owners, traversal, globbing, copies, moves, and removal. Virtual `/` is not the host root.
-- Command lines are capped at 64 KiB. File writes and appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their ceilings. Files and command output are limited to 2 MiB; aggregate file and logical archive content to 8 MiB each; filesystem and archive entries to 4,096 each; and the environment to 256 entries and 256 KiB.
+- Command lines are capped at 64 KiB, expanded token text at 2 MiB, expanded arguments at 4,096, pipelines at 64 stages, and a top-level execution at 512 dispatches across pipelines, `find -exec`, and nested scripts. File writes and appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their ceilings. Files and command output are limited to 2 MiB; aggregate file and logical archive content to 8 MiB each; filesystem and archive entries to 4,096 each; and the environment to 256 entries and 256 KiB.
 - Redirection reads and writes only through `FileSystem`. Overwriting a virtual archive also clears its virtual archive metadata.
-- `cd` updates virtual `PWD`, `OLDPWD`, CWD, and previous-directory state.
+- `cd` updates virtual CWD, `PWD`, and `OLDPWD`; `OLDPWD` is the sole source used by `cd -` and is restored with the rest of a script's environment.
 - `ps` and `kill` inspect or mutate only mission processes. Archive and compression commands operate on virtual metadata and files.
 
 ## Command consistency checklist

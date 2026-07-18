@@ -7,6 +7,7 @@
   "story": "The gateway stopped during a deploy. Its log is long, the incident channel is impatient, and the useful part is usually where the story ends.",
   "objective": "Print exactly the final three lines of /var/log/gateway.log.",
   "start_dir": "/var/log",
+  "suggested_commands": ["cat", "tail"],
   "hints": [
     "tail reads from the end of a file.",
     "The -n option controls how many lines are printed.",
@@ -28,4 +29,3 @@
   },
   "rewards": {"xp": 70, "hint_penalty": 10}
 }
-

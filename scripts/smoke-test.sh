@@ -12,6 +12,8 @@ fi
 SMOKE_ROOT="$(mktemp -d "${SMOKE_TEMPLATE}")"
 PROFILE_HOME="${SMOKE_ROOT}/profile"
 BINARY="${SMOKE_ROOT}/opsquest"
+EMPTY_BIN="${SMOKE_ROOT}/empty-bin"
+mkdir -p "${EMPTY_BIN}"
 
 cleanup() {
   rm -rf -- "${SMOKE_ROOT}"
@@ -44,7 +46,7 @@ assert_no_ansi() {
 }
 
 run_opsquest() {
-  env OPSQUEST_HOME="${PROFILE_HOME}" OPSQUEST_PLAYER="smoke-operator" "${BINARY}" "$@"
+  env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${PROFILE_HOME}" OPSQUEST_PLAYER="smoke-operator" "${BINARY}" "$@"
 }
 
 cd "${REPO_ROOT}"
@@ -70,11 +72,14 @@ show_output="$(run_opsquest show 1)"
 assert_no_ansi "show" "${show_output}"
 assert_contains "show" "${show_output}" "MISSION 01: Where Am I?"
 assert_contains "show" "${show_output}" "Outcome checks: 1"
+assert_contains "show" "${show_output}" "Commands you may need to solve this level:"
+assert_contains "show" "${show_output}" "  pwd"
 
 docker_show_output="$(run_opsquest show 17)"
 assert_no_ansi "docker show" "${docker_show_output}"
 assert_contains "docker show" "${docker_show_output}" "MISSION 17: Container Census"
 assert_contains "docker show" "${docker_show_output}" "Hints available: 3"
+assert_contains "docker show" "${docker_show_output}" "  docker"
 
 profile_output="$(run_opsquest profile --name "Smoke Operator")"
 assert_no_ansi "profile initialization" "${profile_output}"
@@ -88,10 +93,12 @@ assert_contains "doctor" "${doctor_output}" "embedded catalog: 20 missions"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
 assert_contains "doctor" "${doctor_output}" "Linux labs: in-memory; no host shell or filesystem access"
 assert_contains "doctor" "${doctor_output}" "docker labs:"
+assert_contains "doctor" "${doctor_output}" "docker executable not found in PATH"
 
 play_output="$(printf 'pwd\nopsquest list --completed\nplay 3\nquit\n' | run_opsquest play)"
 assert_no_ansi "scripted mission" "${play_output}"
 assert_contains "scripted mission" "${play_output}" "MISSION 01: Where Am I?"
+assert_contains "scripted mission" "${play_output}" "Commands you may need to solve this level:"
 assert_contains "scripted mission" "${play_output}" "✓ Mission complete!"
 assert_contains "scripted mission" "${play_output}" "+40 XP"
 assert_contains "continuous play" "${play_output}" "Continuing to Mission 02: Configuration Crawl"

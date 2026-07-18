@@ -12,10 +12,12 @@ import (
 // remains unstyled because it is both rendered to the player and supplied to
 // mission validators.
 type Execution struct {
-	Output        string
-	Commands      []string
-	PipelineWidth int
-	Interactive   *InteractiveAction
+	Output string
+	// PracticedCommands contains successful teaching-command names eligible for
+	// player mastery. It is not the raw command line entered by the player.
+	PracticedCommands []string
+	PipelineWidth     int
+	Interactive       *InteractiveAction
 }
 
 // InteractiveAction lets an environment hand terminal-only work back to the
@@ -43,9 +45,10 @@ type CompletionSource interface {
 
 // Environment is one isolated mission attempt. Implementations execute only
 // their supported teaching subset, observe declarative outcomes, and release
-// every resource owned by the attempt from Close. Close must be safe to call
-// after partial setup; Session additionally ensures it invokes Close at most
-// once for each created environment.
+// every resource owned by the attempt from Close. A Session calls gameplay
+// methods serially and only closes an attempt after the active call returns;
+// implementations do not need to support concurrent Execute and Close. Close
+// must be safe after partial setup and retryable after a cleanup error.
 type Environment interface {
 	PromptLabel() string
 	Execute(context.Context, string) (Execution, error)
@@ -56,7 +59,9 @@ type Environment interface {
 
 // Factory creates a fresh isolated environment from declarative mission
 // content. Restarting a mission closes the old environment and calls Create
-// again instead of mutating an existing attempt in place.
+// again instead of mutating an existing attempt in place. A failed partial
+// setup may return both an environment and an error; callers must close that
+// environment, and createManagedEnvironment enforces that contract.
 type Factory interface {
 	Create(context.Context, mission.Mission) (Environment, error)
 }
@@ -126,8 +131,11 @@ func (e *managedEnvironment) close() error {
 	if e == nil || e.closed {
 		return nil
 	}
+	if err := e.Environment.Close(); err != nil {
+		return err
+	}
 	e.closed = true
-	return e.Environment.Close()
+	return nil
 }
 
 func joinEnvironmentCloseError(primary, closeErr error) error {

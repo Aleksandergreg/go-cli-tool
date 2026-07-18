@@ -36,8 +36,11 @@ type environment struct {
 	containers []*trackedContainer
 	byAlias    map[string]*trackedContainer
 
-	mutex  sync.RWMutex
-	closed bool
+	cleanupMutex   sync.Mutex
+	mutex          sync.RWMutex
+	closing        bool
+	closed         bool
+	cleanupPending []*trackedContainer
 }
 
 var (
@@ -65,25 +68,25 @@ func (e *environment) Execute(ctx context.Context, line string) (game.Execution,
 	switch action.kind {
 	case actionHelp:
 		result.Output = dockerHelp
-		result.Commands = []string{"help"}
+		result.PracticedCommands = []string{"help"}
 	case actionList:
 		result.Output, err = e.listContainers(ctx, action.all)
-		result.Commands = []string{"docker"}
+		result.PracticedCommands = []string{"docker"}
 	case actionStart:
 		err = e.startContainer(ctx, action.alias)
 		if err == nil {
 			result.Output = action.alias + "\n"
 		}
-		result.Commands = []string{"docker"}
+		result.PracticedCommands = []string{"docker"}
 	case actionRestart:
 		err = e.restartContainer(ctx, action.alias)
 		if err == nil {
 			result.Output = action.alias + "\n"
 		}
-		result.Commands = []string{"docker"}
+		result.PracticedCommands = []string{"docker"}
 	case actionInspect:
 		result.Output, err = e.logicalInspect(ctx, action.alias)
-		result.Commands = []string{"docker"}
+		result.PracticedCommands = []string{"docker"}
 	default:
 		err = fmt.Errorf("unsupported Docker action")
 	}
@@ -95,14 +98,14 @@ func (e *environment) Observe(ctx context.Context, condition mission.Condition) 
 		return false, err
 	}
 	switch condition.Type {
-	case "docker_container_running":
+	case mission.ConditionDockerContainerRunning:
 		tracked, exists := e.container(condition.Container)
 		if !exists {
 			return false, nil
 		}
 		inspection, exists, err := e.inspect(ctx, tracked.id)
 		return exists && inspection.State.Running, err
-	case "docker_container_count_equals":
+	case mission.ConditionDockerContainerCountEqual:
 		if condition.Count == nil {
 			return false, fmt.Errorf("docker_container_count_equals requires count")
 		}
@@ -117,38 +120,68 @@ func (e *environment) Observe(ctx context.Context, condition mission.Condition) 
 }
 
 func (e *environment) Close() error {
+	e.cleanupMutex.Lock()
+	defer e.cleanupMutex.Unlock()
+
 	e.mutex.Lock()
 	if e.closed {
 		e.mutex.Unlock()
 		return nil
 	}
-	e.closed = true
-	containers := append([]*trackedContainer(nil), e.containers...)
+	if !e.closing {
+		e.closing = true
+		e.cleanupPending = append([]*trackedContainer(nil), e.containers...)
+	}
+	containers := append([]*trackedContainer(nil), e.cleanupPending...)
 	e.mutex.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
 	defer cancel()
 	var cleanupErrors []error
+	unresolved := make([]*trackedContainer, 0, len(containers))
 	for index := len(containers) - 1; index >= 0; index-- {
 		tracked := containers[index]
-		inspection, exists, err := e.inspectUnchecked(ctx, tracked.id)
+		inspection, exists, err := e.inspectTrackedForCleanup(ctx, tracked)
 		if err != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("inspect Docker fixture %s before cleanup: %w", tracked.alias, err))
+			unresolved = append(unresolved, tracked)
 			continue
 		}
 		if !exists {
 			continue
 		}
 		labels := inspection.Config.Labels
-		if labels[managedLabel] != "true" || labels[sessionLabel] != e.sessionID || labels[missionLabel] != e.missionID || labels[aliasLabel] != tracked.alias {
+		if labels[managedLabel] != "true" || labels[schemaLabel] != "1" || labels[sessionLabel] != e.sessionID || labels[missionLabel] != e.missionID || labels[aliasLabel] != tracked.alias {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("refusing to remove Docker fixture %s because its ownership labels do not match", tracked.alias))
+			unresolved = append(unresolved, tracked)
 			continue
 		}
-		if _, err := e.run(ctx, "container", "rm", "--force", tracked.id); err != nil {
+		tracked.id = inspection.ID
+		if _, err := e.run(ctx, "container", "rm", "--force", inspection.ID); err != nil {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("remove Docker fixture %s: %w", tracked.alias, err))
+			unresolved = append(unresolved, tracked)
 		}
 	}
+
+	e.mutex.Lock()
+	e.cleanupPending = unresolved
+	e.closed = len(unresolved) == 0
+	e.mutex.Unlock()
 	return errors.Join(cleanupErrors...)
+}
+
+func (e *environment) inspectTrackedForCleanup(ctx context.Context, tracked *trackedContainer) (containerInspection, bool, error) {
+	if tracked.id != "" {
+		return e.inspectUnchecked(ctx, tracked.id)
+	}
+	inspection, exists, err := e.inspectReferenceUnchecked(ctx, tracked.actualName)
+	if err != nil || !exists {
+		return inspection, exists, err
+	}
+	if !containerIDPattern.MatchString(inspection.ID) {
+		return containerInspection{}, false, fmt.Errorf("Docker inspection returned an invalid container ID")
+	}
+	return inspection, true, nil
 }
 
 func (e *environment) createContainer(ctx context.Context, index int, fixture mission.DockerContainerSpec, reference string) (*trackedContainer, error) {
@@ -208,10 +241,16 @@ func (e *environment) reconcileAmbiguousCreate(tracked *trackedContainer, create
 	defer cancel()
 	inspection, exists, err := e.inspectReferenceUnchecked(ctx, tracked.actualName)
 	if err != nil {
-		return nil, errors.Join(createErr, fmt.Errorf("reconcile Docker fixture %s: %w", tracked.alias, err))
+		// The create may have reached the daemon even though reconciliation is
+		// temporarily unavailable. Retain the generated name so cleanup can
+		// safely re-inspect ownership before removing anything.
+		return tracked, errors.Join(createErr, fmt.Errorf("reconcile Docker fixture %s: %w", tracked.alias, err))
 	}
 	if !exists {
-		return nil, createErr
+		// A successful create can become visible just after a transient missing
+		// result. Keep the generated name in the cleanup set so Close performs
+		// one more ownership-checked inspection before considering it absent.
+		return tracked, createErr
 	}
 	labels := inspection.Config.Labels
 	if labels[managedLabel] != "true" || labels[sessionLabel] != e.sessionID || labels[missionLabel] != e.missionID || labels[aliasLabel] != tracked.alias {
@@ -385,7 +424,7 @@ func (e *environment) ready(ctx context.Context) error {
 	}
 	e.mutex.RLock()
 	defer e.mutex.RUnlock()
-	if e.closed {
+	if e.closing || e.closed {
 		return fmt.Errorf("Docker mission environment is closed")
 	}
 	return nil

@@ -25,7 +25,40 @@ func testApp(t *testing.T, input string, store profile.Store) (*App, *bytes.Buff
 		t.Fatal(err)
 	}
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}
-	return NewWithDependencies(strings.NewReader(input), out, errOut, catalog, store), out, errOut
+	return New(Config{
+		In:      strings.NewReader(input),
+		Out:     out,
+		ErrOut:  errOut,
+		Catalog: catalog,
+		Store:   store,
+	}), out, errOut
+}
+
+func TestNewUsesSafeContextAndFactoryDefaults(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, _, _ := testApp(t, "", store)
+	if app.ctx == nil {
+		t.Fatal("default CLI context is nil")
+	}
+	if _, ok := app.factory.(game.SandboxFactory); !ok {
+		t.Fatalf("default factory = %T, want game.SandboxFactory", app.factory)
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	factory := &cliDockerFactory{}
+	configured := New(Config{
+		Context: ctx,
+		In:      strings.NewReader(""),
+		Out:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
+		Catalog: app.catalog,
+		Store:   store,
+		Factory: factory,
+	})
+	if configured.ctx != ctx || configured.factory != factory {
+		t.Fatalf("configured dependencies were not retained: context match %v, factory = %T", configured.ctx == ctx, configured.factory)
+	}
 }
 
 func TestNonTerminalOutputRemainsPlain(t *testing.T) {
@@ -181,6 +214,34 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 	}
 }
 
+func TestMissionPromptParsesQuotedNavigationArguments(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "list --campaign \"First Day\"\nquit\n", store)
+	if err := app.Run([]string{"play", "3"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Where Am I?") || !strings.Contains(out.String(), "0/3 missions complete") {
+		t.Fatalf("quoted campaign list output:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "Production Friday") || errOut.Len() != 0 {
+		t.Fatalf("quoted campaign navigation leaked missions or failed; stdout:\n%s\nstderr:\n%s", out.String(), errOut.String())
+	}
+}
+
+func TestMissionPromptReportsMalformedNavigation(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "list --campaign \"First Day\nquit\n", store)
+	if err := app.Run([]string{"play", "3"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(errOut.String(), "invalid mission navigation: unterminated double quote") {
+		t.Fatalf("malformed navigation stderr = %q", errOut.String())
+	}
+	if !strings.Contains(out.String(), "Mission paused") {
+		t.Fatalf("session did not continue after malformed navigation:\n%s", out.String())
+	}
+}
+
 func TestMissionPromptSupportsPreviousAndNext(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "previous\nnext\nquit\n", store)
@@ -243,6 +304,23 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	}
 }
 
+func TestProfileDefersDockerReadinessToDoctor(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "", store)
+	factory := &cliDockerFactory{available: true, detail: "test Docker engine ready"}
+	app.factory = factory
+
+	if err := app.Run([]string{"profile"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if factory.availabilityChecks != 0 {
+		t.Fatalf("profile availability checks = %d, want 0", factory.availabilityChecks)
+	}
+	if !strings.Contains(out.String(), "readiness: run opsquest doctor") {
+		t.Fatalf("profile did not direct readiness checks to doctor:\n%s", out.String())
+	}
+}
+
 func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "", store)
@@ -264,6 +342,9 @@ func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
 	if strings.Contains(out.String(), "Where Am I?") {
 		t.Fatalf("Docker list leaked a Linux mission:\n%s", out.String())
 	}
+	if got := app.factory.(*cliDockerFactory).availabilityChecks; got != 1 {
+		t.Fatalf("Docker list availability checks = %d, want 1", got)
+	}
 
 	app, _, _ = testApp(t, "", store)
 	if err := app.Run([]string{"list", "--track", "mainframe"}); err == nil || !strings.Contains(err.Error(), "use linux, docker, or all") {
@@ -283,6 +364,8 @@ func TestShowDockerMissionReportsReadinessAndToolHints(t *testing.T) {
 		"Track: Docker",
 		"Outcome checks: 3",
 		"Hints available: 3",
+		"Commands you may need to solve this level:",
+		"  docker",
 		"Docker lab ready.",
 	} {
 		if !strings.Contains(out.String(), expected) {
@@ -308,6 +391,9 @@ func TestUnavailableDockerMissionIsActionableAndDoesNotComplete(t *testing.T) {
 	}
 	if player.IsComplete("docker-container-census") || player.XP != 0 || len(player.Commands) != 0 {
 		t.Fatalf("unavailable Docker play changed profile = %#v", player)
+	}
+	if got := app.factory.(*cliDockerFactory).availabilityChecks; got != 0 {
+		t.Fatalf("Docker play availability checks = %d, want Create to be the only readiness path", got)
 	}
 }
 
@@ -341,6 +427,9 @@ func TestDockerMissionToolHintsAndOutcomeCompletionPersist(t *testing.T) {
 	}
 	if factory.created != 1 {
 		t.Fatalf("Docker environments created = %d, want 1", factory.created)
+	}
+	if factory.availabilityChecks != 0 {
+		t.Fatalf("Docker play availability checks = %d, want Create to be the only readiness path", factory.availabilityChecks)
 	}
 
 	player, err := store.Load()
@@ -384,7 +473,9 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"show", "16"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Production Friday") || !strings.Contains(out.String(), "Reward: 160 XP") {
+	if !strings.Contains(out.String(), "Production Friday") || !strings.Contains(out.String(), "Reward: 160 XP") ||
+		!strings.Contains(out.String(), "Commands you may need to solve this level:") ||
+		!strings.Contains(out.String(), "  tar, sed, vi, chmod, ps, kill") {
 		t.Fatalf("show output = %s", out.String())
 	}
 
@@ -438,6 +529,20 @@ func TestListFiltersMissions(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "Where Am I?") || strings.Contains(out.String(), "Configuration Crawl") {
 		t.Fatalf("filtered list output = %s", out.String())
+	}
+}
+
+func TestListCampaignFilterUsesCampaignTotal(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "", store)
+	if err := app.Run([]string{"list", "--campaign", "First Day"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "0/3 missions complete") {
+		t.Fatalf("campaign-filtered total missing:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "0/20 missions complete") || strings.Contains(out.String(), "Production Friday") {
+		t.Fatalf("campaign filter used catalog-wide scope:\n%s", out.String())
 	}
 }
 
@@ -553,12 +658,14 @@ func TestCompletionistRequiresEveryCurrentCatalogMission(t *testing.T) {
 }
 
 type cliDockerFactory struct {
-	available bool
-	detail    string
-	created   int
+	available          bool
+	detail             string
+	created            int
+	availabilityChecks int
 }
 
 func (f *cliDockerFactory) Availability(_ context.Context, item mission.Mission) game.Availability {
+	f.availabilityChecks++
 	if item.EffectiveEnvironment() != mission.EnvironmentDocker {
 		return game.Availability{Available: true, Detail: "in-memory sandbox ready"}
 	}
@@ -602,14 +709,14 @@ func (e *cliDockerEnvironment) Execute(ctx context.Context, line string) (game.E
 	fields := strings.Fields(line)
 	if len(fields) == 3 && fields[0] == "docker" && fields[1] == "ps" && fields[2] == "-a" {
 		return game.Execution{
-			Output:        "CONTAINER ID   NAME      STATUS\nlab-01         api       Exited\nlab-02         metrics   Up\n",
-			Commands:      []string{"docker"},
-			PipelineWidth: 1,
+			Output:            "CONTAINER ID   NAME      STATUS\nlab-01         api       Exited\nlab-02         metrics   Up\n",
+			PracticedCommands: []string{"docker"},
+			PipelineWidth:     1,
 		}, nil
 	}
 	if len(fields) == 3 && fields[0] == "docker" && fields[1] == "start" && fields[2] == "api" {
 		e.running["api"] = true
-		return game.Execution{Output: "api\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return game.Execution{Output: "api\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	}
 	return game.Execution{}, fmt.Errorf("unsupported Docker test command %q", line)
 }

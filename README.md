@@ -38,6 +38,7 @@ Version 0.3 starts Docker Foundations while preserving the complete Linux campai
 - Safe virtual shell scripts with bounded nesting and line-numbered errors
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
 - Progressive hints that introduce relevant tools and syntax, with persistent XP penalties
+- A free Bandit-style command guide for every mission, separate from XP-costing hints
 - Mission status and environment restart controls
 - Persistent XP, ranks, mission completion, command mastery, and six learning achievements
 - Replayable missions without duplicate XP
@@ -56,7 +57,7 @@ It also supports pipelines (`|`) and input/output redirection (`<`, `>`, `>>`).
 
 ## Quick start
 
-OpsQuest requires Go 1.22 or newer. It uses the Go project's small `x/term` module for portable interactive line editing; gameplay itself remains local and in memory.
+OpsQuest requires Go 1.22 or newer. It uses the Go project's small `x/term` module for portable interactive line editing. Linux gameplay remains local and in memory; the optional Docker lab uses only explicitly prepared, disposable containers.
 
 Color automatically appears when output is connected to an interactive terminal. Piped or redirected output stays plain for scripts and logs; set `NO_COLOR=1` to disable decorative color explicitly.
 
@@ -165,7 +166,9 @@ Achievements reward learning behavior rather than decoration: completing a first
 
 Player input—including `sh` scripts—is parsed by OpsQuest itself. It is never passed to a host `sh`, `bash`, or another host process, and paths only address the mission's in-memory filesystem. Tab completion queries that same virtual filesystem and cannot expose host paths. Unsupported commands return a teaching-shell error.
 
-The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory. Resource ceilings keep a lab deterministic: command lines are limited to 64 KiB; a virtual file and one command's output are limited to 2 MiB; total virtual-file content and logical archive content are each limited to 8 MiB; and filesystem paths and archive entries are each capped at 4,096. The virtual environment is capped at 256 entries and 256 KiB. File writes and appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their affected state before committing it.
+The simulator also rejects virtual-root/current-directory removal, prevents file/directory type corruption during copies and moves, keeps virtual archive metadata synchronized, and blocks archive entries that try to escape their extraction directory. `OLDPWD` is the single source used by `cd -`, including inside the child scope of a virtual script.
+
+Resource ceilings keep a lab deterministic: command lines are limited to 64 KiB, expanded token text to 2 MiB, expanded arguments to 4,096, pipelines to 64 stages, and one execution to 512 dispatches across pipelines, `find -exec`, and nested scripts. A virtual file and one command's output are limited to 2 MiB; total virtual-file content and logical archive payload are each limited to 8 MiB; virtual paths are limited to 4,096 bytes; and filesystem and archive metadata are each capped at 4,096 entries. The virtual environment is capped at 256 entries and 256 KiB. Expansion, pipeline shape, writes, recursive operations, environment updates, and archive operations preflight their affected state; extraction publishes filesystem and archive metadata together only after every entry succeeds. `tar -C` is intentionally limited to extraction rather than silently approximated for create or list operations.
 
 This makes the introductory campaign safe and portable, with two intentional tradeoffs:
 
@@ -174,7 +177,7 @@ This makes the introductory campaign safe and portable, with two intentional tra
 
 Docker Foundations is opt-in. The Linux campaign never requires Docker, and bare `opsquest play` remains on the Linux track. Run `opsquest doctor` to check the optional Docker CLI, daemon, and fixture image. The first lab uses the pinned Docker Official Image fixture documented above; OpsQuest never pulls it automatically.
 
-Docker commands are parsed into a small teaching subset before any engine call. OpsQuest constructs fixed `docker` CLI arguments itself, assigns unique labels and resource limits, exposes only logical container names, and removes only exact resources owned by the current attempt. Raw player lines are never passed to a host shell or unrestricted Docker invocation. Labs do not use privileged mode, host bind mounts, host networking, devices, or a mounted Docker socket.
+Docker commands are parsed into a small teaching subset before any engine call. OpsQuest constructs fixed `docker` CLI arguments itself, assigns unique labels and resource limits, exposes only logical container names, and removes only exact resources owned by the current attempt. Setup is capped at 16 image aliases and 32 containers per mission. Raw player lines are never passed to a host shell or unrestricted Docker invocation. Labs do not use privileged mode, host bind mounts, host networking, devices, or a mounted Docker socket. Cleanup seals the attempt immediately, retains only unresolved owned resources after a failure, and retries those resources on a later close.
 
 ## Progress storage
 
@@ -188,24 +191,24 @@ Two environment variables are useful for development or portable installs:
 ## Project structure
 
 ```text
-cmd/opsquest/       Executable entry point
-internal/cli/       Top-level commands and presentation
+cmd/opsquest/       Composition root and executable entry point
+internal/cli/       Top-level commands and presentation, independent of environment adapters
 internal/ui/        Terminal-aware ANSI styles and color policy
-internal/game/      Interactive session and outcome validation
-internal/mission/   Mission model, catalog, and embedded mission data
+internal/game/      Interactive session, terminal/editor integration, and outcome validation
+internal/mission/   Mission contracts, immutable catalog, and embedded mission data
 internal/profile/   XP, ranks, mastery, and atomic JSON persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
 internal/dockerlab/ Optional, label-scoped Docker lab adapter
 ```
 
-Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown validators, and non-contiguous numbering. A future external mission-pack loader can add YAML support without coupling content to the game engine.
+Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, missing or malformed suggested-command guides, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown or malformed validators, unsupported difficulties, hint counts outside one to five, oversized Docker setup, and non-contiguous numbering. Catalog results are deep copies, so adapters cannot mutate embedded mission state. A future external mission-pack loader can add YAML support without coupling content to the game engine.
 
 Each mission defines:
 
 ```text
 story + objective + environment type
 setup: simulated state or attempt-scoped Docker fixtures
-hints + explanation + rewards
+suggested command names + progressive hints + explanation + rewards
 validation: one or more observable outcome conditions
 ```
 
@@ -215,7 +218,7 @@ Codex reads [`AGENTS.md`](AGENTS.md) for the repository's scope, safety invarian
 
 - `$add-mission` guides declarative mission content, outcome validation, and solution coverage.
 - `$extend-sandbox-command` guides changes to the simulated shell's teaching subset.
-- `$prepare-iteration` guides release-sized validation, documentation, and `iteration_N.md` reporting.
+- `$prepare-iteration` guides release-sized validation, documentation, and `docs/iteration_N.md` reporting.
 
 Mention a skill by name in a Codex request (for example, “use `$add-mission`”) or ask for the matching task so Codex can discover it from its trigger description.
 
@@ -236,7 +239,7 @@ $ make check-all
 
 `make check` runs agent-document validation, all Docker-independent Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete portable quality gate and adds race detection. GitHub Actions runs that same target without requiring Docker. `make docker-integration` is the explicit real-engine lifecycle gate for machines that have Docker and the pinned fixture image available.
 
-The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary and uses a temporary `OPSQUEST_HOME`, so it never writes to the developer's real profile.
+The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary, uses a temporary `OPSQUEST_HOME`, and removes Docker from its controlled `PATH`, so it neither writes to the developer's real profile nor contacts a local daemon.
 
 Third-party module licenses are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
 

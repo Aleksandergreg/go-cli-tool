@@ -7,6 +7,7 @@
   "story": "The web server is failing, and the monitoring dashboard has chosen this moment to become an abstract art installation.",
   "objective": "Find every file ending in .log inside /var/app that contains the word ERROR. Your command output must identify only the matching log files.",
   "start_dir": "/var/app",
+  "suggested_commands": ["find", "grep"],
   "hints": [
     "grep searches inside files; its -l flag prints only matching filenames.",
     "find can select names with -name \"*.log\".",
@@ -37,4 +38,3 @@
   },
   "rewards": {"xp": 75, "hint_penalty": 15}
 }
-

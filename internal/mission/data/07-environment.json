@@ -7,6 +7,7 @@
   "story": "The deployment helper thinks it is in development. The production database is relieved, but the staging release is not.",
   "objective": "Set the shell environment variable DEPLOY_ENV to staging.",
   "start_dir": "/opt/deploy",
+  "suggested_commands": ["env", "echo", "export"],
   "hints": [
     "echo $DEPLOY_ENV shows the current value.",
     "export sets a variable for the current shell environment.",
@@ -32,4 +33,3 @@
   },
   "rewards": {"xp": 55, "hint_penalty": 10}
 }
-

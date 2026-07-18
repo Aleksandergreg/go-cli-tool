@@ -7,6 +7,7 @@
   "story": "One report worker has entered an infinite loop and is enthusiastically converting CPU time into heat. Stop only the runaway process.",
   "objective": "Inspect the process list and stop the report-worker process whose PID is 4242. Leave the other processes running.",
   "start_dir": "/home/operator",
+  "suggested_commands": ["ps", "kill"],
   "hints": [
     "ps lists running processes in this lab.",
     "kill asks a process to terminate by PID.",
@@ -32,4 +33,3 @@
   },
   "rewards": {"xp": 70, "hint_penalty": 10}
 }
-

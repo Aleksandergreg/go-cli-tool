@@ -7,6 +7,7 @@
   "story": "A cache volume is filling up. Three files deny everything, but one of them is visibly avoiding eye contact.",
   "objective": "Print the size and name of only the largest file in /var/cache/byteworks.",
   "start_dir": "/var/cache/byteworks",
+  "suggested_commands": ["ls", "du", "sort", "tail"],
   "hints": [
     "du -b reports virtual sizes in bytes.",
     "sort -n compares the leading numbers numerically.",
@@ -32,4 +33,3 @@
   },
   "rewards": {"xp": 85, "hint_penalty": 15}
 }
-

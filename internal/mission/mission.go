@@ -1,33 +1,72 @@
 package mission
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 const (
 	TrackLinux  = "linux"
 	TrackDocker = "docker"
 
 	EnvironmentSimulated = "simulated"
 	EnvironmentDocker    = "docker"
+
+	DifficultyBeginner     = "beginner"
+	DifficultyIntermediate = "intermediate"
+	DifficultyAdvanced     = "advanced"
+
+	DockerStateRunning = "running"
+	DockerStateStopped = "stopped"
+)
+
+// ConditionType identifies one observable outcome supported by a mission
+// environment. Keeping this vocabulary in the mission package prevents
+// loaders and environment adapters from inventing subtly different schemas.
+type ConditionType string
+
+const (
+	ConditionOutputEquals              ConditionType = "output_equals"
+	ConditionOutputContains            ConditionType = "output_contains"
+	ConditionOutputContainsAll         ConditionType = "output_contains_all"
+	ConditionOutputNotContains         ConditionType = "output_not_contains"
+	ConditionCWDEquals                 ConditionType = "cwd_equals"
+	ConditionFileExists                ConditionType = "file_exists"
+	ConditionDirectoryExists           ConditionType = "dir_exists"
+	ConditionPathMissing               ConditionType = "path_missing"
+	ConditionFileContentEquals         ConditionType = "file_content_equals"
+	ConditionFileContentContains       ConditionType = "file_content_contains"
+	ConditionFileLinesEqual            ConditionType = "file_lines_equal"
+	ConditionFileModeEquals            ConditionType = "file_mode_equals"
+	ConditionFileOwnerEquals           ConditionType = "file_owner_equals"
+	ConditionProcessStopped            ConditionType = "process_stopped"
+	ConditionProcessRunning            ConditionType = "process_running"
+	ConditionEnvironmentEquals         ConditionType = "env_equals"
+	ConditionDockerContainerRunning    ConditionType = "docker_container_running"
+	ConditionDockerContainerCountEqual ConditionType = "docker_container_count_equals"
 )
 
 // Mission is a declarative OpsQuest exercise. Setup describes the isolated
 // world the player receives; Validation describes the observable outcome that
 // completes the mission.
 type Mission struct {
-	ID          string       `json:"id"`
-	Number      int          `json:"number"`
-	Track       string       `json:"track,omitempty"`
-	Environment string       `json:"environment,omitempty"`
-	Title       string       `json:"title"`
-	Campaign    string       `json:"campaign"`
-	Difficulty  string       `json:"difficulty"`
-	Story       string       `json:"story"`
-	Objective   string       `json:"objective"`
-	StartDir    string       `json:"start_dir"`
-	Hints       []string     `json:"hints"`
-	Explanation string       `json:"explanation"`
-	Setup       Setup        `json:"setup"`
-	Docker      *DockerSetup `json:"docker,omitempty"`
-	Validation  Validation   `json:"validation"`
-	Rewards     Rewards      `json:"rewards"`
+	ID                string       `json:"id"`
+	Number            int          `json:"number"`
+	Track             string       `json:"track,omitempty"`
+	Environment       string       `json:"environment,omitempty"`
+	Title             string       `json:"title"`
+	Campaign          string       `json:"campaign"`
+	Difficulty        string       `json:"difficulty"`
+	Story             string       `json:"story"`
+	Objective         string       `json:"objective"`
+	StartDir          string       `json:"start_dir"`
+	SuggestedCommands []string     `json:"suggested_commands"`
+	Hints             []string     `json:"hints"`
+	Explanation       string       `json:"explanation"`
+	Setup             Setup        `json:"setup"`
+	Docker            *DockerSetup `json:"docker,omitempty"`
+	Validation        Validation   `json:"validation"`
+	Rewards           Rewards      `json:"rewards"`
 }
 
 // EffectiveTrack preserves compatibility with missions written before tracks
@@ -108,13 +147,54 @@ type Validation struct {
 }
 
 type Condition struct {
-	Type      string   `json:"type"`
-	Path      string   `json:"path,omitempty"`
-	Value     string   `json:"value,omitempty"`
-	Values    []string `json:"values,omitempty"`
-	PID       int      `json:"pid,omitempty"`
-	Container string   `json:"container,omitempty"`
-	Count     *int     `json:"count,omitempty"`
+	Type      ConditionType `json:"type"`
+	Path      string        `json:"path,omitempty"`
+	Value     string        `json:"value,omitempty"`
+	Values    []string      `json:"values,omitempty"`
+	PID       int           `json:"pid,omitempty"`
+	Container string        `json:"container,omitempty"`
+	Count     *int          `json:"count,omitempty"`
+	present   conditionFields
+}
+
+// UnmarshalJSON retains field presence so validation can reject an unsupported
+// field even when its explicit JSON value is empty or zero. Condition owns a
+// custom decoder, so it also preserves the catalog's unknown-field rejection.
+func (c *Condition) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for name := range fields {
+		switch name {
+		case "type", "path", "value", "values", "pid", "container", "count":
+		default:
+			return fmt.Errorf("json: unknown field %q", name)
+		}
+	}
+	type wireCondition Condition
+	var decoded wireCondition
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*c = Condition(decoded)
+	for name := range fields {
+		switch name {
+		case "path":
+			c.present |= conditionPath
+		case "value":
+			c.present |= conditionValue
+		case "values":
+			c.present |= conditionValues
+		case "pid":
+			c.present |= conditionPID
+		case "container":
+			c.present |= conditionContainer
+		case "count":
+			c.present |= conditionCount
+		}
+	}
+	return nil
 }
 
 type Rewards struct {

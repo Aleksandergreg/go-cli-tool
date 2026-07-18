@@ -199,6 +199,9 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 	if options.archiveName == "" {
 		return "", fmt.Errorf("archive file is required with -f")
 	}
+	if options.operation != 'x' && options.destinationSet {
+		return "", fmt.Errorf("-C is supported only when extracting an archive")
+	}
 	archivePath := s.Resolve(options.archiveName)
 	destination := s.Resolve(options.destination)
 
@@ -242,15 +245,21 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 		if err != nil {
 			return "", err
 		}
+		filesystem := s.FS.clone()
+		archives := cloneArchives(s.Archives)
 		for _, item := range items {
-			if err := s.FS.EnsureDir(path.Dir(item.target), 0o755); err != nil {
+			if err := filesystem.EnsureDir(path.Dir(item.target), 0o755); err != nil {
 				return "", err
 			}
-			if err := s.FS.WriteFile(item.target, item.content, item.mode); err != nil {
+			if err := filesystem.WriteFile(item.target, item.content, item.mode); err != nil {
 				return "", err
 			}
-			s.removeArchiveMetadata(item.target)
+			removeArchiveMetadata(archives, item.target)
 		}
+		// Extraction is published as one virtual-state transaction. A quota,
+		// path, or type failure cannot leave a partly restored tree behind.
+		s.FS.commitSnapshot(filesystem)
+		s.Archives = archives
 		return verboseOutput, nil
 	case 't':
 		archive, exists := s.Archives[archivePath]
@@ -313,11 +322,12 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 }
 
 type tarOptions struct {
-	operation   byte
-	archiveName string
-	destination string
-	verbose     bool
-	operands    []string
+	operation      byte
+	archiveName    string
+	destination    string
+	destinationSet bool
+	verbose        bool
+	operands       []string
 }
 
 func parseTarArgs(args []string) (tarOptions, error) {
@@ -325,11 +335,15 @@ func parseTarArgs(args []string) (tarOptions, error) {
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
 		if arg == "-C" {
+			if options.destinationSet {
+				return tarOptions{}, fmt.Errorf("multiple -C options are not supported")
+			}
 			if index+1 >= len(args) {
 				return tarOptions{}, fmt.Errorf("-C requires a directory")
 			}
 			index++
 			options.destination = args[index]
+			options.destinationSet = true
 			continue
 		}
 		isOptionGroup := strings.HasPrefix(arg, "-") || index == 0 && len(arg) > 0 && strings.ContainsRune("xct", rune(arg[0]))

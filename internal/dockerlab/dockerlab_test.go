@@ -35,10 +35,19 @@ type fakeDockerRunner struct {
 	failAfterCreateAt int
 	createAttempts    int
 	failNextStart     bool
+	failNextInspect   map[string]error
+	hideNextInspect   map[string]bool
+	failNextRemove    map[string]error
 }
 
 func newFakeDockerRunner() *fakeDockerRunner {
-	return &fakeDockerRunner{containers: make(map[string]*fakeContainer), imageAvailable: true}
+	return &fakeDockerRunner{
+		containers:      make(map[string]*fakeContainer),
+		imageAvailable:  true,
+		failNextInspect: make(map[string]error),
+		hideNextInspect: make(map[string]bool),
+		failNextRemove:  make(map[string]error),
+	}
 }
 
 func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, error) {
@@ -99,7 +108,16 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		container.status = "running"
 		return runResult{stdout: id + "\n"}, nil
 	case hasPrefix(args, "container", "inspect", "--format"):
-		id := r.resolveContainer(args[len(args)-1])
+		reference := args[len(args)-1]
+		if err := r.failNextInspect[reference]; err != nil {
+			delete(r.failNextInspect, reference)
+			return runResult{stderr: err.Error()}, err
+		}
+		if r.hideNextInspect[reference] {
+			delete(r.hideNextInspect, reference)
+			return missingContainerResult(reference)
+		}
+		id := r.resolveContainer(reference)
 		container, exists := r.containers[id]
 		if !exists {
 			return missingContainerResult(id)
@@ -137,6 +155,10 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		return runResult{stdout: output.String()}, nil
 	case hasPrefix(args, "container", "rm", "--force"):
 		id := args[len(args)-1]
+		if err := r.failNextRemove[id]; err != nil {
+			delete(r.failNextRemove, id)
+			return runResult{stderr: err.Error()}, err
+		}
 		if _, exists := r.containers[id]; !exists {
 			return missingContainerResult(id)
 		}
@@ -194,6 +216,18 @@ func (r *fakeDockerRunner) corruptLabel(id, name, value string) {
 	r.mutex.Lock()
 	defer r.mutex.Unlock()
 	r.containers[id].labels[name] = value
+}
+
+func (r *fakeDockerRunner) failRemoveOnce(id string, err error) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.failNextRemove[id] = err
+}
+
+func (r *fakeDockerRunner) removeContainer(id string) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	delete(r.containers, id)
 }
 
 func missingContainerResult(id string) (runResult, error) {
@@ -506,19 +540,118 @@ func TestCloseVerifiesOwnershipAndIsIdempotent(t *testing.T) {
 	}
 }
 
+func TestCloseRetriesOnlyUnresolvedContainers(t *testing.T) {
+	commandRunner := newFakeDockerRunner()
+	environment := createTestEnvironment(t, commandRunner)
+	apiID := environment.byAlias["api"].id
+	metricsID := environment.byAlias["metrics"].id
+	transientFailure := errors.New("transient remove failure")
+	commandRunner.failRemoveOnce(metricsID, transientFailure)
+	commandRunner.resetCalls()
+
+	firstErr := environment.Close()
+	if firstErr == nil || !strings.Contains(firstErr.Error(), transientFailure.Error()) {
+		t.Fatalf("first Close() error = %v, want transient failure", firstErr)
+	}
+	if commandRunner.containerCount() != 1 {
+		t.Fatalf("containers after failed Close = %d, want only unresolved fixture", commandRunner.containerCount())
+	}
+	firstCalls := [][]string{
+		{"container", "inspect", "--format", "{{json .}}", metricsID},
+		{"container", "rm", "--force", metricsID},
+		{"container", "inspect", "--format", "{{json .}}", apiID},
+		{"container", "rm", "--force", apiID},
+	}
+	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, firstCalls) {
+		t.Fatalf("first cleanup calls:\n got: %q\nwant: %q", got, firstCalls)
+	}
+	if _, err := environment.Execute(context.Background(), "docker ps"); err == nil || !strings.Contains(err.Error(), "environment is closed") {
+		t.Fatalf("Execute() after failed cleanup error = %v, want closed environment", err)
+	}
+
+	if err := environment.Close(); err != nil {
+		t.Fatalf("retry Close() error = %v", err)
+	}
+	want := append(firstCalls,
+		[]string{"container", "inspect", "--format", "{{json .}}", metricsID},
+		[]string{"container", "rm", "--force", metricsID},
+	)
+	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("cleanup calls after retry:\n got: %q\nwant: %q", got, want)
+	}
+	if commandRunner.containerCount() != 0 {
+		t.Fatalf("containers after retry = %d", commandRunner.containerCount())
+	}
+	if err := environment.Close(); err != nil {
+		t.Fatalf("completed Close() error = %v", err)
+	}
+	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("completed Close issued more calls: %q", got)
+	}
+}
+
+func TestCloseTreatsAlreadyMissingContainerAsResolved(t *testing.T) {
+	commandRunner := newFakeDockerRunner()
+	environment := createTestEnvironment(t, commandRunner)
+	apiID := environment.byAlias["api"].id
+	metricsID := environment.byAlias["metrics"].id
+	commandRunner.removeContainer(metricsID)
+	commandRunner.resetCalls()
+
+	if err := environment.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	want := [][]string{
+		{"container", "inspect", "--format", "{{json .}}", metricsID},
+		{"container", "inspect", "--format", "{{json .}}", apiID},
+		{"container", "rm", "--force", apiID},
+	}
+	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("cleanup calls:\n got: %q\nwant: %q", got, want)
+	}
+	if commandRunner.containerCount() != 0 {
+		t.Fatalf("containers after Close = %d", commandRunner.containerCount())
+	}
+}
+
 func TestCloseRefusesContainerWithMismatchedOwnership(t *testing.T) {
 	commandRunner := newFakeDockerRunner()
 	environment := createTestEnvironment(t, commandRunner)
 	apiID := environment.byAlias["api"].id
+	metricsID := environment.byAlias["metrics"].id
 	commandRunner.corruptLabel(apiID, sessionLabel, "another-session")
-	if err := environment.Close(); err == nil || !strings.Contains(err.Error(), "ownership labels do not match") {
-		t.Fatalf("Close() error = %v", err)
+	commandRunner.resetCalls()
+	for attempt := 1; attempt <= 2; attempt++ {
+		if err := environment.Close(); err == nil || !strings.Contains(err.Error(), "ownership labels do not match") {
+			t.Fatalf("Close() attempt %d error = %v", attempt, err)
+		}
 	}
 	commandRunner.mutex.Lock()
 	_, apiExists := commandRunner.containers[apiID]
+	_, metricsExists := commandRunner.containers[metricsID]
 	commandRunner.mutex.Unlock()
 	if !apiExists {
 		t.Fatal("mismatched container was removed")
+	}
+	if metricsExists {
+		t.Fatal("owned container was not removed")
+	}
+	want := [][]string{
+		{"container", "inspect", "--format", "{{json .}}", metricsID},
+		{"container", "rm", "--force", metricsID},
+		{"container", "inspect", "--format", "{{json .}}", apiID},
+		{"container", "inspect", "--format", "{{json .}}", apiID},
+	}
+	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+		t.Fatalf("protected cleanup calls:\n got: %q\nwant: %q", got, want)
+	}
+
+	commandRunner.corruptLabel(apiID, sessionLabel, environment.sessionID)
+	if err := environment.Close(); err != nil {
+		t.Fatalf("Close() after ownership repair error = %v", err)
+	}
+	if commandRunner.containerCount() != 0 {
+		t.Fatalf("containers after ownership repair = %d", commandRunner.containerCount())
 	}
 }
 
@@ -553,6 +686,42 @@ func TestSetupFailureCleansAlreadyCreatedContainers(t *testing.T) {
 		}
 		if !foundRecoveryInspect {
 			t.Fatalf("ambiguous create did not reconcile by generated name: %q", calls)
+		}
+	})
+
+	t.Run("transient ambiguous-create inspection remains cleanup eligible", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.failAfterCreateAt = 2
+		ambiguousName := "opsquest-aaaaaaaaaaaaaaaaaaaaaaaa-c02"
+		commandRunner.failNextInspect[ambiguousName] = errors.New("temporary inspect failure")
+
+		partial, err := testFactory(commandRunner).Create(context.Background(), testDockerMission())
+		if err == nil || partial == nil {
+			t.Fatalf("Create() = environment %T, error %v; want partial environment and error", partial, err)
+		}
+		if commandRunner.containerCount() != 0 {
+			t.Fatalf("containers after retried reconciliation cleanup = %d", commandRunner.containerCount())
+		}
+		if err := partial.Close(); err != nil {
+			t.Fatalf("Close() after setup cleanup = %v", err)
+		}
+	})
+
+	t.Run("delayed ambiguous create remains cleanup eligible", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.failAfterCreateAt = 2
+		ambiguousName := "opsquest-aaaaaaaaaaaaaaaaaaaaaaaa-c02"
+		commandRunner.hideNextInspect[ambiguousName] = true
+
+		partial, err := testFactory(commandRunner).Create(context.Background(), testDockerMission())
+		if err == nil || partial == nil {
+			t.Fatalf("Create() = environment %T, error %v; want partial environment and error", partial, err)
+		}
+		if commandRunner.containerCount() != 0 {
+			t.Fatalf("containers after delayed reconciliation cleanup = %d", commandRunner.containerCount())
+		}
+		if err := partial.Close(); err != nil {
+			t.Fatalf("Close() after setup cleanup = %v", err)
 		}
 	})
 
@@ -649,7 +818,7 @@ func TestInvalidDockerSetupNeverReachesRunner(t *testing.T) {
 	item := testDockerMission()
 	item.Docker.Images[0].Reference = "--privileged"
 	availability := testFactory(commandRunner).Availability(context.Background(), item)
-	if availability.Available || !strings.Contains(availability.Detail, "digest-pinned") {
+	if availability.Available || !strings.Contains(availability.Detail, "pinned by sha256 digest") {
 		t.Fatalf("availability = %#v", availability)
 	}
 	if len(commandRunner.snapshotCalls()) != 0 {
@@ -663,7 +832,7 @@ func TestRuntimeUsesCatalogDockerNameRules(t *testing.T) {
 	item.Docker.Containers[0].Image = "fixture.v1"
 	item.Docker.Containers[1].Image = "fixture.v1"
 	item.Docker.Containers[0].Name = "api_worker"
-	if err := validateDockerSetup(*item.Docker); err != nil {
+	if err := mission.ValidateDockerSetup(*item.Docker); err != nil {
 		t.Fatalf("catalog-valid Docker names were rejected at runtime: %v", err)
 	}
 	if action, err := parseAction("docker start api_worker"); err != nil || action.alias != "api_worker" {

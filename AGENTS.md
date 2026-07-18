@@ -13,7 +13,7 @@ OpsQuest is a Go 1.22 CLI game with 19 in-memory Linux missions and an optional 
 - `internal/dockerlab`: optional Docker capability detection, typed teaching commands, isolated resource lifecycle, and Docker observations.
 - `internal/profile`: versioned profile model and atomic JSON persistence.
 - `scripts`: deterministic repository checks used by both Make and CI.
-- `iteration_N.md`: observed delivery reports for completed product iterations.
+- `docs/iteration_N.md`: observed delivery reports for completed product iterations.
 
 ## Working workflow
 
@@ -22,7 +22,7 @@ OpsQuest is a Go 1.22 CLI game with 19 in-memory Linux missions and an optional 
 3. Run `make check` before handing off ordinary changes. Run `make check-all` for release-sized, concurrency-sensitive, persistence, parser, or sandbox work.
 4. Review `git diff` and `git status`, then report the behavior changed and every validation command actually observed.
 
-Safe local edits, tests, builds, and documentation updates within the requested scope are authorized. Do not contact external services, publish changes, generate mission content, or begin Docker/Kubernetes gameplay without explicit scope.
+Safe local edits, tests, builds, and documentation updates within the requested scope are authorized. Do not contact external services, publish changes, generate mission content, expand Docker gameplay, or begin Kubernetes gameplay without explicit scope.
 
 ## Project invariants
 
@@ -49,7 +49,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Normal local gate: `make check`.
 - Comprehensive gate, including race detection: `make check-all`.
 
-Update README command lists, mission counts, safety notes, or roadmap claims when behavior changes. Use `$prepare-iteration` for a release-sized milestone and base its `iteration_N.md` report on the supplied template.
+Update README command lists, mission counts, safety notes, or roadmap claims when behavior changes. Use `$prepare-iteration` for a release-sized milestone and base its `docs/iteration_N.md` report on the supplied template.
 
 ## Definition of done
 

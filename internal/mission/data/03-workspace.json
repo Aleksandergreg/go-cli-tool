@@ -7,6 +7,7 @@
   "story": "Incident reports currently live in a folder named final-final-USE-THIS. Bring a tiny amount of order to ByteWorks.",
   "objective": "Create the directory /workspace/reports/daily and an empty file named summary.txt inside it.",
   "start_dir": "/workspace",
+  "suggested_commands": ["ls", "mkdir", "touch"],
   "hints": [
     "mkdir creates directories; -p also creates missing parent directories.",
     "touch creates an empty file when it does not already exist.",
@@ -26,4 +27,3 @@
   },
   "rewards": {"xp": 55, "hint_penalty": 10}
 }
-

@@ -24,10 +24,11 @@ func (s *Sandbox) cmdCD(args []string) (string, error) {
 	if len(args) == 1 {
 		target = args[0]
 		if target == "-" {
-			if s.Previous == "" {
+			var exists bool
+			target, exists = s.Env["OLDPWD"]
+			if !exists || target == "" {
 				return "", fmt.Errorf("OLDPWD is not set")
 			}
-			target = s.Previous
 			printTarget = true
 		}
 	}
@@ -47,7 +48,6 @@ func (s *Sandbox) cmdCD(args []string) (string, error) {
 		return "", err
 	}
 	s.CWD = resolved
-	s.Previous = old
 	s.Env = environment
 	if printTarget {
 		return resolved + "\n", nil

@@ -78,7 +78,7 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 	if item.Docker == nil {
 		return nil, fmt.Errorf("docker mission %s has no Docker setup", item.ID)
 	}
-	if err := validateDockerSetup(*item.Docker); err != nil {
+	if err := mission.ValidateDockerSetup(*item.Docker); err != nil {
 		return nil, fmt.Errorf("docker mission %s: %w", item.ID, err)
 	}
 	availability := f.Availability(ctx, item)
@@ -110,15 +110,15 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 			environment.byAlias[tracked.alias] = tracked
 		}
 		if createErr != nil {
-			return nil, joinSetupCleanupError(createErr, environment.Close())
+			return environment, joinSetupCleanupError(createErr, environment.Close())
 		}
 	}
 	for _, fixture := range item.Docker.Containers {
-		if fixture.State != "running" {
+		if fixture.State != mission.DockerStateRunning {
 			continue
 		}
 		if err := environment.startContainer(ctx, fixture.Name); err != nil {
-			return nil, joinSetupCleanupError(fmt.Errorf("start Docker fixture %s: %w", fixture.Name, err), environment.Close())
+			return environment, joinSetupCleanupError(fmt.Errorf("start Docker fixture %s: %w", fixture.Name, err), environment.Close())
 		}
 	}
 	return environment, nil
@@ -136,7 +136,7 @@ func (f *Factory) Availability(ctx context.Context, item mission.Mission) game.A
 	if item.Docker == nil {
 		return game.Availability{Available: false, Detail: fmt.Sprintf("Docker mission %s has no Docker setup", item.ID)}
 	}
-	if err := validateDockerSetup(*item.Docker); err != nil {
+	if err := mission.ValidateDockerSetup(*item.Docker); err != nil {
 		return game.Availability{Available: false, Detail: fmt.Sprintf("Docker mission %s is invalid: %v", item.ID, err)}
 	}
 	if f.lookupErr != nil || f.runner == nil {
@@ -187,42 +187,6 @@ func randomSessionID() (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(value), nil
-}
-
-func validateDockerSetup(setup mission.DockerSetup) error {
-	if len(setup.Images) == 0 || len(setup.Containers) == 0 {
-		return fmt.Errorf("at least one image and container are required")
-	}
-	images := make(map[string]bool, len(setup.Images))
-	for _, image := range setup.Images {
-		if !mission.ValidDockerLogicalName(image.Alias) {
-			return fmt.Errorf("invalid image alias %q", image.Alias)
-		}
-		if images[image.Alias] {
-			return fmt.Errorf("duplicate image alias %q", image.Alias)
-		}
-		if !mission.ValidDockerImageReference(image.Reference) {
-			return fmt.Errorf("image %s must use a digest-pinned reference", image.Alias)
-		}
-		images[image.Alias] = true
-	}
-	containers := make(map[string]bool, len(setup.Containers))
-	for _, fixture := range setup.Containers {
-		if !mission.ValidDockerLogicalName(fixture.Name) {
-			return fmt.Errorf("invalid container name %q", fixture.Name)
-		}
-		if containers[fixture.Name] {
-			return fmt.Errorf("duplicate container name %q", fixture.Name)
-		}
-		if !images[fixture.Image] {
-			return fmt.Errorf("container %s uses undeclared image alias %q", fixture.Name, fixture.Image)
-		}
-		if fixture.State != "running" && fixture.State != "stopped" {
-			return fmt.Errorf("container %s has unsupported state %q", fixture.Name, fixture.State)
-		}
-		containers[fixture.Name] = true
-	}
-	return nil
 }
 
 func joinSetupCleanupError(primary, cleanup error) error {

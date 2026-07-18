@@ -39,6 +39,19 @@ func NewFileSystem() *FileSystem {
 	}}
 }
 
+func (f *FileSystem) clone() *FileSystem {
+	entries := make(map[string]*Entry, len(f.entries))
+	for name, entry := range f.entries {
+		entryCopy := *entry
+		entries[name] = &entryCopy
+	}
+	return &FileSystem{entries: entries}
+}
+
+func (f *FileSystem) commitSnapshot(snapshot *FileSystem) {
+	f.entries = snapshot.entries
+}
+
 func cleanVirtualMutationPath(name string) (string, error) {
 	name = path.Clean(name)
 	if !strings.HasPrefix(name, "/") {

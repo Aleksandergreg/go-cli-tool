@@ -35,13 +35,34 @@ type Achievement struct {
 	Description string
 }
 
+const (
+	AchievementFirstFix           = "first-fix"
+	AchievementPipeDream          = "pipe-dream"
+	AchievementCommandCollector   = "command-collector"
+	AchievementSelfReliant        = "self-reliant"
+	AchievementBossSlayer         = "boss-slayer"
+	AchievementLinuxCompletionist = "linux-completionist"
+)
+
 var achievements = []Achievement{
-	{ID: "first-fix", Title: "First Fix", Description: "Complete your first mission."},
-	{ID: "pipe-dream", Title: "Pipe Dream", Description: "Complete a successful pipeline with at least three commands."},
-	{ID: "command-collector", Title: "Command Collector", Description: "Successfully practice ten different commands."},
-	{ID: "self-reliant", Title: "Self-Reliant", Description: "Complete five missions without using a hint."},
-	{ID: "boss-slayer", Title: "Boss Slayer", Description: "Complete an advanced mission."},
-	{ID: "linux-completionist", Title: "Linux Completionist", Description: "Complete every Linux mission."},
+	{ID: AchievementFirstFix, Title: "First Fix", Description: "Complete your first mission."},
+	{ID: AchievementPipeDream, Title: "Pipe Dream", Description: "Complete a successful pipeline with at least three commands."},
+	{ID: AchievementCommandCollector, Title: "Command Collector", Description: "Successfully practice ten different commands."},
+	{ID: AchievementSelfReliant, Title: "Self-Reliant", Description: "Complete five missions without using a hint."},
+	{ID: AchievementBossSlayer, Title: "Boss Slayer", Description: "Complete an advanced mission."},
+	{ID: AchievementLinuxCompletionist, Title: "Linux Completionist", Description: "Complete every Linux mission."},
+}
+
+var rankThresholds = []struct {
+	name string
+	xp   int
+}{
+	{name: "Intern", xp: 0},
+	{name: "Operator", xp: 100},
+	{name: "Junior Sysadmin", xp: 250},
+	{name: "Sysadmin", xp: 450},
+	{name: "SRE", xp: 650},
+	{name: "Senior SRE", xp: 1100},
 }
 
 func New(name string) Profile {
@@ -71,6 +92,11 @@ func (p *Profile) Normalize() {
 	}
 	if p.Hints == nil {
 		p.Hints = make(map[string]int)
+	}
+	for missionID, count := range p.Hints {
+		if count < 0 || p.IsComplete(missionID) {
+			delete(p.Hints, missionID)
+		}
 	}
 	if p.Unlocked == nil {
 		p.Unlocked = make(map[string]time.Time)
@@ -111,6 +137,10 @@ func (p *Profile) RecordHint(missionID string) int {
 
 func (p *Profile) Complete(missionID string, xp, hints int, now time.Time) bool {
 	if p.IsComplete(missionID) {
+		// Hints used while replaying a mission are transient attempt state. Keep
+		// the original completion and XP intact, but do not carry those hints
+		// into every future replay.
+		delete(p.Hints, missionID)
 		return false
 	}
 	if p.Completed == nil {
@@ -199,34 +229,16 @@ func (p Profile) Level() int {
 }
 
 func (p Profile) Rank() string {
-	switch {
-	case p.XP >= 1100:
-		return "Senior SRE"
-	case p.XP >= 650:
-		return "SRE"
-	case p.XP >= 450:
-		return "Sysadmin"
-	case p.XP >= 250:
-		return "Junior Sysadmin"
-	case p.XP >= 100:
-		return "Operator"
-	default:
-		return "Intern"
+	for index := len(rankThresholds) - 1; index >= 0; index-- {
+		if p.XP >= rankThresholds[index].xp {
+			return rankThresholds[index].name
+		}
 	}
+	return rankThresholds[0].name
 }
 
 func (p Profile) NextRank() (string, int, bool) {
-	thresholds := []struct {
-		name string
-		xp   int
-	}{
-		{name: "Operator", xp: 100},
-		{name: "Junior Sysadmin", xp: 250},
-		{name: "Sysadmin", xp: 450},
-		{name: "SRE", xp: 650},
-		{name: "Senior SRE", xp: 1100},
-	}
-	for _, threshold := range thresholds {
+	for _, threshold := range rankThresholds[1:] {
 		if p.XP < threshold.xp {
 			return threshold.name, threshold.xp - p.XP, true
 		}

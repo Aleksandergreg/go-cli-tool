@@ -110,6 +110,12 @@ func (s Style) Progress(filled, empty string) string {
 	return s.Success(filled) + s.Muted(empty)
 }
 
+// CommandGuide formats the free, non-prescriptive tool orientation shared by
+// mission introductions, previews, and objective recall.
+func (s Style) CommandGuide(commands []string) string {
+	return "Commands you may need to solve this level:\n  " + s.Accent(strings.Join(commands, ", "))
+}
+
 func (s Style) paint(code, text string) string {
 	if !s.enabled || text == "" {
 		return text

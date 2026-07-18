@@ -1,6 +1,7 @@
 package mission
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 )
@@ -203,7 +204,7 @@ func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 			mutate: func(item *Mission) {
 				item.Validation.All[0].Value = "api"
 			},
-			wantErr: "accepts only container",
+			wantErr: "does not support value",
 		},
 	}
 
@@ -232,6 +233,26 @@ func TestMissionValidationRejectsDockerConditionOnSimulatedMission(t *testing.T)
 	item.Validation.All = []Condition{{Type: "docker_container_running", Container: "api"}}
 	if err := validateMission(item); err == nil || !strings.Contains(err.Error(), "requires a docker environment") {
 		t.Fatalf("validateMission() error = %v", err)
+	}
+}
+
+func TestDockerSetupResourceLimits(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("docker-container-census")
+
+	tooManyImages := *item.Docker
+	tooManyImages.Images = make([]DockerImageSpec, maxDockerImagesPerMission+1)
+	if err := ValidateDockerSetup(tooManyImages); err == nil || !strings.Contains(err.Error(), "image limit") {
+		t.Fatalf("ValidateDockerSetup(images) error = %v", err)
+	}
+
+	tooManyContainers := *item.Docker
+	tooManyContainers.Containers = make([]DockerContainerSpec, maxDockerContainersPerMission+1)
+	if err := ValidateDockerSetup(tooManyContainers); err == nil || !strings.Contains(err.Error(), "container limit") {
+		t.Fatalf("ValidateDockerSetup(containers) error = %v", err)
 	}
 }
 
@@ -265,6 +286,185 @@ func TestMissionValidationRejectsUnknownTrackAndEnvironment(t *testing.T) {
 				t.Fatalf("validateMission() error = %v, want substring %q", err, test.wantErr)
 			}
 		})
+	}
+}
+
+func TestMissionValidationRejectsUnknownDifficultyAndInvalidHintCount(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := catalog.Find("linux-orientation")
+	tests := []struct {
+		name    string
+		mutate  func(*Mission)
+		wantErr string
+	}{
+		{
+			name:    "unknown difficulty",
+			mutate:  func(item *Mission) { item.Difficulty = "expert-ish" },
+			wantErr: "unknown difficulty",
+		},
+		{
+			name:    "no hints",
+			mutate:  func(item *Mission) { item.Hints = nil },
+			wantErr: "between 1 and 5 hints",
+		},
+		{
+			name:    "too many hints",
+			mutate:  func(item *Mission) { item.Hints = make([]string, 6) },
+			wantErr: "between 1 and 5 hints",
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			item := base
+			test.mutate(&item)
+			if err := validateMission(item); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("validateMission() error = %v, want substring %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestMissionValidationRejectsInvalidSuggestedCommands(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := catalog.Find("linux-orientation")
+	tests := []struct {
+		name     string
+		commands []string
+		wantErr  string
+	}{
+		{name: "missing", commands: nil, wantErr: "at least one suggested command"},
+		{name: "blank", commands: []string{""}, wantErr: "lowercase command name"},
+		{name: "syntax instead of command name", commands: []string{"grep ERROR"}, wantErr: "lowercase command name"},
+		{name: "duplicate", commands: []string{"pwd", "pwd"}, wantErr: "duplicate suggested command"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			item := base
+			item.SuggestedCommands = test.commands
+			if err := validateMission(item); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("validateMission() error = %v, want substring %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestMissionValidationRejectsFieldsOutsideConditionContract(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("linux-orientation")
+	item.Validation.All[0].Path = "/not-used"
+	if err := validateMission(item); err == nil || !strings.Contains(err.Error(), `type "output_equals" does not support path`) {
+		t.Fatalf("validateMission() error = %v", err)
+	}
+}
+
+func TestConditionValidationRejectsExplicitZeroValueFieldsOutsideContract(t *testing.T) {
+	tests := []struct {
+		data    string
+		wantErr string
+	}{
+		{data: `{"type":"output_equals","pid":0}`, wantErr: `does not support pid`},
+		{data: `{"type":"file_exists","value":""}`, wantErr: `does not support value`},
+		{data: `{"type":"path_missing","values":[]}`, wantErr: `does not support values`},
+	}
+	for _, test := range tests {
+		var condition Condition
+		if err := json.Unmarshal([]byte(test.data), &condition); err != nil {
+			t.Fatalf("Unmarshal(%s) error = %v", test.data, err)
+		}
+		if err := validateCondition(condition, EnvironmentSimulated); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+			t.Errorf("validateCondition(%s) error = %v, want substring %q", test.data, err, test.wantErr)
+		}
+	}
+}
+
+func TestConditionDecoderPreservesUnknownFieldRejection(t *testing.T) {
+	var condition Condition
+	err := json.Unmarshal([]byte(`{"type":"output_equals","surprise":0}`), &condition)
+	if err == nil || !strings.Contains(err.Error(), `unknown field "surprise"`) {
+		t.Fatalf("Unmarshal() error = %v", err)
+	}
+}
+
+func TestCatalogResultsCannotMutateCatalogState(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	archive, _ := catalog.Find("9")
+	archive.SuggestedCommands[0] = "changed"
+	archive.Hints[0] = "changed"
+	archive.Setup.Archives[0].Entries[0].Content = "changed"
+	archiveAgain, _ := catalog.Find("9")
+	if archiveAgain.SuggestedCommands[0] == "changed" || archiveAgain.Hints[0] == "changed" || archiveAgain.Setup.Archives[0].Entries[0].Content == "changed" {
+		t.Fatal("Find returned catalog-owned teaching or archive storage")
+	}
+
+	lines, _ := catalog.Find("12")
+	lines.Validation.All[0].Values[0] = "changed"
+	linesAgain, _ := catalog.Find("12")
+	if linesAgain.Validation.All[0].Values[0] == "changed" {
+		t.Fatal("Find returned catalog-owned validation values")
+	}
+
+	environment, _ := catalog.Find("7")
+	environment.Setup.Environment["DEPLOY_ENV"] = "changed"
+	environmentAgain, _ := catalog.Find("7")
+	if environmentAgain.Setup.Environment["DEPLOY_ENV"] == "changed" {
+		t.Fatal("Find returned catalog-owned environment storage")
+	}
+
+	docker, _ := catalog.Find("17")
+	docker.Docker.Images[0].Alias = "changed"
+	*docker.Validation.All[2].Count = 99
+	dockerAgain, _ := catalog.Find("17")
+	if dockerAgain.Docker.Images[0].Alias == "changed" || *dockerAgain.Validation.All[2].Count == 99 {
+		t.Fatal("Find returned catalog-owned Docker or count storage")
+	}
+
+	items := catalog.All()
+	items[0].Setup.Files[0].Content = "changed"
+	firstAgain, _ := catalog.Find("1")
+	if firstAgain.Setup.Files[0].Content == "changed" {
+		t.Fatal("All returned catalog-owned setup storage")
+	}
+}
+
+func TestCatalogTrackBoundariesAndAdjacency(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	first, found := catalog.FirstInTrack(TrackLinux)
+	if !found || first.Number != 1 {
+		t.Fatalf("FirstInTrack(linux) = %#v, %v", first, found)
+	}
+	last, found := catalog.LastInTrack(TrackLinux)
+	if !found || last.Number != 20 {
+		t.Fatalf("LastInTrack(linux) = %#v, %v", last, found)
+	}
+	next, found := catalog.AdjacentInTrack("linux-production-friday", 1)
+	if !found || next.ID != "linux-vi-first-aid" {
+		t.Fatalf("AdjacentInTrack(after 16) = %#v, %v", next, found)
+	}
+	previous, found := catalog.AdjacentInTrack("linux-vi-first-aid", -1)
+	if !found || previous.ID != "linux-production-friday" {
+		t.Fatalf("AdjacentInTrack(before 18) = %#v, %v", previous, found)
+	}
+	if _, found := catalog.AdjacentInTrack("docker-container-census", 1); found {
+		t.Fatal("single-mission Docker track has a next mission")
+	}
+	if _, found := catalog.AdjacentInTrack("missing", 1); found {
+		t.Fatal("unknown mission has an adjacent mission")
 	}
 }
 

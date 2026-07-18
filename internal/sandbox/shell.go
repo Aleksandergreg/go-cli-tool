@@ -2,14 +2,18 @@ package sandbox
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 )
 
 const (
-	maxCommandLineBytes   = 64 * 1024
-	maxCommandOutputBytes = maxVirtualFileBytes
+	maxCommandLineBytes       = 64 * 1024
+	maxCommandOutputBytes     = maxVirtualFileBytes
+	maxExpandedTokenBytes     = maxCommandOutputBytes
+	maxExpandedArguments      = maxVirtualEntries
+	maxPipelineStages         = 64
+	maxExecutionDispatchSteps = 512
 )
 
 type Result struct {
@@ -22,6 +26,7 @@ type Result struct {
 type executionContext struct {
 	commands         []string
 	maxPipelineWidth int
+	dispatchSteps    int
 	scriptStack      []string
 	scriptSteps      int
 }
@@ -58,6 +63,17 @@ type commandLine struct {
 	stages []pipelineStage
 }
 
+type expandedPipelineStage struct {
+	args       []string
+	inputPath  string
+	outputPath string
+	append     bool
+}
+
+type expandedCommandLine struct {
+	stages []expandedPipelineStage
+}
+
 func (s *Sandbox) Execute(line string) (Result, error) {
 	if len(line) > maxCommandLineBytes {
 		return Result{}, fmt.Errorf("command line exceeds the %d KiB limit", maxCommandLineBytes/1024)
@@ -87,7 +103,16 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 	if len(parsed.stages) == 0 {
 		return Result{}, nil
 	}
-	pipelineWidth := len(parsed.stages)
+	if !allowInteractive {
+		if err := validateScriptCommands(parsed); err != nil {
+			return Result{}, err
+		}
+	}
+	expanded, err := s.expandCommandLine(parsed)
+	if err != nil {
+		return Result{}, err
+	}
+	pipelineWidth := len(expanded.stages)
 	if pipelineWidth > context.maxPipelineWidth {
 		context.maxPipelineWidth = pipelineWidth
 	}
@@ -95,9 +120,8 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 	// Interactive commands are preflighted before any pipeline stage runs. This
 	// prevents a rejected composition such as `touch changed | vi file` from
 	// mutating the virtual filesystem before vi reports the unsupported pipeline.
-	for _, stage := range parsed.stages {
-		args := s.expandWords(stage.args)
-		if args[0] != "vi" {
+	for _, stage := range expanded.stages {
+		if stage.args[0] != "vi" {
 			continue
 		}
 		context.commands = append(context.commands, "vi")
@@ -111,7 +135,7 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 		if stage.inputPath != "" || stage.outputPath != "" {
 			return result, fmt.Errorf("vi: redirection is not supported")
 		}
-		request, err := s.cmdVi(args[1:])
+		request, err := s.cmdVi(stage.args[1:])
 		if err != nil {
 			return result, fmt.Errorf("vi: %w", err)
 		}
@@ -121,27 +145,25 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 	// A script can produce pipeline output, but this teaching subset does not
 	// model a shared stdin stream across its independent lines. Reject incoming
 	// pipeline or file input before an earlier stage can mutate sandbox state.
-	for index, stage := range parsed.stages {
-		args := s.expandWords(stage.args)
-		if !isScriptInvocation(args[0]) {
+	for index, stage := range expanded.stages {
+		if !isScriptInvocation(stage.args[0]) {
 			continue
 		}
 		if index > 0 || stage.inputPath != "" {
-			return Result{}, fmt.Errorf("%s: script input from pipelines or redirection is not supported", args[0])
+			return Result{}, fmt.Errorf("%s: script input from pipelines or redirection is not supported", stage.args[0])
 		}
 	}
 
 	stdin := ""
-	for _, stage := range parsed.stages {
+	for _, stage := range expanded.stages {
 		if stage.inputPath != "" {
 			stdin, err = s.FS.ReadFile(s.Resolve(stage.inputPath))
 			if err != nil {
 				return Result{}, fmt.Errorf("redirect: %w", err)
 			}
 		}
-		args := s.expandWords(stage.args)
-		name := args[0]
-		stdin, err = s.run(context, args, stdin)
+		name := stage.args[0]
+		stdin, err = s.run(context, stage.args, stdin)
 		if err != nil {
 			return Result{}, fmt.Errorf("%s: %w", name, err)
 		}
@@ -177,6 +199,9 @@ func parseCommandLine(tokens []token) (commandLine, error) {
 			if len(stage.args) == 0 {
 				return commandLine{}, fmt.Errorf("unexpected pipe")
 			}
+			if len(parsed.stages) == maxPipelineStages-1 {
+				return commandLine{}, fmt.Errorf("pipeline stage limit of %d exceeded", maxPipelineStages)
+			}
 			parsed.stages = append(parsed.stages, stage)
 			stage = pipelineStage{}
 		case redirectToken, appendToken, inputToken:
@@ -205,9 +230,59 @@ func parseCommandLine(tokens []token) (commandLine, error) {
 		}
 		return commandLine{}, fmt.Errorf("redirection requires a command")
 	} else {
+		if len(parsed.stages) == maxPipelineStages {
+			return commandLine{}, fmt.Errorf("pipeline stage limit of %d exceeded", maxPipelineStages)
+		}
 		parsed.stages = append(parsed.stages, stage)
 	}
 	return parsed, nil
+}
+
+func (s *Sandbox) expandCommandLine(parsed commandLine) (expandedCommandLine, error) {
+	expanded := expandedCommandLine{stages: make([]expandedPipelineStage, 0, len(parsed.stages))}
+	argumentCount := 0
+	tokenBytes := 0
+	consumeTokenBytes := func(value string) error {
+		if len(value) > maxExpandedTokenBytes-tokenBytes {
+			return fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
+		}
+		tokenBytes += len(value)
+		return nil
+	}
+	for _, stage := range parsed.stages {
+		args := make([]string, 0, len(stage.args))
+		for _, word := range stage.args {
+			values := []string{word.value}
+			if word.glob {
+				if matches := s.FS.Glob(s.CWD, word.value); len(matches) > 0 {
+					values = matches
+				}
+			}
+			for _, value := range values {
+				if argumentCount == maxExpandedArguments {
+					return expandedCommandLine{}, fmt.Errorf("expanded command exceeds the %d-argument limit", maxExpandedArguments)
+				}
+				if err := consumeTokenBytes(value); err != nil {
+					return expandedCommandLine{}, err
+				}
+				argumentCount++
+				args = append(args, value)
+			}
+		}
+		if err := consumeTokenBytes(stage.inputPath); err != nil {
+			return expandedCommandLine{}, err
+		}
+		if err := consumeTokenBytes(stage.outputPath); err != nil {
+			return expandedCommandLine{}, err
+		}
+		expanded.stages = append(expanded.stages, expandedPipelineStage{
+			args:       args,
+			inputPath:  stage.inputPath,
+			outputPath: stage.outputPath,
+			append:     stage.append,
+		})
+	}
+	return expanded, nil
 }
 
 func lex(line string, env map[string]string) ([]token, error) {
@@ -217,6 +292,28 @@ func lex(line string, env map[string]string) ([]token, error) {
 	tokenStarted := false
 	wordGlob := false
 	runes := []rune(line)
+	expandedBytes := 0
+
+	writeString := func(value string) error {
+		if len(value) > maxExpandedTokenBytes-expandedBytes {
+			return fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
+		}
+		expandedBytes += len(value)
+		current.WriteString(value)
+		return nil
+	}
+	writeRune := func(value rune) error {
+		size := utf8.RuneLen(value)
+		if size < 0 {
+			size = utf8.RuneLen(utf8.RuneError)
+		}
+		if size > maxExpandedTokenBytes-expandedBytes {
+			return fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
+		}
+		expandedBytes += size
+		current.WriteRune(value)
+		return nil
+	}
 
 	flush := func() {
 		if tokenStarted {
@@ -243,7 +340,9 @@ func lex(line string, env map[string]string) ([]token, error) {
 					return nil, fmt.Errorf("unfinished escape")
 				}
 				i++
-				current.WriteRune(runes[i])
+				if err := writeRune(runes[i]); err != nil {
+					return nil, err
+				}
 				tokenStarted = true
 				continue
 			case char == '#' && !tokenStarted:
@@ -268,13 +367,17 @@ func lex(line string, env map[string]string) ([]token, error) {
 				continue
 			case char == '$':
 				value, consumed := expandVariable(runes[i:], env)
-				current.WriteString(value)
+				if err := writeString(value); err != nil {
+					return nil, err
+				}
 				wordGlob = wordGlob || strings.ContainsAny(value, "*?[")
 				i += consumed
 				tokenStarted = true
 				continue
 			default:
-				current.WriteRune(char)
+				if err := writeRune(char); err != nil {
+					return nil, err
+				}
 				wordGlob = wordGlob || strings.ContainsRune("*?[", char)
 				tokenStarted = true
 				continue
@@ -290,16 +393,22 @@ func lex(line string, env map[string]string) ([]token, error) {
 				return nil, fmt.Errorf("unfinished escape")
 			}
 			i++
-			current.WriteRune(runes[i])
+			if err := writeRune(runes[i]); err != nil {
+				return nil, err
+			}
 			continue
 		}
 		if quote == '"' && char == '$' {
 			value, consumed := expandVariable(runes[i:], env)
-			current.WriteString(value)
+			if err := writeString(value); err != nil {
+				return nil, err
+			}
 			i += consumed
 			continue
 		}
-		current.WriteRune(char)
+		if err := writeRune(char); err != nil {
+			return nil, err
+		}
 	}
 	if quote != 0 {
 		return nil, fmt.Errorf("unterminated quote")
@@ -333,6 +442,10 @@ func expandVariable(input []rune, env map[string]string) (string, int) {
 func (s *Sandbox) run(context *executionContext, args []string, stdin string) (output string, err error) {
 	if len(args) == 0 {
 		return "", nil
+	}
+	context.dispatchSteps++
+	if context.dispatchSteps > maxExecutionDispatchSteps {
+		return "", fmt.Errorf("command dispatch limit of %d exceeded", maxExecutionDispatchSteps)
 	}
 	defer func() {
 		if err == nil && len(output) > maxCommandOutputBytes {
@@ -449,23 +562,17 @@ func shellHelp(args []string) (string, error) {
 	commands := CommandNames()
 	return "Available lab commands:\n  " + strings.Join(commands, "  ") +
 		"\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection." +
-		"\nSandbox limits: 64 KiB per command line; 2 MiB per file and command output; 8 MiB total file and archive content; 4,096 filesystem and archive entries." +
+		fmt.Sprintf("\nSandbox limits: %d KiB per command line; %d KiB expanded tokens; %d expanded arguments; %d pipeline stages; %d command dispatches; %d MiB per file and command output; %d MiB filesystem content and %d MiB archive payload; %d filesystem entries and %d archive entries.",
+			maxCommandLineBytes/1024, maxExpandedTokenBytes/1024, maxExpandedArguments, maxPipelineStages, maxExecutionDispatchSteps,
+			maxVirtualFileBytes/(1024*1024), maxVirtualFileSystemBytes/(1024*1024), maxVirtualArchiveBytes/(1024*1024), maxVirtualEntries, maxVirtualArchiveEntries) +
 		"\nUse help COMMAND for examples.\n", nil
-}
-
-var commandNames = []string{
-	"awk", "basename", "cat", "cd", "chmod", "chown", "clear", "cp", "cut", "dirname", "du", "echo", "env", "export",
-	"find", "grep", "gzip", "gunzip", "head", "help", "history", "kill", "less", "ls", "man", "mkdir", "mv",
-	"printf", "ps", "pwd", "rm", "rmdir", "sed", "sh", "sort", "stat", "tail", "tar", "touch", "tr", "uniq", "vi", "wc", "whoami",
 }
 
 // CommandNames returns the commands accepted by the teaching-shell dispatcher.
 // Interactive completion uses the same list as shell help so the two surfaces
 // cannot drift apart.
 func CommandNames() []string {
-	commands := append([]string(nil), commandNames...)
-	sort.Strings(commands)
-	return commands
+	return sortedKeys(commandManuals)
 }
 
 var commandManuals = map[string]string{
@@ -511,7 +618,7 @@ var commandManuals = map[string]string{
 	"sort":  "sort [-nru] [FILE...] — sort lines",
 	"stat":  "stat PATH... — inspect type, size, owner, and mode",
 	"tail":  "tail [-n COUNT] [FILE...] — print the last lines",
-	"tar":   "tar -xf ARCHIVE [-C DIR] — extract; -cf creates and -tf lists",
+	"tar":   "tar -xf ARCHIVE [-C DIR] — extract; -C is extraction-only; -cf creates and -tf lists",
 	"touch": "touch FILE... — create empty files when they do not exist",
 	"tr":    "tr [-ds] SET1 [SET2] — translate, delete, or squeeze characters",
 	"uniq":  "uniq [-c] [FILE] — collapse adjacent duplicate lines",
@@ -522,19 +629,4 @@ var commandManuals = map[string]string{
 		"Options, multiple files, pipelines, redirection, shell escapes, plugins, and other vi features are unsupported.",
 	"wc":     "wc [-l|-w|-c] [FILE...] — count lines, words, or bytes",
 	"whoami": "whoami — print the current virtual user",
-}
-
-func (s *Sandbox) expandWords(words []shellWord) []string {
-	expanded := make([]string, 0, len(words))
-	for _, word := range words {
-		if word.glob {
-			matches := s.FS.Glob(s.CWD, word.value)
-			if len(matches) > 0 {
-				expanded = append(expanded, matches...)
-				continue
-			}
-		}
-		expanded = append(expanded, word.value)
-	}
-	return expanded
 }
