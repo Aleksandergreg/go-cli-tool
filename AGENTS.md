@@ -9,7 +9,7 @@ OpsQuest is a Go 1.22 CLI game with 19 in-memory Linux missions and an optional 
 - `internal/cli`: public CLI commands, flags, help, and presentation.
 - `internal/ui`: terminal-aware ANSI styling and the shared color policy for presentation.
 - `internal/game`: mission sessions, rewards, and observable-outcome validation.
-- `internal/mission`: JSON schema, strict embedded catalog loading, integrity checks, and `data/` mission content.
+- `internal/mission`: JSON schema, strict embedded catalog loading, track-local world/stage derivation, integrity checks, and `data/` mission content.
 - `internal/sandbox`: parser, dispatcher, virtual filesystem, virtual processes, archives, and the supported command subset.
 - `internal/dockerlab`: optional Docker capability detection, typed teaching commands, isolated resource lifecycle, and Docker observations.
 - `internal/profile`: versioned profile model and atomic JSON persistence.

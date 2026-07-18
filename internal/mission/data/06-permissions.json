@@ -3,7 +3,7 @@
   "number": 6,
   "title": "Permission to Deploy",
   "campaign": "The Logpocalypse",
-  "difficulty": "intermediate",
+  "difficulty": "beginner",
   "story": "The deployment script contains all the right commands and none of the right permissions. Security would like fewer surprises today.",
   "objective": "Set /srv/release/deploy.sh so its owner can read, write, and execute it; its group can read and execute it; and everyone else has no access (mode 750).",
   "start_dir": "/srv/release",

@@ -9,13 +9,22 @@ import (
 	"sort"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
-const currentVersion = 2
+const (
+	currentVersion    = 2
+	defaultPlayerName = "operator"
+	// MaxPlayerNameRunes bounds profile names without imposing an ASCII-only
+	// policy on players.
+	MaxPlayerNameRunes = 40
+)
 
 type Profile struct {
 	Version   int                   `json:"version"`
 	Name      string                `json:"name"`
+	Onboarded bool                  `json:"onboarded,omitempty"`
 	XP        int                   `json:"xp"`
 	Completed map[string]Completion `json:"completed"`
 	Commands  map[string]int        `json:"commands"`
@@ -66,13 +75,9 @@ var rankThresholds = []struct {
 }
 
 func New(name string) Profile {
-	name = strings.TrimSpace(name)
-	if name == "" {
-		name = "operator"
-	}
 	return Profile{
 		Version:   currentVersion,
-		Name:      name,
+		Name:      normalizeName(name),
 		Completed: make(map[string]Completion),
 		Commands:  make(map[string]int),
 		Hints:     make(map[string]int),
@@ -101,9 +106,53 @@ func (p *Profile) Normalize() {
 	if p.Unlocked == nil {
 		p.Unlocked = make(map[string]time.Time)
 	}
-	if strings.TrimSpace(p.Name) == "" {
-		p.Name = "operator"
+	p.Name = normalizeName(p.Name)
+}
+
+// ValidateName validates a user-supplied profile display name before it is
+// persisted. Names remain Unicode-friendly, but terminal controls, invisible
+// formatting characters, invalid UTF-8, and values too long for the CLI layout
+// are rejected.
+func ValidateName(name string) error {
+	if !utf8.ValidString(name) {
+		return fmt.Errorf("profile name must be valid UTF-8")
 	}
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return fmt.Errorf("profile name cannot be blank")
+	}
+	for _, char := range name {
+		if !unicode.IsPrint(char) {
+			return fmt.Errorf("profile name cannot contain control or non-printable characters")
+		}
+	}
+	if utf8.RuneCountInString(trimmed) > MaxPlayerNameRunes {
+		return fmt.Errorf("profile name cannot exceed %d characters", MaxPlayerNameRunes)
+	}
+	return nil
+}
+
+// normalizeName keeps profiles created by older builds and names sourced from
+// the environment safe to display. New user-supplied values are rejected by
+// ValidateName in Store.Save; normalization is intentionally forgiving only at
+// compatibility and default-value boundaries.
+func normalizeName(name string) string {
+	name = strings.ToValidUTF8(name, "")
+	var cleaned strings.Builder
+	for _, char := range name {
+		if unicode.IsPrint(char) {
+			cleaned.WriteRune(char)
+		}
+	}
+	runes := []rune(strings.TrimSpace(cleaned.String()))
+	if len(runes) > MaxPlayerNameRunes {
+		runes = runes[:MaxPlayerNameRunes]
+	}
+	name = strings.TrimSpace(string(runes))
+	if name == "" {
+		return defaultPlayerName
+	}
+	return name
 }
 
 func (p Profile) IsComplete(missionID string) bool {
@@ -165,6 +214,16 @@ func (p Profile) HintsUsed() int {
 	total := 0
 	for _, completion := range p.Completed {
 		total += completion.HintsUsed
+	}
+	return total
+}
+
+// ActiveHints reports hints persisted for incomplete mission attempts. These
+// are shown separately from the historical hints stored with completions.
+func (p Profile) ActiveHints() int {
+	total := 0
+	for _, count := range p.Hints {
+		total += count
 	}
 	return total
 }
@@ -302,6 +361,12 @@ func (s Store) Load() (Profile, error) {
 }
 
 func (s Store) Save(player Profile) error {
+	// Validate before Normalize so controls and oversized user input cannot be
+	// silently converted into a different persisted display name. Load and New
+	// have already normalized compatibility/default values at their boundaries.
+	if err := ValidateName(player.Name); err != nil {
+		return fmt.Errorf("invalid profile name: %w", err)
+	}
 	player.Normalize()
 	data, err := json.MarshalIndent(player, "", "  ")
 	if err != nil {

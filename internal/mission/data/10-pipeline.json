@@ -9,8 +9,10 @@
   "start_dir": "/logs",
   "suggested_commands": ["cat", "grep", "awk", "sort", "uniq"],
   "hints": [
-    "Build the result in stages: filter ERROR lines, select the third field, sort, then remove duplicates.",
-    "awk '{print $3}' prints the third whitespace-separated field. sort and uniq can process its output.",
+    "Start by making the data smaller: keep only the ERROR lines before extracting service names.",
+    "grep ERROR incidents.log prints only the incident lines the report needs.",
+    "The service is the third whitespace-separated field on each ERROR line. awk '{print $3}' selects it.",
+    "sort orders the service names, uniq removes adjacent duplicates, and > writes the final stream to the report file.",
     "Try: grep ERROR incidents.log | awk '{print $3}' | sort | uniq > /reports/error-services.txt"
   ],
   "explanation": "Pipelines connect one command's output to the next command's input. Redirection writes the final stream to a file. Small tools compose into a repeatable report without changing the source log.",

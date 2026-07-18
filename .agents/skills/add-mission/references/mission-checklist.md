@@ -2,11 +2,11 @@
 
 ## Current content model
 
-Missions are embedded JSON files under `internal/mission/data/`. `internal/mission/catalog.go` decodes them with unknown fields rejected, validates each item, sorts by `number`, and requires a contiguous catalog beginning at 1.
+Missions are embedded JSON files under `internal/mission/data/`. `internal/mission/catalog.go` decodes them with unknown fields rejected, validates each item, sorts by `number`, and requires a contiguous catalog beginning at 1. `internal/mission/world.go` derives track-local worlds from contiguous campaign runs; a campaign cannot disappear and later reappear in the same track.
 
 Every mission supplies:
 
-- Identity and placement: `id`, `number`, `title`, `campaign`, `difficulty`.
+- Identity and placement: `id`, stable global `number`, `title`, contiguous `campaign`, and `difficulty`. World and stage positions are derived rather than stored in profiles or mission JSON.
 - An effective learning `track` and `environment`; omitted values preserve the legacy `linux` and `simulated` defaults.
 - Teaching content: `story`, `objective`, one or more unique base names in `suggested_commands`, `hints`, and `explanation`.
 - Simulated labs: an absolute clean `start_dir` plus declarative `setup` containing `directories`, `files`, `processes`, `environment`, and `archives` as needed.
@@ -33,7 +33,7 @@ Output-only validation is appropriate when producing the exact useful output is 
 ## Coverage checklist
 
 - The learning objective and success outcome are written down before implementation.
-- Filename, number, ID, campaign, difficulty, XP, and hint penalty fit adjacent missions.
+- Filename, stable number, ID, world/campaign placement, difficulty ramp, XP, and hint penalty fit adjacent missions.
 - Story and objective avoid giving away one exact command.
 - Suggested commands are supported base names, cover meaningful alternative routes where useful, and do not include flags, arguments, or full solutions.
 - Hints progress from concept through the relevant tool or option to concrete help; explanation teaches the underlying operations idea.
@@ -42,5 +42,5 @@ Output-only validation is appropriate when producing the exact useful output is 
 - `TestEveryMissionHasAWorkingOutcome` has a canonical solution entry.
 - A meaningful alternative route is tested when one exists.
 - An incomplete or incorrect route is tested.
-- `TestEmbeddedCatalog` count, README counts/campaigns, `scripts/smoke-test.sh` assertions, and iteration references are updated when needed.
+- World placement/contiguity coverage, README counts/world descriptions, `scripts/smoke-test.sh` assertions, and iteration references are updated when needed.
 - `go test ./internal/mission ./internal/game`, `make validate-missions`, and the relevant repository quality gate have been observed.

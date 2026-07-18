@@ -8,18 +8,19 @@ The current executable reports version **0.3.0**. <!-- x-release-please-version 
 
 OpsQuest currently ships:
 
-- 19 hand-written Linux missions across four campaigns
-- One optional Docker mission in the **It Works on My Machine** campaign
+- 19 hand-written Linux missions across four ordered learning worlds
+- One optional Docker mission in the **It Works on My Machine** world
 - Strict, embedded JSON mission definitions
 - Observable-outcome validation rather than prescribed command sequences
 - An in-memory filesystem, process table, environment, and virtual archive model
 - A quote-aware teaching shell with globbing, pipelines, redirection, and variables
-- Interactive prompt editing, history, path completion, and in-mission navigation
-- Terminal-aware color for CLI and mission presentation, with plain redirected output
+- A first-play guide explaining objectives, hints, XP, worlds, navigation, and sandbox boundaries
+- Interactive prompt editing, history, path completion, world jumping, and in-mission navigation
+- Semantic terminal color for CLI and mission presentation, with plain redirected output
 - A compact modal `vi` teaching editor
 - A bounded, simulated shell-script runner
 - Persistent profiles, XP, ranks, hints, command mastery, and six achievements
-- Continuous campaign play, explicit mission replay, previews, filters, and diagnostics
+- Continuous world-aware play, explicit mission replay, previews, filters, and diagnostics
 - Test, vet, race, build, smoke-test, mission-validation, and CI quality gates
 
 Linux commands, scripts, and virtual paths are never executed by or resolved against the host operating system. Docker-lab input is parsed into a typed teaching subset; OpsQuest constructs fixed engine operations that can address only exact, labeled resources belonging to that attempt.
@@ -43,6 +44,7 @@ $ opsquest play 4
 
 MISSION 04: The Missing Log File
 ================================
+Linux · World 1/4: First Day · Stage 4/5
 
 Find every file ending in .log inside /var/app that contains ERROR.
 
@@ -57,16 +59,18 @@ New commands discovered: find, grep
 
 The validator judges the resulting output or environment. If `mv` and `cp` followed by `rm` both produce the required final state, both approaches can succeed.
 
-## Campaigns and progression
+## Worlds and progression
 
-The current Linux curriculum is split into:
+The current Linux curriculum is split into track-local worlds:
 
-1. **First Day** — navigation, directories, and basic file operations
-2. **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
+1. **First Day** (Missions 1–5) — orientation, directories, files, search, and movement
+2. **The Logpocalypse** (Missions 6–10) — beginner permissions/environment, intermediate processes/archives, and an advanced pipeline boss
 3. **Production Friday** — aggregation, transformation, ownership, disk usage, and a multi-step boss incident
 4. **The Automation Shift** — modal editing, reusable scripts, executable modes, and child-shell scope
 
-XP, ranks, hint usage, completed missions, practiced commands, and achievements persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not.
+Global mission numbers and IDs remain stable references. The UI separately shows `World N/M` and `Stage N/M`, and `opsquest map` summarizes progress. Worlds provide a recommended path rather than locks: players may jump directly to any world, mission number, or ID and replay completed content.
+
+XP, ranks, active and completed hint usage, completed missions, practiced commands, achievements, and the additive onboarding marker persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not. Display names are limited to 40 printable Unicode characters so persisted terminal controls cannot spoof CLI output.
 
 Ranks progress from Intern through Operator, Sysadmin, and SRE levels. The six current achievements reward first completion, pipeline practice, command breadth, hint-free solutions, advanced incidents, and completing the Linux campaign.
 
@@ -75,14 +79,14 @@ Ranks progress from Intern through Operator, Sysadmin, and SRE levels. The six c
 Top-level commands are:
 
 ```text
-play       list/campaign       show/mission       profile
-commands   achievements        doctor             reset
-version    help
+play       map/list/campaign   guide/tutorial     show/mission
+profile    commands            achievements       doctor
+reset      version             help
 ```
 
-Inside a mission, players can use `hint`, `objective`, `status`, `restart`, and `quit`. They can also navigate with `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
+Inside a mission, players can use `hint`, `objective`, `status`, `restart`, `quit`, and `?` for the expanded control guide. They can navigate with `map`, `world NUMBER`, `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
 
-Bare `opsquest play` continues through incomplete Linux missions after a success. `opsquest play NUMBER_OR_ID` runs only the selected mission, including an explicitly selected Docker lab. `opsquest list --track docker` discovers the optional Docker track.
+Bare `opsquest play` continues through incomplete Linux missions after a success. `opsquest play --world NUMBER` follows one world's incomplete stages and stops at its boundary. `opsquest play NUMBER_OR_ID` runs only the selected mission, including an explicitly selected Docker lab. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
 
 ## Teaching shell
 
@@ -113,7 +117,7 @@ Navigation keeps the sandbox working directory and `PWD` synchronized. `OLDPWD` 
 
 The mission prompt supports Tab completion against the virtual filesystem, Up/Down history, arrows, Home/End, common word movement, Backspace, forward Delete, and bracketed-paste isolation.
 
-Decorative color automatically enables on an interactive output terminal. Piped and redirected output remains plain, and the presence of the `NO_COLOR` environment variable disables color. Color belongs to the presentation layer: sandbox command results and mission validation continue to use unstyled text.
+Decorative color automatically enables on an interactive output terminal. Piped and redirected output remains plain, and the presence of the `NO_COLOR` environment variable disables color. Semantic roles distinguish page headers, section labels, worlds, objectives, rewards, achievements, and progress; red is reserved for actual failures rather than advanced difficulty. Color belongs to the presentation layer: sandbox command results and mission validation continue to use unstyled text.
 
 `vi FILE` opens one virtual UTF-8 text file up to 256 KiB. Its deliberate teaching subset includes:
 
@@ -172,7 +176,7 @@ The following are intentionally unsupported:
 
 Script output may feed a later pipeline stage or be redirected to a virtual file. Feeding pipeline or redirected input into a script is rejected because this teaching model does not emulate one shared script stdin stream.
 
-## Automation Shift campaign
+## Automation Shift world
 
 Missions 18–20 turn the existing editor and runner into a short Linux curriculum:
 
@@ -196,7 +200,7 @@ Docker mission validation observes only resources labeled for the current attemp
 
 ## Mission format
 
-Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, supported difficulties, suggested command names, one-to-five hint counts, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, validation field shapes, and bounded Docker fixtures. Lookups return deep copies so runtime adapters cannot mutate embedded content.
+Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, track-local world contiguity, supported difficulties, suggested command names, one-to-five hint counts, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, validation field shapes, and bounded Docker fixtures. World/stage placement is derived from ordered campaigns without changing the mission or profile schema. Lookups return deep copies so runtime adapters cannot mutate embedded content.
 
 Each mission has this conceptual shape:
 
