@@ -20,7 +20,7 @@ type colorSessionReader struct {
 	prompts []string
 }
 
-func (r *colorSessionReader) ReadLine(prompt string, _ *sandbox.Sandbox) (string, error) {
+func (r *colorSessionReader) ReadLine(prompt string, _ CompletionSource) (string, error) {
 	r.prompts = append(r.prompts, prompt)
 	if r.index >= len(r.lines) {
 		return "", io.EOF

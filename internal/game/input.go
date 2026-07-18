@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"path"
 	"sort"
 	"strings"
 	"unicode"
@@ -50,7 +49,7 @@ const (
 // one reader preserves buffered scripted input and interactive command history
 // when campaign play advances to the next mission.
 type CommandLineReader interface {
-	ReadLine(prompt string, box *sandbox.Sandbox) (string, error)
+	ReadLine(prompt string, completions CompletionSource) (string, error)
 	Edit(request sandbox.EditorRequest, save viSaveFunc) error
 }
 
@@ -67,7 +66,7 @@ func newScannerLineReader(in io.Reader, out io.Writer) *scannerLineReader {
 	return &scannerLineReader{scanner: scanner, out: out}
 }
 
-func (r *scannerLineReader) ReadLine(prompt string, _ *sandbox.Sandbox) (string, error) {
+func (r *scannerLineReader) ReadLine(prompt string, _ CompletionSource) (string, error) {
 	fmt.Fprint(r.out, prompt)
 	if r.scanner.Scan() {
 		return r.scanner.Text(), nil
@@ -230,9 +229,9 @@ func NewCommandLineReader(in io.Reader, out io.Writer) CommandLineReader {
 	}
 }
 
-func (r *terminalLineReader) ReadLine(prompt string, box *sandbox.Sandbox) (string, error) {
+func (r *terminalLineReader) ReadLine(prompt string, completions CompletionSource) (string, error) {
 	r.editor.SetPrompt(prompt)
-	r.editor.AutoCompleteCallback = terminalCompleter(box)
+	r.editor.AutoCompleteCallback = terminalCompleter(completions)
 	if width, height, err := term.GetSize(r.outputFD); err == nil {
 		_ = r.editor.SetSize(width, height)
 	}
@@ -298,13 +297,13 @@ func (r *terminalLineReader) Edit(request sandbox.EditorRequest, save viSaveFunc
 	return runViEditor(r.keys, r.out, request, save, size)
 }
 
-func terminalCompleter(box *sandbox.Sandbox) func(string, int, rune) (string, int, bool) {
+func terminalCompleter(completions CompletionSource) func(string, int, rune) (string, int, bool) {
 	return func(line string, position int, key rune) (string, int, bool) {
 		switch key {
 		case terminalKeyDeleteForward:
 			return deleteRuneAtCursor(line, position)
 		case '\t':
-			return completeLine(line, position, box)
+			return completeLine(line, position, completions)
 		default:
 			return line, position, false
 		}
@@ -322,12 +321,7 @@ func deleteRuneAtCursor(line string, position int) (string, int, bool) {
 	return line[:position] + line[position+size:], position, true
 }
 
-type completionCandidate struct {
-	value     string
-	directory bool
-}
-
-func completeLine(line string, position int, box *sandbox.Sandbox) (string, int, bool) {
+func completeLine(line string, position int, completions CompletionSource) (string, int, bool) {
 	if position < 0 || position > len(line) || !utf8.ValidString(line) || position < len(line) && !utf8.RuneStart(line[position]) {
 		return line, position, true
 	}
@@ -338,11 +332,11 @@ func completeLine(line string, position int, box *sandbox.Sandbox) (string, int,
 		return line, position, true
 	}
 
-	var candidates []completionCandidate
+	var candidates []CompletionCandidate
 	if commandPosition(line[:start]) && !scriptPathCompletion(typed) {
-		candidates = commandCandidates(typed)
-	} else {
-		candidates = pathCandidates(box, typed)
+		candidates = commandCandidates(completions, typed)
+	} else if completions != nil {
+		candidates = completions.PathCandidates(typed)
 	}
 	if len(candidates) == 0 {
 		return line, position, true
@@ -351,8 +345,8 @@ func completeLine(line string, position int, box *sandbox.Sandbox) (string, int,
 	replacement := ""
 	if len(candidates) == 1 {
 		candidate := candidates[0]
-		replacement = formatCompletion(candidate.value, quote, !candidate.directory)
-		if !candidate.directory && completionNeedsSpace(line[end:]) {
+		replacement = formatCompletion(candidate.Value, quote, !candidate.Directory)
+		if !candidate.Directory && completionNeedsSpace(line[end:]) {
 			replacement += " "
 		}
 	} else {
@@ -475,56 +469,29 @@ func commandPosition(beforeToken string) bool {
 	return trimmed == "" || strings.HasSuffix(trimmed, "|")
 }
 
-func commandCandidates(prefix string) []completionCandidate {
-	commands := append(sandbox.CommandNames(), "?", ":q", "exit", "hint", "list", "missions", "next", "objective", "opsquest", "play", "prev", "previous", "quit", "restart", "status")
+func commandCandidates(completions CompletionSource, prefix string) []CompletionCandidate {
+	commands := make([]string, 0)
+	if completions != nil {
+		commands = append(commands, completions.CommandNames()...)
+	}
+	commands = append(commands, "?", ":q", "exit", "hint", "list", "missions", "next", "objective", "opsquest", "play", "prev", "previous", "quit", "restart", "status")
 	sort.Strings(commands)
-	candidates := make([]completionCandidate, 0)
+	candidates := make([]CompletionCandidate, 0)
 	last := ""
 	for _, command := range commands {
 		if command == last || !strings.HasPrefix(command, prefix) {
 			continue
 		}
-		candidates = append(candidates, completionCandidate{value: command})
+		candidates = append(candidates, CompletionCandidate{Value: command})
 		last = command
 	}
 	return candidates
 }
 
-func pathCandidates(box *sandbox.Sandbox, prefix string) []completionCandidate {
-	if prefix == "~" && box.FS.IsDir(box.Resolve("~")) {
-		return []completionCandidate{{value: "~/", directory: true}}
-	}
-
-	directoryPart, namePrefix := path.Split(prefix)
-	lookupDirectory := directoryPart
-	if lookupDirectory == "" {
-		lookupDirectory = "."
-	}
-	children, err := box.FS.Children(box.Resolve(lookupDirectory))
-	if err != nil {
-		return nil
-	}
-
-	candidates := make([]completionCandidate, 0)
-	for _, child := range children {
-		name := path.Base(child)
-		if !strings.HasPrefix(name, namePrefix) {
-			continue
-		}
-		directory := box.FS.IsDir(child)
-		value := directoryPart + name
-		if directory {
-			value += "/"
-		}
-		candidates = append(candidates, completionCandidate{value: value, directory: directory})
-	}
-	return candidates
-}
-
-func longestCommonPrefix(candidates []completionCandidate) string {
-	prefix := []rune(candidates[0].value)
+func longestCommonPrefix(candidates []CompletionCandidate) string {
+	prefix := []rune(candidates[0].Value)
 	for _, candidate := range candidates[1:] {
-		value := []rune(candidate.value)
+		value := []rune(candidate.Value)
 		limit := len(prefix)
 		if len(value) < limit {
 			limit = len(value)

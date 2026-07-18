@@ -58,12 +58,23 @@ assert_contains "help" "${help_output}" "opsquest doctor"
 list_output="$(run_opsquest list)"
 assert_no_ansi "list" "${list_output}"
 assert_contains "list" "${list_output}" "LINUX CAMPAIGN"
-assert_contains "list" "${list_output}" "0/16 missions complete"
+assert_contains "list" "${list_output}" "0/19 missions complete"
+
+docker_list_output="$(run_opsquest list --track docker)"
+assert_no_ansi "docker list" "${docker_list_output}"
+assert_contains "docker list" "${docker_list_output}" "DOCKER LABS"
+assert_contains "docker list" "${docker_list_output}" "Container Census"
+assert_contains "docker list" "${docker_list_output}" "0/1 missions complete"
 
 show_output="$(run_opsquest show 1)"
 assert_no_ansi "show" "${show_output}"
 assert_contains "show" "${show_output}" "MISSION 01: Where Am I?"
 assert_contains "show" "${show_output}" "Outcome checks: 1"
+
+docker_show_output="$(run_opsquest show 17)"
+assert_no_ansi "docker show" "${docker_show_output}"
+assert_contains "docker show" "${docker_show_output}" "MISSION 17: Container Census"
+assert_contains "docker show" "${docker_show_output}" "Hints available: 3"
 
 profile_output="$(run_opsquest profile --name "Smoke Operator")"
 assert_no_ansi "profile initialization" "${profile_output}"
@@ -73,9 +84,10 @@ assert_contains "profile initialization" "${profile_output}" "Operator: Smoke Op
 
 doctor_output="$(run_opsquest doctor)"
 assert_no_ansi "doctor" "${doctor_output}"
-assert_contains "doctor" "${doctor_output}" "embedded catalog: 16 missions"
+assert_contains "doctor" "${doctor_output}" "embedded catalog: 20 missions"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
-assert_contains "doctor" "${doctor_output}" "sandbox: in-memory; host command execution disabled"
+assert_contains "doctor" "${doctor_output}" "Linux labs: in-memory; no host shell or filesystem access"
+assert_contains "doctor" "${doctor_output}" "docker labs:"
 
 play_output="$(printf 'pwd\nopsquest list --completed\nplay 3\nquit\n' | run_opsquest play)"
 assert_no_ansi "scripted mission" "${play_output}"
@@ -83,7 +95,7 @@ assert_contains "scripted mission" "${play_output}" "MISSION 01: Where Am I?"
 assert_contains "scripted mission" "${play_output}" "✓ Mission complete!"
 assert_contains "scripted mission" "${play_output}" "+40 XP"
 assert_contains "continuous play" "${play_output}" "Continuing to Mission 02: Configuration Crawl"
-assert_contains "in-mission list" "${play_output}" "1/16 missions complete"
+assert_contains "in-mission list" "${play_output}" "1/19 missions complete"
 assert_contains "in-mission switch" "${play_output}" "Switching to Mission 03: A Place for Everything"
 assert_contains "in-mission switch" "${play_output}" "MISSION 03: A Place for Everything"
 
@@ -92,4 +104,4 @@ assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: help, list, show, profile, doctor, and continuous in-mission navigation passed\n'
+printf 'smoke-test: Linux and Docker discovery, profile, doctor, and continuous in-mission navigation passed\n'

@@ -1,0 +1,43 @@
+{
+  "id": "linux-scope-creep",
+  "number": 20,
+  "title": "Boss Battle: Scope Creep",
+  "campaign": "The Automation Shift",
+  "difficulty": "advanced",
+  "story": "The night-shift automation writes a cheerful label and the wrong service report. Running its commands by hand also leaves the operator shell wandering through another directory with somebody else's environment. It is technically automation in the same way a rake is a robot.",
+  "objective": "Repair /workspace/night-shift.sh, set its mode to 750, and use it to write the unique ERROR services to /reports/night-services.txt and night-shift to /reports/run-label.txt. After it finishes, remain in /workspace with REPORT_LABEL=operator-shell.",
+  "start_dir": "/workspace",
+  "hints": [
+    "Scripts run several teaching-shell commands in order. Inspect night-shift.sh with cat, less, or vi before changing it.",
+    "The report pipeline selects the wrong severity. Edit INFO to ERROR with vi or sed -i while leaving the script's other lines intact.",
+    "cd and export inside a script affect its later lines, but the runner restores the caller's directory and environment afterward. Files written by the script still persist.",
+    "A directly executed script needs its #!/bin/sh line and an executable mode such as 750. Type help sh for the supported script model.",
+    "One route is: sed -i 's/grep INFO/grep ERROR/' night-shift.sh, chmod 750 night-shift.sh, then ./night-shift.sh."
+  ],
+  "explanation": "The safe script runner gives each script child-shell directory and environment scope. Its cd and export affect later script lines, while the caller returns to the original directory and REPORT_LABEL value. Files are operational side effects, so the two reports persist. Repairing the narrow grep error and executing the script satisfies all of those outcomes without leaking shell state.",
+  "setup": {
+    "directories": [
+      {"path": "/workspace"},
+      {"path": "/srv/night-shift"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/srv/night-shift/events.log", "content": "2026-07-18 ERROR api timeout\n2026-07-18 INFO gateway ready\n2026-07-18 ERROR worker queue\n2026-07-18 ERROR api retry\n2026-07-18 WARN database slow\n"},
+      {"path": "/workspace/night-shift.sh", "content": "#!/bin/sh\ncd /srv/night-shift\nexport REPORT_LABEL=night-shift\ngrep INFO events.log | awk '{print $3}' | sort | uniq > /reports/night-services.txt\necho \"$REPORT_LABEL\" > /reports/run-label.txt\n", "mode": "0644"}
+    ],
+    "environment": {
+      "REPORT_LABEL": "operator-shell"
+    }
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_contains", "path": "/workspace/night-shift.sh", "value": "ERROR"},
+      {"type": "file_mode_equals", "path": "/workspace/night-shift.sh", "value": "0750"},
+      {"type": "file_lines_equal", "path": "/reports/night-services.txt", "values": ["api", "worker"]},
+      {"type": "file_content_equals", "path": "/reports/run-label.txt", "value": "night-shift"},
+      {"type": "cwd_equals", "value": "/workspace"},
+      {"type": "env_equals", "value": "REPORT_LABEL=operator-shell"}
+    ]
+  },
+  "rewards": {"xp": 150, "hint_penalty": 20}
+}

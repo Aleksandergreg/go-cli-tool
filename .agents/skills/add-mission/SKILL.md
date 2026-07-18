@@ -16,13 +16,13 @@ Read [references/mission-checklist.md](references/mission-checklist.md) before e
    - Check the campaign order, difficulty and XP progression, existing validators, and test patterns before choosing an implementation.
 
 2. State the learning objective before writing JSON.
-   - Identify the Linux concept being practiced, the observable successful state or output, and the misconception an incorrect-solution test should catch.
+   - Identify the Linux or Docker concept being practiced, the observable successful state or output, and the misconception an incorrect-solution test should catch.
    - Decide whether multiple legitimate command routes exist. The validator must leave those routes open.
 
 3. Model the lab declaratively.
-   - Put directories, files, virtual processes, environment values, and virtual archives in `setup`.
+   - For a simulated mission, put directories, files, virtual processes, environment values, and virtual archives in `setup`. For a Docker mission, select the Docker track/environment and declare only digest-pinned images and logical container fixtures in `docker`.
    - Express success with existing `validation.all` conditions whenever they can describe the outcome accurately.
-   - Add or extend a Go validator only when the existing condition types cannot express the learning outcome; keep the mission JSON free of executable setup or command-history requirements.
+   - Add or extend a Go validator and environment observer only when the existing condition types cannot express the learning outcome; keep the mission JSON free of executable setup or command-history requirements.
    - Do not relax catalog, sandbox, or validator behavior to accommodate malformed content.
 
 4. Keep content consistent.
@@ -39,10 +39,10 @@ Read [references/mission-checklist.md](references/mission-checklist.md) before e
 
 6. Update catalog-facing documentation.
    - Adjust hard-coded mission counts and campaign descriptions in tests, README, smoke assertions, and iteration material when the catalog size or organization changes.
-   - Update command documentation only if the mission also introduces supported sandbox behavior.
+   - Update command documentation only if the mission also introduces supported simulated-shell or Docker-lab behavior.
 
 7. Validate in increasing scope.
-   - Run `go test ./internal/mission ./internal/game` first.
+   - Run `go test ./internal/mission ./internal/game` first, adding `./internal/dockerlab` when Docker fixtures, observations, or command behavior are involved.
    - Run `make validate-missions`, then `make check` after the focused tests pass.
    - Run `make check-all` for release-sized work or changes to schema, validators, parser behavior, persistence, or isolation.
 

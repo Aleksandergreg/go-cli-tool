@@ -1,6 +1,6 @@
 # OpsQuest
 
-OpsQuest is **Duolingo meets a terminal sandbox**: a command-line game that teaches Linux through short, story-driven operations missions.
+OpsQuest is **Duolingo meets a terminal sandbox**: a command-line game that teaches Linux and container operations through short, story-driven missions.
 
 ```console
 $ opsquest play
@@ -27,20 +27,22 @@ The game validates the result, not a prescribed command. For example, the file-m
 
 ## What is included
 
-Version 0.2 is an expanded Linux campaign:
+Version 0.3 starts Docker Foundations while preserving the complete Linux campaign:
 
-- 16 hand-written missions across three story chapters
+- 19 hand-written Linux missions across four story chapters
+- One optional, disposable Docker mission in **It Works on My Machine**
 - An isolated, in-memory filesystem and process table
 - Interactive line editing with Tab completion and Up/Down command recall
 - Continuous campaign play with detailed feedback for incomplete outcomes
 - Quote-aware globbing, pipelines, stage-local redirection, variables, and command history
 - Safe virtual shell scripts with bounded nesting and line-numbered errors
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
-- Hints with persistent XP penalties, plus mission status and environment restart controls
+- Progressive hints that introduce relevant tools and syntax, with persistent XP penalties
+- Mission status and environment restart controls
 - Persistent XP, ranks, mission completion, command mastery, and six learning achievements
 - Replayable missions without duplicate XP
 - Mission previews, campaign filters, profile naming, and built-in diagnostics
-- A multi-step **Production Friday** boss incident
+- Multi-step boss incidents in **Production Friday** and **The Automation Shift**
 
 The sandbox implements a focused teaching subset of:
 
@@ -76,11 +78,22 @@ $ go install ./cmd/opsquest
 $ opsquest play
 ```
 
+To prepare the optional first Docker lab, install and start Docker, then explicitly fetch its pinned fixture image:
+
+```console
+$ docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+$ opsquest doctor
+$ opsquest play 17
+```
+
 Useful commands:
 
 ```console
 $ opsquest list
+$ opsquest list --track docker
 $ opsquest play 4
+$ opsquest play 17
+$ opsquest play 18
 $ opsquest play linux-find-logs
 $ opsquest show 16
 $ opsquest list --campaign "Production Friday"
@@ -92,7 +105,7 @@ $ opsquest doctor
 $ opsquest reset
 ```
 
-Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and `help COMMAND` for focused examples.
+Inside a mission, use `hint`, `objective`, `status`, `restart`, or `quit`. Type `help` to list lab commands and, where available, `help COMMAND` for focused examples.
 
 You can navigate without leaving the mission prompt:
 
@@ -143,6 +156,8 @@ The game accepts any supported command sequence that produces the objective's fi
 - **First Day** — navigation, directories, and basic file operations
 - **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
 - **Production Friday** — logs, aggregation, text transformation, ownership, disk usage, and a multi-fault boss incident
+- **The Automation Shift** — modal editing, reusable shell scripts, executable modes, and child-shell scope
+- **It Works on My Machine** — an optional Docker Foundations campaign beginning with container lifecycle and inspection
 
 Achievements reward learning behavior rather than decoration: completing a first fix, building a three-command pipeline, practicing ten commands, solving missions without hints, beating an advanced incident, and finishing Linux.
 
@@ -157,7 +172,9 @@ This makes the introductory campaign safe and portable, with two intentional tra
 - It implements a useful subset of common command behavior rather than every shell feature and flag.
 - Mission state exists only for the current attempt; player progress persists separately.
 
-Docker-backed labs can later provide a real shell for advanced Linux and Docker campaigns without weakening the beginner experience.
+Docker Foundations is opt-in. The Linux campaign never requires Docker, and bare `opsquest play` remains on the Linux track. Run `opsquest doctor` to check the optional Docker CLI, daemon, and fixture image. The first lab uses the pinned Docker Official Image fixture documented above; OpsQuest never pulls it automatically.
+
+Docker commands are parsed into a small teaching subset before any engine call. OpsQuest constructs fixed `docker` CLI arguments itself, assigns unique labels and resource limits, exposes only logical container names, and removes only exact resources owned by the current attempt. Raw player lines are never passed to a host shell or unrestricted Docker invocation. Labs do not use privileged mode, host bind mounts, host networking, devices, or a mounted Docker socket.
 
 ## Progress storage
 
@@ -178,6 +195,7 @@ internal/game/      Interactive session and outcome validation
 internal/mission/   Mission model, catalog, and embedded mission data
 internal/profile/   XP, ranks, mastery, and atomic JSON persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
+internal/dockerlab/ Optional, label-scoped Docker lab adapter
 ```
 
 Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown validators, and non-contiguous numbering. A future external mission-pack loader can add YAML support without coupling content to the game engine.
@@ -185,8 +203,8 @@ Mission content lives in [`internal/mission/data`](internal/mission/data). JSON 
 Each mission defines:
 
 ```text
-story + objective + starting directory
-setup: directories, files, processes, environment, archives
+story + objective + environment type
+setup: simulated state or attempt-scoped Docker fixtures
 hints + explanation + rewards
 validation: one or more observable outcome conditions
 ```
@@ -208,6 +226,7 @@ $ make test
 $ make validate-missions
 $ make check-agent-docs
 $ make smoke-test
+$ make docker-integration # requires an available Docker daemon and pinned fixture image
 $ make vet
 $ make build
 $ make race
@@ -215,7 +234,7 @@ $ make check
 $ make check-all
 ```
 
-`make check` runs agent-document validation, all Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete local quality gate and adds race detection. GitHub Actions runs that same comprehensive target; validation logic remains in the repository scripts and Makefile rather than the workflow YAML.
+`make check` runs agent-document validation, all Docker-independent Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete portable quality gate and adds race detection. GitHub Actions runs that same target without requiring Docker. `make docker-integration` is the explicit real-engine lifecycle gate for machines that have Docker and the pinned fixture image available.
 
 The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary and uses a temporary `OPSQUEST_HOME`, so it never writes to the developer's real profile.
 
@@ -223,6 +242,6 @@ Third-party module licenses are recorded in [`THIRD_PARTY_NOTICES.md`](THIRD_PAR
 
 ## Roadmap
 
-- v0.3: disposable Docker labs, container troubleshooting, ports, volumes, builds, networking, and Compose
+- v0.3.x: expand Docker Foundations through logs, environment variables, ports, volumes, builds, networking, and Compose
 - Later: Kubernetes missions backed by an isolated local cluster
 - External mission packs, streaks, efficiency medals, and generated daily incidents

@@ -2,13 +2,14 @@
 
 OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. It teaches Linux through short, story-driven operations missions while keeping all player commands inside a deterministic, in-memory environment.
 
-The current executable reports version **0.2.0**. Docker-backed gameplay is planned for v0.3, and Kubernetes remains a later expansion; neither is currently implemented.
+The current executable reports version **0.3.0**. It includes the first optional Docker Foundations vertical slice. Kubernetes remains a later expansion and is not implemented.
 
 ## Product today
 
 OpsQuest currently ships:
 
-- 16 hand-written Linux missions across three campaigns
+- 19 hand-written Linux missions across four campaigns
+- One optional Docker mission in the **It Works on My Machine** campaign
 - Strict, embedded JSON mission definitions
 - Observable-outcome validation rather than prescribed command sequences
 - An in-memory filesystem, process table, environment, and virtual archive model
@@ -21,7 +22,7 @@ OpsQuest currently ships:
 - Continuous campaign play, explicit mission replay, previews, filters, and diagnostics
 - Test, vet, race, build, smoke-test, mission-validation, and CI quality gates
 
-No player-entered command, script, or virtual path is executed by or resolved against the host operating system.
+Linux commands, scripts, and virtual paths are never executed by or resolved against the host operating system. Docker-lab input is parsed into a typed teaching subset; OpsQuest constructs fixed engine operations that can address only exact, labeled resources belonging to that attempt.
 
 ## Core gameplay loop
 
@@ -62,6 +63,7 @@ The current Linux curriculum is split into:
 1. **First Day** — navigation, directories, and basic file operations
 2. **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
 3. **Production Friday** — aggregation, transformation, ownership, disk usage, and a multi-step boss incident
+4. **The Automation Shift** — modal editing, reusable scripts, executable modes, and child-shell scope
 
 XP, ranks, hint usage, completed missions, practiced commands, and achievements persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not.
 
@@ -79,7 +81,7 @@ version    help
 
 Inside a mission, players can use `hint`, `objective`, `status`, `restart`, and `quit`. They can also navigate with `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
 
-Bare `opsquest play` continues to the next incomplete mission after a success. `opsquest play NUMBER_OR_ID` runs only the selected mission.
+Bare `opsquest play` continues through incomplete Linux missions after a success. `opsquest play NUMBER_OR_ID` runs only the selected mission, including an explicitly selected Docker lab. `opsquest list --track docker` discovers the optional Docker track.
 
 ## Teaching shell
 
@@ -164,6 +166,28 @@ The following are intentionally unsupported:
 
 Script output may feed a later pipeline stage or be redirected to a virtual file. Feeding pipeline or redirected input into a script is rejected because this teaching model does not emulate one shared script stdin stream.
 
+## Automation Shift campaign
+
+Missions 18–20 turn the existing editor and runner into a short Linux curriculum:
+
+- **Modal First Aid** introduces Normal mode, `dd`, and `:wq` by removing a bad line while preserving the rest of a configuration file.
+- **Report on Repeat** has the player repair a pipeline script, set its executable mode, and generate a sorted unique incident report.
+- **Boss Battle: Scope Creep** combines editing, direct script execution, pipelines, redirection, `cd`, and `export`. Its outcomes prove that file changes persist while the caller's directory and environment are restored.
+
+Every mission supplies progressive tool-oriented hints. Completion remains outcome-based: the canonical solutions exercise non-interactive test paths, while focused tests also prove valid `vi`, `sh FILE`, and direct-execution alternatives and reject incomplete or state-leaking attempts.
+
+## Docker Foundations vertical slice
+
+Mission 17, **Container Census**, begins the optional **It Works on My Machine** track. The player inspects two attempt-owned containers, identifies the stopped `api` container, and gets both original containers running while keeping the attempt at exactly two containers. Three progressive hints introduce the relevant inspection tool, the option that includes stopped containers, and finally the `docker start` syntax.
+
+Docker remains an optional capability. The Linux track, profile loading, normal quality gate, and bare `opsquest play` do not require a Docker CLI or daemon. `opsquest doctor` distinguishes an unavailable CLI/daemon from a missing pinned fixture image and gives an explicit preparation command. OpsQuest does not pull images automatically.
+
+The first supported teaching subset is deliberately narrow: `docker ps`, `docker container ls`, `start`, `restart`, and `inspect`, plus lab help. Player text is parsed into typed actions before OpsQuest constructs fixed Docker CLI arguments; the raw line is never given to a host shell or unrestricted Docker invocation.
+
+Each attempt maps stable logical aliases such as `api` to generated engine names and exact returned container IDs. Resources are labeled with the mission and a cryptographically random session identifier, run without a network as a non-root user with a read-only filesystem, dropped capabilities, `no-new-privileges`, and bounded CPU, memory, process, and file-descriptor limits. Cleanup verifies ownership labels before removing exact IDs and is idempotent across completion, quit, restart, switching, setup failure, Ctrl-C cancellation, and ordinary errors. Labs never request privileged mode, host bind mounts, host networking, host PID/IPC namespace sharing, devices, or a mounted Docker socket.
+
+Docker mission validation observes only resources labeled for the current attempt. Container Census requires both original tracked containers to be running and queries ownership labels to require exactly two attempt containers, so an additional attempt-owned replacement cannot satisfy the objective. Existing profile version 2 remains compatible: mission completion maps accept the stable IDs, while Linux percentages and new Linux Completionist unlocks now consider all 19 Linux missions. Achievements are monotonic, so a Completionist achievement earned before the curriculum expanded remains unlocked.
+
 ## Mission format
 
 Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, and validation types.
@@ -191,15 +215,17 @@ internal/game/      Sessions, rewards, terminal input, vi, and outcome validatio
 internal/mission/   Mission schema, strict catalog loading, and embedded JSON data
 internal/profile/   Versioned progress model and atomic JSON persistence
 internal/sandbox/   Parser, dispatcher, virtual state, commands, and script runner
+internal/dockerlab/ Optional typed Docker adapter and attempt-owned resource lifecycle
 scripts/            Deterministic checks shared by local development and CI
 ```
 
-The sandbox is the execution boundary. It owns virtual paths, environment variables, processes, archive metadata, command history, nested command tracing, and resource limits.
+The environment interface is the gameplay boundary. The simulated implementation owns virtual paths, environment variables, processes, archive metadata, command history, nested command tracing, and resource limits; the optional Docker implementation owns only its labeled, attempt-scoped containers.
 
 ## Safety and compatibility invariants
 
 - Never pass player input or script text to host `sh`, `bash`, `os/exec`, or another process.
 - Never resolve a virtual path against the host filesystem.
+- Docker player input must be parsed into supported typed actions; only internally constructed Docker arguments may target exact, label-verified attempt resources.
 - Scripts may compose only commands already whitelisted by the teaching shell.
 - Unknown or unsupported behavior must fail clearly instead of falling back or being misleadingly approximated.
 - Mission validation checks observable outcomes, not one canonical solution.
@@ -220,20 +246,21 @@ $ make check-agent-docs
 $ make vet
 $ make build
 $ make smoke-test
+$ make docker-integration
 $ make race
 $ make check
 $ make check-all
 ```
 
-`make check-all` is the comprehensive local gate. It validates agent documentation, runs all Go tests and embedded mission integrity checks, vets, builds, executes an isolated CLI smoke test, and runs race detection. GitHub Actions invokes the same target.
+`make check-all` is the comprehensive Docker-independent gate. It validates agent documentation, runs all Go tests and embedded mission integrity checks through fake Docker contracts, vets, builds, executes an isolated CLI smoke test, and runs race detection. GitHub Actions invokes the same target. `make docker-integration` is an explicit, separately gated lifecycle test for a development machine with Docker and the pinned fixture image.
 
 ## Roadmap
 
-The next major product iteration remains **v0.3 Docker labs**:
+The first **v0.3 Docker Foundations** vertical slice is implemented. The next Docker increments are:
 
-- Disposable, isolated Docker-backed environments
-- Images versus containers
-- `run`, `ps`, `logs`, and `exec`
+- Additional disposable, isolated Docker missions
+- Images versus containers beyond the initial lifecycle lab
+- `run`, `logs`, and `exec`
 - Port mappings, volumes, and environment variables
 - Dockerfiles, networking, and Compose
 - Outcome-based container troubleshooting missions

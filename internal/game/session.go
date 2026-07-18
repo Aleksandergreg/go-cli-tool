@@ -1,6 +1,7 @@
 package game
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -9,7 +10,6 @@ import (
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
 	"github.com/aleksandergregersen/opsquest/internal/ui"
 )
 
@@ -26,6 +26,8 @@ type Session struct {
 	Now          func() time.Time
 	Style        ui.Style
 	ErrorStyle   ui.Style
+	Context      context.Context
+	Factory      Factory
 }
 
 type SessionResult struct {
@@ -34,15 +36,28 @@ type SessionResult struct {
 	XPAwarded int
 	HintsUsed int
 	// SwitchMission contains a validated mission ID requested from inside the
-	// lab. The CLI starts that mission with a fresh sandbox.
+	// lab. The CLI starts that mission with a fresh environment.
 	SwitchMission string
 }
 
-func (s Session) Run() (SessionResult, error) {
-	box, err := sandbox.New(s.Mission.Setup, s.Mission.StartDir)
+func (s Session) Run() (returnResult SessionResult, returnErr error) {
+	ctx := s.Context
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	factory := s.Factory
+	if factory == nil {
+		factory = SandboxFactory{}
+	}
+	environment, err := createManagedEnvironment(ctx, factory, s.Mission)
 	if err != nil {
 		return SessionResult{}, fmt.Errorf("prepare mission: %w", err)
 	}
+	defer func() {
+		if err := environment.close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("close mission environment: %w", err))
+		}
+	}()
 	if s.Now == nil {
 		s.Now = time.Now
 	}
@@ -60,7 +75,10 @@ func (s Session) Run() (SessionResult, error) {
 	lastOutput := ""
 
 	for {
-		line, readErr := reader.ReadLine(s.Style.Prompt(box.CWD), box)
+		if err := ctx.Err(); err != nil {
+			return SessionResult{}, fmt.Errorf("mission context: %w", err)
+		}
+		line, readErr := reader.ReadLine(s.Style.Prompt(environment.PromptLabel()), environment.CompletionSource())
 		if errors.Is(readErr, io.EOF) {
 			fmt.Fprintln(s.Out)
 			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
@@ -143,14 +161,17 @@ func (s Session) Run() (SessionResult, error) {
 			fmt.Fprintln(s.Out, s.Mission.Objective)
 			continue
 		case "status":
-			outcomes, err := evaluateOutcomes(s.Mission.Validation, box, lastOutput)
+			outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, lastOutput)
 			if err != nil {
 				return SessionResult{}, fmt.Errorf("check mission status: %w", err)
 			}
 			printOutcomeStatus(s.Out, outcomes, s.Style)
 			continue
 		case "restart":
-			box, err = sandbox.New(s.Mission.Setup, s.Mission.StartDir)
+			if err := environment.close(); err != nil {
+				return SessionResult{}, fmt.Errorf("restart mission: close current environment: %w", err)
+			}
+			environment, err = createManagedEnvironment(ctx, factory, s.Mission)
 			if err != nil {
 				return SessionResult{}, fmt.Errorf("restart mission: %w", err)
 			}
@@ -162,19 +183,28 @@ func (s Session) Run() (SessionResult, error) {
 			continue
 		}
 
-		result, executeErr := box.Execute(line)
+		result, executeErr := environment.Execute(ctx, line)
 		if executeErr != nil {
+			if err := ctx.Err(); err != nil {
+				return SessionResult{}, fmt.Errorf("execute command: %w", err)
+			}
 			fmt.Fprintln(s.Err, s.ErrorStyle.Failure(executeErr.Error()))
 			continue
 		}
-		if result.Editor != nil {
-			if err := reader.Edit(*result.Editor, box.SaveEditorFile); err != nil {
+		if err := ctx.Err(); err != nil {
+			return SessionResult{}, fmt.Errorf("execute command: %w", err)
+		}
+		if result.Interactive != nil {
+			if result.Interactive.Run == nil {
+				return SessionResult{}, fmt.Errorf("run %s: interactive action has no runner", result.Interactive.Command)
+			}
+			if err := result.Interactive.Run(reader); err != nil {
 				if errors.Is(err, ErrInteractiveEditor) || errors.Is(err, ErrUnsupportedEditorFile) {
-					message := fmt.Sprintf("%s: %v", result.Editor.Command, err)
+					message := fmt.Sprintf("%s: %v", result.Interactive.Command, err)
 					fmt.Fprintln(s.Err, s.ErrorStyle.Failure(message))
 					continue
 				}
-				return SessionResult{}, fmt.Errorf("run %s: %w", result.Editor.Command, err)
+				return SessionResult{}, fmt.Errorf("run %s: %w", result.Interactive.Command, err)
 			}
 		}
 		if result.Output != "" {
@@ -206,7 +236,7 @@ func (s Session) Run() (SessionResult, error) {
 			return SessionResult{}, err
 		}
 
-		outcomes, err := evaluateOutcomes(s.Mission.Validation, box, result.Output)
+		outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, result.Output)
 		if err != nil {
 			return SessionResult{}, fmt.Errorf("validate mission: %w", err)
 		}
@@ -215,6 +245,9 @@ func (s Session) Run() (SessionResult, error) {
 			message := fmt.Sprintf("Not complete yet — %d/%d outcome checks satisfied. Type status to see what remains.", satisfiedOutcomeCount(outcomes), len(outcomes))
 			fmt.Fprintln(s.Out, s.Style.Warning(message))
 			continue
+		}
+		if err := environment.close(); err != nil {
+			return SessionResult{}, fmt.Errorf("complete mission: close environment before awarding XP: %w", err)
 		}
 
 		xp := currentReward(s.Mission, hintsUsed)
@@ -292,22 +325,27 @@ func missionNavigationFields(line string) ([]string, bool) {
 }
 
 func adjacentMission(catalog mission.Catalog, currentID string, direction int) (mission.Mission, bool) {
+	if direction == 0 {
+		return mission.Mission{}, false
+	}
 	items := catalog.All()
 	for index, item := range items {
 		if item.ID != currentID {
 			continue
 		}
-		target := index + direction
-		if target < 0 || target >= len(items) {
-			return mission.Mission{}, false
+		track := item.EffectiveTrack()
+		for target := index + direction; target >= 0 && target < len(items); target += direction {
+			if items[target].EffectiveTrack() == track {
+				return items[target], true
+			}
 		}
-		return items[target], true
+		return mission.Mission{}, false
 	}
 	return mission.Mission{}, false
 }
 
 func printMissionSwitch(out io.Writer, target mission.Mission, style ui.Style) {
-	message := fmt.Sprintf("Switching to Mission %02d: %s. The current mission sandbox will reset.", target.Number, target.Title)
+	message := fmt.Sprintf("Switching to Mission %02d: %s. The current mission environment will reset.", target.Number, target.Title)
 	fmt.Fprintln(out, style.Accent(message))
 }
 

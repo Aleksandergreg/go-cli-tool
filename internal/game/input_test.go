@@ -63,7 +63,7 @@ func TestCompleteLineUsesCommandsControlsAndVirtualPaths(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			got, _, handled := completeLine(test.line, test.position, box)
+			got, _, handled := completeLine(test.line, test.position, newSandboxEnvironment(box))
 			if !handled {
 				t.Fatal("Tab completion was not handled")
 			}
@@ -81,7 +81,7 @@ func TestCompleteLineCompletesExecutableScriptPath(t *testing.T) {
 	}
 
 	line := "./rep"
-	got, position, handled := completeLine(line, len(line), box)
+	got, position, handled := completeLine(line, len(line), newSandboxEnvironment(box))
 	if !handled {
 		t.Fatal("Tab completion was not handled")
 	}
@@ -90,12 +90,42 @@ func TestCompleteLineCompletesExecutableScriptPath(t *testing.T) {
 	}
 }
 
+func TestCompleteLineUsesOnlyTheActiveEnvironmentCandidates(t *testing.T) {
+	commands := []string{"docker"}
+	source := &seamCompletionSource{
+		commands: commands,
+		paths: map[string][]CompletionCandidate{
+			"rep": {{Value: "reports/", Directory: true}},
+		},
+	}
+
+	completed, _, handled := completeLine("doc", len("doc"), source)
+	if !handled || completed != "docker " {
+		t.Fatalf("environment command completion = %q, %v", completed, handled)
+	}
+	completed, _, handled = completeLine("pw", len("pw"), source)
+	if !handled || completed != "pw" {
+		t.Fatalf("inactive sandbox command completed = %q, %v", completed, handled)
+	}
+	completed, _, handled = completeLine("cat rep", len("cat rep"), source)
+	if !handled || completed != "cat reports/" {
+		t.Fatalf("environment path completion = %q, %v", completed, handled)
+	}
+	completed, _, handled = completeLine("obj", len("obj"), source)
+	if !handled || completed != "objective " {
+		t.Fatalf("mission control completion = %q, %v", completed, handled)
+	}
+	if len(commands) != 1 || commands[0] != "docker" {
+		t.Fatalf("completion mutated environment commands: %#v", commands)
+	}
+}
+
 func TestTerminalEditorCompletesAndRecallsHistory(t *testing.T) {
 	box := completionTestSandbox(t)
 	input := strings.NewReader("cat W\t\r\x1b[A\r")
 	output := &bytes.Buffer{}
 	editor := term.NewTerminal(terminalReadWriter{reader: newTerminalKeyReader(input), writer: output}, "opsquest$ ")
-	editor.AutoCompleteCallback = terminalCompleter(box)
+	editor.AutoCompleteCallback = terminalCompleter(newSandboxEnvironment(box))
 
 	first, err := editor.ReadLine()
 	if err != nil {
@@ -137,7 +167,7 @@ func TestTerminalEditorSupportsCommonCursorMotions(t *testing.T) {
 				reader: newTerminalKeyReader(strings.NewReader(test.input)),
 				writer: output,
 			}, "opsquest$ ")
-			editor.AutoCompleteCallback = terminalCompleter(completionTestSandbox(t))
+			editor.AutoCompleteCallback = terminalCompleter(newSandboxEnvironment(completionTestSandbox(t)))
 
 			line, err := editor.ReadLine()
 			if err != nil {
@@ -188,7 +218,7 @@ func TestCompletedQuotedPathsRemainValidSandboxCommands(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		completed, _, _ := completeLine(test.line, len(test.line), box)
+		completed, _, _ := completeLine(test.line, len(test.line), newSandboxEnvironment(box))
 		result, err := box.Execute(strings.TrimSpace(completed))
 		if err != nil {
 			t.Errorf("execute completion for %q: %v", test.line, err)
@@ -217,7 +247,7 @@ func TestNonTerminalReaderKeepsScriptedInputPath(t *testing.T) {
 }
 
 func TestTerminalCompleterLeavesOtherKeysToTheEditor(t *testing.T) {
-	line, position, handled := terminalCompleter(completionTestSandbox(t))("pw", 2, 'd')
+	line, position, handled := terminalCompleter(newSandboxEnvironment(completionTestSandbox(t)))("pw", 2, 'd')
 	if handled || line != "pw" || position != 2 {
 		t.Fatalf("non-Tab completion = %q, %d, %v", line, position, handled)
 	}

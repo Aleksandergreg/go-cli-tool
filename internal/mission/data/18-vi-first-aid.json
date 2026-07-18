@@ -1,0 +1,31 @@
+{
+  "id": "linux-vi-first-aid",
+  "number": 18,
+  "title": "Modal First Aid",
+  "campaign": "The Automation Shift",
+  "difficulty": "beginner",
+  "story": "A release file still begins with DRAFT=true. The deploy bot has interpreted this as a thoughtful request to do absolutely nothing.",
+  "objective": "Remove the first line from /workspace/release.env while preserving the SERVICE and LOG_LEVEL lines and the file's mode 640.",
+  "start_dir": "/workspace",
+  "hints": [
+    "Use vi release.env to edit the virtual file. Type help vi first if modal editing is new to you.",
+    "vi starts in Normal mode with the cursor on the first line. The dd command deletes the current line.",
+    "After deleting the draft line, type :wq and press Enter to save and quit."
+  ],
+  "explanation": "vi separates navigation commands from inserted text. In Normal mode, dd removes the current line; :wq writes the changed buffer to the virtual file and quits. The validator checks the resulting content and mode, so another safe route that produces the same file also works.",
+  "setup": {
+    "directories": [
+      {"path": "/workspace"}
+    ],
+    "files": [
+      {"path": "/workspace/release.env", "content": "DRAFT=true\nSERVICE=checkout\nLOG_LEVEL=info\n", "mode": "0640"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_equals", "path": "/workspace/release.env", "value": "SERVICE=checkout\nLOG_LEVEL=info"},
+      {"type": "file_mode_equals", "path": "/workspace/release.env", "value": "0640"}
+    ]
+  },
+  "rewards": {"xp": 60, "hint_penalty": 10}
+}
