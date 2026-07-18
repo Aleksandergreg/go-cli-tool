@@ -80,13 +80,30 @@ func decodeMission(data []byte) (Mission, error) {
 }
 
 var (
-	missionIDPattern = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
-	variablePattern  = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	missionIDPattern            = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	variablePattern             = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	dockerLogicalNamePattern    = regexp.MustCompile(`^[a-z0-9]+(?:[._-][a-z0-9]+)*$`)
+	dockerImageReferencePattern = regexp.MustCompile(`^[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_.-]+)?@sha256:[a-f0-9]{64}$`)
 )
 
 func validateMission(item Mission) error {
 	if !missionIDPattern.MatchString(item.ID) {
 		return fmt.Errorf("id %q must use lowercase words separated by hyphens", item.ID)
+	}
+	track := item.EffectiveTrack()
+	switch track {
+	case TrackLinux, TrackDocker:
+	default:
+		return fmt.Errorf("unknown track %q", track)
+	}
+	environment := item.EffectiveEnvironment()
+	switch environment {
+	case EnvironmentSimulated, EnvironmentDocker:
+	default:
+		return fmt.Errorf("unknown environment %q", environment)
+	}
+	if (track == TrackDocker) != (environment == EnvironmentDocker) {
+		return fmt.Errorf("track %q cannot use environment %q", track, environment)
 	}
 	for name, value := range map[string]string{
 		"title": item.Title, "campaign": item.Campaign, "difficulty": item.Difficulty,
@@ -99,9 +116,6 @@ func validateMission(item Mission) error {
 	if item.Number < 1 {
 		return fmt.Errorf("number must be positive")
 	}
-	if err := validateAbsolutePath("start_dir", item.StartDir, true); err != nil {
-		return err
-	}
 	if item.Rewards.XP <= 0 || item.Rewards.HintPenalty < 0 {
 		return fmt.Errorf("XP must be positive and hint penalty cannot be negative")
 	}
@@ -110,18 +124,100 @@ func validateMission(item Mission) error {
 			return fmt.Errorf("hint %d is empty", index+1)
 		}
 	}
-	if err := validateSetup(item.Setup, item.StartDir); err != nil {
-		return err
+	if environment == EnvironmentSimulated {
+		if item.Docker != nil {
+			return fmt.Errorf("simulated mission cannot define docker setup")
+		}
+		if err := validateAbsolutePath("start_dir", item.StartDir, true); err != nil {
+			return err
+		}
+		if err := validateSetup(item.Setup, item.StartDir); err != nil {
+			return err
+		}
+	} else {
+		if item.StartDir != "" {
+			return fmt.Errorf("docker mission cannot define start_dir")
+		}
+		if !setupEmpty(item.Setup) {
+			return fmt.Errorf("docker mission cannot define simulated setup")
+		}
+		if item.Docker == nil {
+			return fmt.Errorf("docker mission requires docker setup")
+		}
+		if err := validateDockerSetup(*item.Docker); err != nil {
+			return err
+		}
 	}
 	if len(item.Validation.All) == 0 {
 		return fmt.Errorf("at least one validation condition is required")
 	}
 	for index, condition := range item.Validation.All {
-		if err := validateCondition(condition); err != nil {
+		if err := validateCondition(condition, environment); err != nil {
 			return fmt.Errorf("validation condition %d: %w", index+1, err)
+		}
+		if condition.Type == "docker_container_running" && !dockerSetupHasContainer(item.Docker, condition.Container) {
+			return fmt.Errorf("validation condition %d: unknown docker container %q", index+1, condition.Container)
 		}
 	}
 	return nil
+}
+
+func setupEmpty(setup Setup) bool {
+	return len(setup.Directories) == 0 && len(setup.Files) == 0 && len(setup.Processes) == 0 &&
+		len(setup.Environment) == 0 && len(setup.Archives) == 0
+}
+
+func validateDockerSetup(setup DockerSetup) error {
+	if len(setup.Images) == 0 {
+		return fmt.Errorf("docker setup requires at least one image")
+	}
+	if len(setup.Containers) == 0 {
+		return fmt.Errorf("docker setup requires at least one container")
+	}
+	images := make(map[string]bool, len(setup.Images))
+	for _, image := range setup.Images {
+		if !dockerLogicalNamePattern.MatchString(image.Alias) {
+			return fmt.Errorf("docker image alias %q must be a lowercase logical name", image.Alias)
+		}
+		if images[image.Alias] {
+			return fmt.Errorf("duplicate docker image alias %q", image.Alias)
+		}
+		if !dockerImageReferencePattern.MatchString(image.Reference) {
+			return fmt.Errorf("docker image %q reference must be pinned by sha256 digest", image.Alias)
+		}
+		images[image.Alias] = true
+	}
+	containers := make(map[string]bool, len(setup.Containers))
+	for _, container := range setup.Containers {
+		if !dockerLogicalNamePattern.MatchString(container.Name) {
+			return fmt.Errorf("docker container name %q must be a lowercase logical name", container.Name)
+		}
+		if containers[container.Name] {
+			return fmt.Errorf("duplicate docker container name %q", container.Name)
+		}
+		if !images[container.Image] {
+			return fmt.Errorf("docker container %q references unknown image alias %q", container.Name, container.Image)
+		}
+		switch container.State {
+		case "running", "stopped":
+		default:
+			return fmt.Errorf("docker container %q has unknown state %q", container.Name, container.State)
+		}
+		containers[container.Name] = true
+	}
+	return nil
+}
+
+func dockerSetupHasContainer(setup *DockerSetup, name string) bool {
+	if setup == nil {
+		return false
+	}
+	for _, container := range setup.Containers {
+		if container.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func validateSetup(setup Setup, startDir string) error {
@@ -221,13 +317,22 @@ func validateSetup(setup Setup, startDir string) error {
 	return nil
 }
 
-func validateCondition(condition Condition) error {
+func validateCondition(condition Condition, environment string) error {
+	if condition.Container != "" && condition.Type != "docker_container_running" {
+		return fmt.Errorf("container is not supported for type %q", condition.Type)
+	}
+	if condition.Count != nil && condition.Type != "docker_container_count_equals" {
+		return fmt.Errorf("count is not supported for type %q", condition.Type)
+	}
 	pathTypes := map[string]bool{
 		"file_exists": true, "dir_exists": true, "path_missing": true,
 		"file_content_equals": true, "file_content_contains": true,
 		"file_lines_equal": true, "file_mode_equals": true, "file_owner_equals": true,
 	}
 	if pathTypes[condition.Type] {
+		if environment != EnvironmentSimulated {
+			return fmt.Errorf("type %q requires a simulated environment", condition.Type)
+		}
 		if err := validateAbsolutePath(condition.Type, condition.Path, condition.Type == "dir_exists"); err != nil {
 			return err
 		}
@@ -249,6 +354,9 @@ func validateCondition(condition Condition) error {
 			}
 		}
 	case "cwd_equals":
+		if environment != EnvironmentSimulated {
+			return fmt.Errorf("cwd_equals requires a simulated environment")
+		}
 		return validateAbsolutePath("cwd_equals", condition.Value, true)
 	case "file_exists", "dir_exists", "path_missing", "file_content_equals":
 		return nil
@@ -272,13 +380,39 @@ func validateCondition(condition Condition) error {
 			return fmt.Errorf("owner cannot be empty")
 		}
 	case "process_stopped", "process_running":
+		if environment != EnvironmentSimulated {
+			return fmt.Errorf("%s requires a simulated environment", condition.Type)
+		}
 		if condition.PID <= 0 {
 			return fmt.Errorf("PID must be positive")
 		}
 	case "env_equals":
+		if environment != EnvironmentSimulated {
+			return fmt.Errorf("env_equals requires a simulated environment")
+		}
 		name, _, found := strings.Cut(condition.Value, "=")
 		if !found || !variablePattern.MatchString(name) {
 			return fmt.Errorf("value must be NAME=value")
+		}
+	case "docker_container_running":
+		if environment != EnvironmentDocker {
+			return fmt.Errorf("docker_container_running requires a docker environment")
+		}
+		if !dockerLogicalNamePattern.MatchString(condition.Container) {
+			return fmt.Errorf("container %q must be a lowercase logical name", condition.Container)
+		}
+		if condition.Path != "" || condition.Value != "" || len(condition.Values) != 0 || condition.PID != 0 || condition.Count != nil {
+			return fmt.Errorf("docker_container_running accepts only container")
+		}
+	case "docker_container_count_equals":
+		if environment != EnvironmentDocker {
+			return fmt.Errorf("docker_container_count_equals requires a docker environment")
+		}
+		if condition.Count == nil || *condition.Count < 0 {
+			return fmt.Errorf("count must be a non-negative integer")
+		}
+		if condition.Path != "" || condition.Value != "" || len(condition.Values) != 0 || condition.PID != 0 || condition.Container != "" {
+			return fmt.Errorf("docker_container_count_equals accepts only count")
 		}
 	default:
 		return fmt.Errorf("unknown type %q", condition.Type)
@@ -335,6 +469,32 @@ func (c Catalog) Find(ref string) (Mission, bool) {
 			if item.Number == number {
 				return item, true
 			}
+		}
+	}
+	return Mission{}, false
+}
+
+// InTrack returns catalog missions in their global order, filtered to one
+// learning track. An empty track selects the backwards-compatible Linux
+// default.
+func (c Catalog) InTrack(track string) []Mission {
+	if track == "" {
+		track = TrackLinux
+	}
+	items := make([]Mission, 0)
+	for _, item := range c.missions {
+		if item.EffectiveTrack() == track {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+// NextInTrack returns the first incomplete mission in one learning track.
+func (c Catalog) NextInTrack(track string, completed func(string) bool) (Mission, bool) {
+	for _, item := range c.InTrack(track) {
+		if !completed(item.ID) {
+			return item, true
 		}
 	}
 	return Mission{}, false

@@ -1,6 +1,9 @@
 package mission
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestEmbeddedCatalog(t *testing.T) {
 	catalog, err := LoadCatalog()
@@ -8,8 +11,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 16 {
-		t.Fatalf("len(All()) = %d, want 16", len(items))
+	if len(items) != 17 {
+		t.Fatalf("len(All()) = %d, want 17", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {
@@ -24,6 +27,207 @@ func TestEmbeddedCatalog(t *testing.T) {
 	byNumber, found := catalog.Find("04")
 	if !found || byNumber.ID != byID.ID {
 		t.Fatalf("Find(04) = %#v, %v", byNumber, found)
+	}
+}
+
+func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	legacy, found := catalog.Find("linux-orientation")
+	if !found {
+		t.Fatal("legacy mission missing")
+	}
+	if legacy.EffectiveTrack() != TrackLinux || legacy.EffectiveEnvironment() != EnvironmentSimulated {
+		t.Fatalf("legacy defaults = track %q, environment %q", legacy.EffectiveTrack(), legacy.EffectiveEnvironment())
+	}
+
+	linux := catalog.InTrack("")
+	docker := catalog.InTrack(TrackDocker)
+	if len(linux) != 16 || len(docker) != 1 {
+		t.Fatalf("track sizes = linux %d, docker %d", len(linux), len(docker))
+	}
+	if docker[0].ID != "docker-container-census" || docker[0].Number != 17 {
+		t.Fatalf("docker track = %#v", docker)
+	}
+
+	next, found := catalog.NextInTrack(TrackDocker, func(string) bool { return false })
+	if !found || next.ID != "docker-container-census" {
+		t.Fatalf("NextInTrack(docker) = %#v, %v", next, found)
+	}
+	if _, found := catalog.NextInTrack(TrackDocker, func(string) bool { return true }); found {
+		t.Fatal("completed Docker track returned another mission")
+	}
+}
+
+func TestContainerCensusUsesTypedDockerSetup(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, found := catalog.Find("docker-container-census")
+	if !found {
+		t.Fatal("Container Census mission missing")
+	}
+	if item.EffectiveTrack() != TrackDocker || item.EffectiveEnvironment() != EnvironmentDocker || item.Docker == nil {
+		t.Fatalf("docker mission discriminators/setup = %#v", item)
+	}
+	if len(item.Docker.Images) != 1 || item.Docker.Images[0].Alias != "fixture" || !strings.Contains(item.Docker.Images[0].Reference, "@sha256:") {
+		t.Fatalf("docker images = %#v", item.Docker.Images)
+	}
+	if len(item.Docker.Containers) != 2 || item.Docker.Containers[0].Name != "api" || item.Docker.Containers[0].State != "stopped" || item.Docker.Containers[1].State != "running" {
+		t.Fatalf("docker containers = %#v", item.Docker.Containers)
+	}
+	if len(item.Validation.All) != 3 || item.Validation.All[2].Count == nil || *item.Validation.All[2].Count != 2 {
+		t.Fatalf("docker validation = %#v", item.Validation.All)
+	}
+}
+
+func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
+	tests := []struct {
+		name    string
+		mutate  func(*Mission)
+		wantErr string
+	}{
+		{
+			name: "missing setup",
+			mutate: func(item *Mission) {
+				item.Docker = nil
+			},
+			wantErr: "requires docker setup",
+		},
+		{
+			name: "mixed simulated setup",
+			mutate: func(item *Mission) {
+				item.Setup.Files = []FileSpec{{Path: "/host-shaped", Content: "no"}}
+			},
+			wantErr: "cannot define simulated setup",
+		},
+		{
+			name: "duplicate image alias",
+			mutate: func(item *Mission) {
+				item.Docker.Images = append(item.Docker.Images, item.Docker.Images[0])
+			},
+			wantErr: "duplicate docker image alias",
+		},
+		{
+			name: "unpinned image",
+			mutate: func(item *Mission) {
+				item.Docker.Images[0].Reference = "docker.io/library/busybox:latest"
+			},
+			wantErr: "pinned by sha256 digest",
+		},
+		{
+			name: "duplicate container",
+			mutate: func(item *Mission) {
+				item.Docker.Containers = append(item.Docker.Containers, item.Docker.Containers[0])
+			},
+			wantErr: "duplicate docker container name",
+		},
+		{
+			name: "unknown image alias",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[0].Image = "missing"
+			},
+			wantErr: "references unknown image alias",
+		},
+		{
+			name: "unknown state",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[0].State = "paused"
+			},
+			wantErr: "unknown state",
+		},
+		{
+			name: "unknown validation container",
+			mutate: func(item *Mission) {
+				item.Validation.All[0].Container = "missing"
+			},
+			wantErr: "unknown docker container",
+		},
+		{
+			name: "missing count",
+			mutate: func(item *Mission) {
+				item.Validation.All[2].Count = nil
+			},
+			wantErr: "count must be a non-negative integer",
+		},
+		{
+			name: "negative count",
+			mutate: func(item *Mission) {
+				count := -1
+				item.Validation.All[2].Count = &count
+			},
+			wantErr: "count must be a non-negative integer",
+		},
+		{
+			name: "running condition with unrelated value",
+			mutate: func(item *Mission) {
+				item.Validation.All[0].Value = "api"
+			},
+			wantErr: "accepts only container",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			catalog, err := LoadCatalog()
+			if err != nil {
+				t.Fatal(err)
+			}
+			item, _ := catalog.Find("docker-container-census")
+			test.mutate(&item)
+			err = validateMission(item)
+			if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("validateMission() error = %v, want substring %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestMissionValidationRejectsDockerConditionOnSimulatedMission(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("linux-orientation")
+	item.Validation.All = []Condition{{Type: "docker_container_running", Container: "api"}}
+	if err := validateMission(item); err == nil || !strings.Contains(err.Error(), "requires a docker environment") {
+		t.Fatalf("validateMission() error = %v", err)
+	}
+}
+
+func TestMissionValidationRejectsUnknownTrackAndEnvironment(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := catalog.Find("linux-orientation")
+	tests := []struct {
+		name    string
+		mutate  func(*Mission)
+		wantErr string
+	}{
+		{
+			name:    "track",
+			mutate:  func(item *Mission) { item.Track = "cloud" },
+			wantErr: `unknown track "cloud"`,
+		},
+		{
+			name:    "environment",
+			mutate:  func(item *Mission) { item.Environment = "host" },
+			wantErr: `unknown environment "host"`,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			item := base
+			test.mutate(&item)
+			if err := validateMission(item); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("validateMission() error = %v, want substring %q", err, test.wantErr)
+			}
+		})
 	}
 }
 

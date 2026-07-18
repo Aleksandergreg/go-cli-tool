@@ -1,6 +1,6 @@
 # OpsQuest agent guide
 
-OpsQuest is a Go 1.22 CLI game that teaches Linux through 16 declarative missions in three campaigns. Player commands run only in an in-memory teaching shell. Docker-backed missions are planned next and Kubernetes later; neither is part of the current product unless a task explicitly adds that scope.
+OpsQuest is a Go 1.22 CLI game with 16 in-memory Linux missions and an optional Docker Foundations lab. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. Kubernetes remains future scope unless a task explicitly adds it.
 
 ## Repository map
 
@@ -10,6 +10,7 @@ OpsQuest is a Go 1.22 CLI game that teaches Linux through 16 declarative mission
 - `internal/game`: mission sessions, rewards, and observable-outcome validation.
 - `internal/mission`: JSON schema, strict embedded catalog loading, integrity checks, and `data/` mission content.
 - `internal/sandbox`: parser, dispatcher, virtual filesystem, virtual processes, archives, and the supported command subset.
+- `internal/dockerlab`: optional Docker capability detection, typed teaching commands, isolated resource lifecycle, and Docker observations.
 - `internal/profile`: versioned profile model and atomic JSON persistence.
 - `scripts`: deterministic repository checks used by both Make and CI.
 - `iteration_N.md`: observed delivery reports for completed product iterations.
@@ -27,6 +28,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 
 - Never execute player-entered commands through a host shell or against the host filesystem.
 - Sandbox changes must preserve isolation from host processes and files.
+- Docker labs must reject raw command passthrough and operate only on exact resources owned and labeled by the current attempt.
 - Mission validators must check observable outcomes, not require one exact command sequence.
 - Mission content remains declarative in embedded JSON; engine behavior belongs in Go.
 - Mission schema and persisted-profile changes are compatibility-sensitive and require explicit migration or compatibility reasoning.

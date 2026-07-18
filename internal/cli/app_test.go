@@ -2,12 +2,15 @@ package cli
 
 import (
 	"bytes"
+	"context"
+	"fmt"
 	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 	"github.com/aleksandergregersen/opsquest/internal/ui"
@@ -240,6 +243,122 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	}
 }
 
+func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "", store)
+	app.factory = &cliDockerFactory{available: true, detail: "test Docker engine ready"}
+	if err := app.Run([]string{"list", "--track", "docker"}); err != nil {
+		t.Fatalf("list Docker track error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{
+		"DOCKER LABS",
+		"Container Census",
+		"docker-container-census",
+		"0/1 missions complete",
+		"Docker labs ready.",
+	} {
+		if !strings.Contains(out.String(), expected) {
+			t.Errorf("Docker list output missing %q:\n%s", expected, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "Where Am I?") {
+		t.Fatalf("Docker list leaked a Linux mission:\n%s", out.String())
+	}
+
+	app, _, _ = testApp(t, "", store)
+	if err := app.Run([]string{"list", "--track", "mainframe"}); err == nil || !strings.Contains(err.Error(), "use linux, docker, or all") {
+		t.Fatalf("unknown track error = %v", err)
+	}
+}
+
+func TestShowDockerMissionReportsReadinessAndToolHints(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "", store)
+	app.factory = &cliDockerFactory{available: true, detail: "test Docker engine ready"}
+	if err := app.Run([]string{"show", "17"}); err != nil {
+		t.Fatalf("show Docker mission error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{
+		"MISSION 17: Container Census",
+		"Track: Docker",
+		"Outcome checks: 3",
+		"Hints available: 3",
+		"Docker lab ready.",
+	} {
+		if !strings.Contains(out.String(), expected) {
+			t.Errorf("Docker show output missing %q:\n%s", expected, out.String())
+		}
+	}
+}
+
+func TestUnavailableDockerMissionIsActionableAndDoesNotComplete(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, _, _ := testApp(t, "", store)
+	app.factory = &cliDockerFactory{
+		available: false,
+		detail:    "Docker labs unavailable: install Docker and start the daemon",
+	}
+	err := app.Run([]string{"play", "17"})
+	if err == nil || !strings.Contains(err.Error(), "install Docker and start the daemon") {
+		t.Fatalf("unavailable Docker play error = %v", err)
+	}
+	player, loadErr := store.Load()
+	if loadErr != nil {
+		t.Fatal(loadErr)
+	}
+	if player.IsComplete("docker-container-census") || player.XP != 0 || len(player.Commands) != 0 {
+		t.Fatalf("unavailable Docker play changed profile = %#v", player)
+	}
+}
+
+func TestDockerMissionToolHintsAndOutcomeCompletionPersist(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	input := strings.Join([]string{
+		"hint",
+		"hint",
+		"hint",
+		"docker ps -a",
+		"docker start api",
+	}, "\n") + "\n"
+	app, out, errOut := testApp(t, input, store)
+	factory := &cliDockerFactory{available: true, detail: "test Docker engine ready"}
+	app.factory = factory
+	if err := app.Run([]string{"play", "17"}); err != nil {
+		t.Fatalf("play Docker mission error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{
+		"Hint 1/3 (-10 XP): Images are reusable templates",
+		"Hint 2/3 (-10 XP): Use docker ps -a",
+		"Hint 3/3 (-10 XP): Start the existing container with docker start api",
+		"Not complete yet — 2/3 outcome checks satisfied",
+		"✓ Mission complete!",
+		"+20 XP",
+		"New command discovered: docker",
+	} {
+		if !strings.Contains(out.String(), expected) {
+			t.Errorf("Docker play output missing %q:\n%s", expected, out.String())
+		}
+	}
+	if factory.created != 1 {
+		t.Fatalf("Docker environments created = %d, want 1", factory.created)
+	}
+
+	player, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	completion, complete := player.Completed["docker-container-census"]
+	if !complete || player.XP != 20 || completion.XP != 20 || completion.HintsUsed != 3 {
+		t.Fatalf("Docker completion profile = %#v", player)
+	}
+	if got := player.Commands["docker"]; got != 2 {
+		t.Fatalf("docker command mastery count = %d, want 2", got)
+	}
+	if player.MissionHints("docker-container-census") != 0 {
+		t.Fatal("completed Docker mission retained in-progress hints")
+	}
+}
+
 func TestSubcommandHelpIsSuccessful(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, _, errOut := testApp(t, "", store)
@@ -273,7 +392,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"doctor"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "16 missions") || !strings.Contains(out.String(), "host command execution disabled") {
+	if !strings.Contains(out.String(), "17 missions (16 Linux, 1 Docker)") || !strings.Contains(out.String(), "host command execution disabled") {
 		t.Fatalf("doctor output = %s", out.String())
 	}
 }
@@ -392,7 +511,7 @@ func TestCompletionistRequiresEveryCurrentCatalogMission(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	items := catalog.All()
+	items := catalog.InTrack(mission.TrackLinux)
 	completedAt := time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC)
 	tests := []struct {
 		name       string
@@ -431,4 +550,88 @@ func TestCompletionistRequiresEveryCurrentCatalogMission(t *testing.T) {
 			}
 		})
 	}
+}
+
+type cliDockerFactory struct {
+	available bool
+	detail    string
+	created   int
+}
+
+func (f *cliDockerFactory) Availability(_ context.Context, item mission.Mission) game.Availability {
+	if item.EffectiveEnvironment() != mission.EnvironmentDocker {
+		return game.Availability{Available: true, Detail: "in-memory sandbox ready"}
+	}
+	return game.Availability{Available: f.available, Detail: f.detail}
+}
+
+func (f *cliDockerFactory) Create(ctx context.Context, item mission.Mission) (game.Environment, error) {
+	if item.EffectiveEnvironment() != mission.EnvironmentDocker {
+		return (game.SandboxFactory{}).Create(ctx, item)
+	}
+	if !f.available {
+		return nil, fmt.Errorf("%s", f.detail)
+	}
+	f.created++
+	return &cliDockerEnvironment{
+		running: map[string]bool{
+			"api":     false,
+			"metrics": true,
+		},
+		containerCount: 2,
+	}, nil
+}
+
+type cliDockerEnvironment struct {
+	running        map[string]bool
+	containerCount int
+	closed         bool
+}
+
+func (e *cliDockerEnvironment) PromptLabel() string { return "docker" }
+
+func (e *cliDockerEnvironment) CompletionSource() game.CompletionSource { return nil }
+
+func (e *cliDockerEnvironment) Execute(ctx context.Context, line string) (game.Execution, error) {
+	if err := ctx.Err(); err != nil {
+		return game.Execution{}, err
+	}
+	if e.closed {
+		return game.Execution{}, fmt.Errorf("Docker test environment is closed")
+	}
+	fields := strings.Fields(line)
+	if len(fields) == 3 && fields[0] == "docker" && fields[1] == "ps" && fields[2] == "-a" {
+		return game.Execution{
+			Output:        "CONTAINER ID   NAME      STATUS\nlab-01         api       Exited\nlab-02         metrics   Up\n",
+			Commands:      []string{"docker"},
+			PipelineWidth: 1,
+		}, nil
+	}
+	if len(fields) == 3 && fields[0] == "docker" && fields[1] == "start" && fields[2] == "api" {
+		e.running["api"] = true
+		return game.Execution{Output: "api\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+	}
+	return game.Execution{}, fmt.Errorf("unsupported Docker test command %q", line)
+}
+
+func (e *cliDockerEnvironment) Observe(ctx context.Context, condition mission.Condition) (bool, error) {
+	if err := ctx.Err(); err != nil {
+		return false, err
+	}
+	switch condition.Type {
+	case "docker_container_running":
+		return e.running[condition.Container], nil
+	case "docker_container_count_equals":
+		if condition.Count == nil {
+			return false, fmt.Errorf("missing container count")
+		}
+		return e.containerCount == *condition.Count, nil
+	default:
+		return false, fmt.Errorf("unsupported Docker test observation %q", condition.Type)
+	}
+}
+
+func (e *cliDockerEnvironment) Close() error {
+	e.closed = true
+	return nil
 }

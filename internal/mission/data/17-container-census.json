@@ -1,0 +1,37 @@
+{
+  "id": "docker-container-census",
+  "number": 17,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Container Census",
+  "campaign": "It Works on My Machine",
+  "difficulty": "beginner",
+  "story": "The welcome API vanished from the dashboard, but its container still exists. Metrics is healthy, and replacing things before checking their state is how last Friday became a retrospective.",
+  "objective": "Start the existing api container without creating a replacement or disturbing the running metrics container.",
+  "hints": [
+    "Images are reusable templates; containers are instances with their own running or stopped lifecycle state.",
+    "Use docker ps -a to include stopped containers and inspect api before changing anything.",
+    "Start the existing container with docker start api. Do not create a replacement with docker run."
+  ],
+  "explanation": "An image is the reusable template, while a container is a particular instance with its own lifecycle. A stopped container can be started again without creating a replacement, preserving its identity and configuration.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {"name": "api", "image": "fixture", "state": "stopped"},
+      {"name": "metrics", "image": "fixture", "state": "running"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "docker_container_running", "container": "api"},
+      {"type": "docker_container_running", "container": "metrics"},
+      {"type": "docker_container_count_equals", "count": 2}
+    ]
+  },
+  "rewards": {"xp": 50, "hint_penalty": 10}
+}

@@ -380,7 +380,7 @@ type fakeViReader struct {
 	edit  func(sandbox.EditorRequest, viSaveFunc) error
 }
 
-func (r *fakeViReader) ReadLine(_ string, _ *sandbox.Sandbox) (string, error) {
+func (r *fakeViReader) ReadLine(_ string, _ CompletionSource) (string, error) {
 	if r.index >= len(r.lines) {
 		return "", io.EOF
 	}

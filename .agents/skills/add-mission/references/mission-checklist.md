@@ -7,9 +7,10 @@ Missions are embedded JSON files under `internal/mission/data/`. `internal/missi
 Every mission supplies:
 
 - Identity and placement: `id`, `number`, `title`, `campaign`, `difficulty`.
+- An effective learning `track` and `environment`; omitted values preserve the legacy `linux` and `simulated` defaults.
 - Teaching content: `story`, `objective`, `hints`, `explanation`.
-- Lab entry: absolute clean `start_dir` created by the setup.
-- Declarative `setup`: `directories`, `files`, `processes`, `environment`, and `archives` as needed.
+- Simulated labs: an absolute clean `start_dir` plus declarative `setup` containing `directories`, `files`, `processes`, `environment`, and `archives` as needed.
+- Docker labs: `track: docker`, `environment: docker`, and a declarative `docker` setup containing digest-pinned image references and logical `running` or `stopped` container fixtures. They do not define simulated setup or a start directory.
 - Declarative `validation.all`: one or more observable conditions.
 - `rewards`: positive `xp` and non-negative `hint_penalty`.
 
@@ -25,6 +26,7 @@ Use the smallest combination that proves the outcome without encoding a command 
 - Virtual file state: `file_content_equals`, `file_content_contains`, `file_lines_equal`, `file_mode_equals`, `file_owner_equals`.
 - Virtual processes: `process_stopped`, `process_running`.
 - Virtual environment: `env_equals` with `NAME=value`.
+- Docker state: `docker_container_running` with a declared logical container alias and `docker_container_count_equals` with a non-negative count.
 
 Output-only validation is appropriate when producing the exact useful output is the lesson. Prefer filesystem, process, or environment state when the operational result should survive the final command. Combine positive and negative conditions when distractors could otherwise produce a false completion.
 
@@ -33,8 +35,8 @@ Output-only validation is appropriate when producing the exact useful output is 
 - The learning objective and success outcome are written down before implementation.
 - Filename, number, ID, campaign, difficulty, XP, and hint penalty fit adjacent missions.
 - Story and objective avoid giving away one exact command.
-- Hints progress from concept to concrete help; explanation teaches the underlying Linux idea.
-- Setup contains no host path, host process, or executable hook.
+- Hints progress from concept through the relevant tool or option to concrete help; explanation teaches the underlying operations idea.
+- Setup contains no host path, host process, executable hook, mutable Docker tag, privileged option, or player-supplied engine argument.
 - Validation accepts every legitimate route and rejects incomplete or collateral outcomes.
 - `TestEveryMissionHasAWorkingOutcome` has a canonical solution entry.
 - A meaningful alternative route is tested when one exists.
