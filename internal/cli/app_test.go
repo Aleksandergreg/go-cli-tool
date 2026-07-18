@@ -166,7 +166,7 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 	output := out.String()
 	for _, expected := range []string{
 		"LINUX CAMPAIGN",
-		"1/16 missions complete",
+		"1/19 missions complete",
 		"Switching to Mission 03: A Place for Everything",
 		"MISSION 03: A Place for Everything",
 		"✓ Directory exists: /workspace/reports/daily",
@@ -230,7 +230,7 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	if err := app.Run([]string{"list"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "0/16 missions complete") {
+	if !strings.Contains(out.String(), "0/19 missions complete") {
 		t.Fatalf("list output = %s", out.String())
 	}
 
@@ -392,7 +392,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"doctor"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "17 missions (16 Linux, 1 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
+	if !strings.Contains(out.String(), "20 missions (19 Linux, 1 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
 		t.Fatalf("doctor output = %s", out.String())
 	}
 }

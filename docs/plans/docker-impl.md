@@ -38,4 +38,4 @@ The delivered typed subset is `docker ps`, `docker container ls`, `start`, `rest
 - No privileged containers, host bind mounts, or Docker socket exposure inside labs.
 - Dockerfiles, volumes, networking, Compose, and Kubernetes remain follow-up iterations.
 
-This vertical slice tests genuine Docker gameplay without committing OpsQuest to the entire Docker campaign at once. A scripting-focused Linux mini-campaign also remains a sensible later content addition because `vi` and `sh` are implemented but do not yet have dedicated missions.
+This vertical slice tests genuine Docker gameplay without committing OpsQuest to the entire Docker campaign at once. The separate **Automation Shift** Linux mini-campaign now provides dedicated `vi` and safe `sh` practice without changing the Docker boundary.

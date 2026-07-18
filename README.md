@@ -29,7 +29,7 @@ The game validates the result, not a prescribed command. For example, the file-m
 
 Version 0.3 starts Docker Foundations while preserving the complete Linux campaign:
 
-- 16 hand-written Linux missions across three story chapters
+- 19 hand-written Linux missions across four story chapters
 - One optional, disposable Docker mission in **It Works on My Machine**
 - An isolated, in-memory filesystem and process table
 - Interactive line editing with Tab completion and Up/Down command recall
@@ -42,7 +42,7 @@ Version 0.3 starts Docker Foundations while preserving the complete Linux campai
 - Persistent XP, ranks, mission completion, command mastery, and six learning achievements
 - Replayable missions without duplicate XP
 - Mission previews, campaign filters, profile naming, and built-in diagnostics
-- A multi-step **Production Friday** boss incident
+- Multi-step boss incidents in **Production Friday** and **The Automation Shift**
 
 The sandbox implements a focused teaching subset of:
 
@@ -93,6 +93,7 @@ $ opsquest list
 $ opsquest list --track docker
 $ opsquest play 4
 $ opsquest play 17
+$ opsquest play 18
 $ opsquest play linux-find-logs
 $ opsquest show 16
 $ opsquest list --campaign "Production Friday"
@@ -155,6 +156,7 @@ The game accepts any supported command sequence that produces the objective's fi
 - **First Day** — navigation, directories, and basic file operations
 - **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
 - **Production Friday** — logs, aggregation, text transformation, ownership, disk usage, and a multi-fault boss incident
+- **The Automation Shift** — modal editing, reusable shell scripts, executable modes, and child-shell scope
 - **It Works on My Machine** — an optional Docker Foundations campaign beginning with container lifecycle and inspection
 
 Achievements reward learning behavior rather than decoration: completing a first fix, building a three-command pipeline, practicing ten commands, solving missions without hints, beating an advanced incident, and finishing Linux.

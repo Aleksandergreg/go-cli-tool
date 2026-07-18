@@ -511,12 +511,19 @@ func TestValidateAndProgressKeepSandboxCompatibility(t *testing.T) {
 }
 
 func TestAdjacentMissionStaysWithinTrack(t *testing.T) {
-	catalog, linux := seamCatalogMission(t, "16")
+	catalog, linuxBeforeDocker := seamCatalogMission(t, "16")
 	_, docker := seamCatalogMission(t, "17")
-	if next, found := adjacentMission(catalog, linux.ID, 1); found {
-		t.Fatalf("Linux next crossed into Docker track: %#v", next)
+	_, linuxAfterDocker := seamCatalogMission(t, "18")
+	if next, found := adjacentMission(catalog, linuxBeforeDocker.ID, 1); !found || next.ID != linuxAfterDocker.ID {
+		t.Fatalf("Linux next did not skip Docker mission: %#v, %v", next, found)
+	}
+	if previous, found := adjacentMission(catalog, linuxAfterDocker.ID, -1); !found || previous.ID != linuxBeforeDocker.ID {
+		t.Fatalf("Linux previous did not skip Docker mission: %#v, %v", previous, found)
 	}
 	if previous, found := adjacentMission(catalog, docker.ID, -1); found {
 		t.Fatalf("Docker previous crossed into Linux track: %#v", previous)
+	}
+	if next, found := adjacentMission(catalog, docker.ID, 1); found {
+		t.Fatalf("Docker next crossed into Linux track: %#v", next)
 	}
 }

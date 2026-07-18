@@ -1,0 +1,35 @@
+{
+  "id": "linux-report-on-repeat",
+  "number": 19,
+  "title": "Report on Repeat",
+  "campaign": "The Automation Shift",
+  "difficulty": "intermediate",
+  "story": "The on-call handover says to run the same pipeline every hour. Somebody helpfully saved it as a script, then filtered the warnings instead of the errors and forgot to make it executable.",
+  "objective": "Repair /workspace/error-report.sh so it filters ERROR incidents, set its mode to 750, and use it to create /reports/error-services.txt containing each affected service once in sorted order.",
+  "start_dir": "/workspace",
+  "hints": [
+    "A shell script stores commands for repeatable execution. Inspect error-report.sh with cat, less, or vi, and use help sh to review the safe runner.",
+    "The pipeline is already present, but its grep severity is wrong. You can edit it with vi or make a targeted replacement with sed -i.",
+    "Direct script execution needs an executable mode. chmod 750 gives the owner full access and the group read and execute access.",
+    "Change WARN to ERROR, run chmod 750 error-report.sh, then run ./error-report.sh."
+  ],
+  "explanation": "A script turns a working pipeline into repeatable operations. Here grep selects error incidents, awk extracts the service field, sort and uniq remove duplicates, and redirection stores the report. The shebang plus executable mode allows direct execution inside the teaching shell.",
+  "setup": {
+    "directories": [
+      {"path": "/workspace"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/workspace/incidents.log", "content": "2026-07-18 ERROR api timeout\n2026-07-18 INFO gateway ready\n2026-07-18 ERROR worker queue\n2026-07-18 ERROR api retry\n2026-07-18 WARN database slow\n"},
+      {"path": "/workspace/error-report.sh", "content": "#!/bin/sh\n# Report services with paging incidents.\ngrep WARN incidents.log | awk '{print $3}' | sort | uniq > /reports/error-services.txt\n", "mode": "0644"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_contains", "path": "/workspace/error-report.sh", "value": "ERROR"},
+      {"type": "file_mode_equals", "path": "/workspace/error-report.sh", "value": "0750"},
+      {"type": "file_lines_equal", "path": "/reports/error-services.txt", "values": ["api", "worker"]}
+    ]
+  },
+  "rewards": {"xp": 90, "hint_penalty": 15}
+}

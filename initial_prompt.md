@@ -8,7 +8,7 @@ The current executable reports version **0.3.0**. It includes the first optional
 
 OpsQuest currently ships:
 
-- 16 hand-written Linux missions across three campaigns
+- 19 hand-written Linux missions across four campaigns
 - One optional Docker mission in the **It Works on My Machine** campaign
 - Strict, embedded JSON mission definitions
 - Observable-outcome validation rather than prescribed command sequences
@@ -63,6 +63,7 @@ The current Linux curriculum is split into:
 1. **First Day** — navigation, directories, and basic file operations
 2. **The Logpocalypse** — searching, permissions, environment, processes, archives, and pipelines
 3. **Production Friday** — aggregation, transformation, ownership, disk usage, and a multi-step boss incident
+4. **The Automation Shift** — modal editing, reusable scripts, executable modes, and child-shell scope
 
 XP, ranks, hint usage, completed missions, practiced commands, and achievements persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not.
 
@@ -165,6 +166,16 @@ The following are intentionally unsupported:
 
 Script output may feed a later pipeline stage or be redirected to a virtual file. Feeding pipeline or redirected input into a script is rejected because this teaching model does not emulate one shared script stdin stream.
 
+## Automation Shift campaign
+
+Missions 18–20 turn the existing editor and runner into a short Linux curriculum:
+
+- **Modal First Aid** introduces Normal mode, `dd`, and `:wq` by removing a bad line while preserving the rest of a configuration file.
+- **Report on Repeat** has the player repair a pipeline script, set its executable mode, and generate a sorted unique incident report.
+- **Boss Battle: Scope Creep** combines editing, direct script execution, pipelines, redirection, `cd`, and `export`. Its outcomes prove that file changes persist while the caller's directory and environment are restored.
+
+Every mission supplies progressive tool-oriented hints. Completion remains outcome-based: the canonical solutions exercise non-interactive test paths, while focused tests also prove valid `vi`, `sh FILE`, and direct-execution alternatives and reject incomplete or state-leaking attempts.
+
 ## Docker Foundations vertical slice
 
 Mission 17, **Container Census**, begins the optional **It Works on My Machine** track. The player inspects two attempt-owned containers, identifies the stopped `api` container, and gets both original containers running while keeping the attempt at exactly two containers. Three progressive hints introduce the relevant inspection tool, the option that includes stopped containers, and finally the `docker start` syntax.
@@ -175,7 +186,7 @@ The first supported teaching subset is deliberately narrow: `docker ps`, `docker
 
 Each attempt maps stable logical aliases such as `api` to generated engine names and exact returned container IDs. Resources are labeled with the mission and a cryptographically random session identifier, run without a network as a non-root user with a read-only filesystem, dropped capabilities, `no-new-privileges`, and bounded CPU, memory, process, and file-descriptor limits. Cleanup verifies ownership labels before removing exact IDs and is idempotent across completion, quit, restart, switching, setup failure, Ctrl-C cancellation, and ordinary errors. Labs never request privileged mode, host bind mounts, host networking, host PID/IPC namespace sharing, devices, or a mounted Docker socket.
 
-Docker mission validation observes only resources labeled for the current attempt. Container Census requires both original tracked containers to be running and queries ownership labels to require exactly two attempt containers, so an additional attempt-owned replacement cannot satisfy the objective. Existing profile version 2 remains compatible: mission completion maps accept the new stable ID, while Linux percentages and Linux Completionist continue to consider only the 16 Linux missions.
+Docker mission validation observes only resources labeled for the current attempt. Container Census requires both original tracked containers to be running and queries ownership labels to require exactly two attempt containers, so an additional attempt-owned replacement cannot satisfy the objective. Existing profile version 2 remains compatible: mission completion maps accept the stable IDs, while Linux percentages and new Linux Completionist unlocks now consider all 19 Linux missions. Achievements are monotonic, so a Completionist achievement earned before the curriculum expanded remains unlocked.
 
 ## Mission format
 

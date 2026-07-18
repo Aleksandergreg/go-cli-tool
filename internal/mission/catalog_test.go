@@ -11,8 +11,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 17 {
-		t.Fatalf("len(All()) = %d, want 17", len(items))
+	if len(items) != 20 {
+		t.Fatalf("len(All()) = %d, want 20", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {
@@ -45,7 +45,7 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 
 	linux := catalog.InTrack("")
 	docker := catalog.InTrack(TrackDocker)
-	if len(linux) != 16 || len(docker) != 1 {
+	if len(linux) != 19 || len(docker) != 1 {
 		t.Fatalf("track sizes = linux %d, docker %d", len(linux), len(docker))
 	}
 	if docker[0].ID != "docker-container-census" || docker[0].Number != 17 {
@@ -58,6 +58,43 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 	}
 	if _, found := catalog.NextInTrack(TrackDocker, func(string) bool { return true }); found {
 		t.Fatal("completed Docker track returned another mission")
+	}
+	completedFirstCampaigns := make(map[string]bool)
+	for _, item := range linux {
+		if item.Number <= 16 {
+			completedFirstCampaigns[item.ID] = true
+		}
+	}
+	nextLinux, found := catalog.NextInTrack(TrackLinux, func(id string) bool { return completedFirstCampaigns[id] })
+	if !found || nextLinux.ID != "linux-vi-first-aid" || nextLinux.Number != 18 {
+		t.Fatalf("NextInTrack(linux) after Mission 16 = %#v, %v", nextLinux, found)
+	}
+}
+
+func TestAutomationShiftCurriculum(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := []struct {
+		id         string
+		number     int
+		difficulty string
+		hints      int
+	}{
+		{id: "linux-vi-first-aid", number: 18, difficulty: "beginner", hints: 3},
+		{id: "linux-report-on-repeat", number: 19, difficulty: "intermediate", hints: 4},
+		{id: "linux-scope-creep", number: 20, difficulty: "advanced", hints: 5},
+	}
+	for _, want := range wants {
+		item, found := catalog.Find(want.id)
+		if !found {
+			t.Errorf("mission %q missing", want.id)
+			continue
+		}
+		if item.Number != want.number || item.Campaign != "The Automation Shift" || item.Difficulty != want.difficulty || len(item.Hints) != want.hints {
+			t.Errorf("mission %q curriculum metadata = number %d, campaign %q, difficulty %q, hints %d", item.ID, item.Number, item.Campaign, item.Difficulty, len(item.Hints))
+		}
 	}
 }
 

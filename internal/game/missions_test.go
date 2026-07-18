@@ -38,6 +38,19 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 			"kill 9001",
 		},
 		"docker-container-census": {"docker ps -a", "docker start api"},
+		"linux-vi-first-aid": {
+			`printf 'SERVICE=checkout\nLOG_LEVEL=info\n' > release.env`,
+		},
+		"linux-report-on-repeat": {
+			`sed -i 's/grep WARN/grep ERROR/' error-report.sh`,
+			"chmod 750 error-report.sh",
+			"./error-report.sh",
+		},
+		"linux-scope-creep": {
+			`sed -i 's/grep INFO/grep ERROR/' night-shift.sh`,
+			"chmod 750 night-shift.sh",
+			"./night-shift.sh",
+		},
 	}
 
 	for _, item := range catalog.All() {
@@ -192,4 +205,77 @@ func TestSearchMissionRejectsUnfilteredFindOutput(t *testing.T) {
 	if complete {
 		t.Fatalf("unfiltered output unexpectedly completed mission: %q", result.Output)
 	}
+}
+
+func TestScriptMissionsAcceptAlternativesAndRejectIncompleteOutcomes(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(t *testing.T, missionID string, commands ...string) (mission.Mission, *sandbox.Sandbox) {
+		t.Helper()
+		item, found := catalog.Find(missionID)
+		if !found {
+			t.Fatalf("mission %q not found", missionID)
+		}
+		box, err := sandbox.New(item.Setup, item.StartDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, command := range commands {
+			if _, err := box.Execute(command); err != nil {
+				t.Fatalf("Execute(%q) error = %v", command, err)
+			}
+		}
+		return item, box
+	}
+	assertComplete := func(t *testing.T, item mission.Mission, box *sandbox.Sandbox, want bool) {
+		t.Helper()
+		complete, err := Validate(item.Validation, box, "")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if complete != want {
+			t.Fatalf("mission complete = %v, want %v", complete, want)
+		}
+	}
+
+	t.Run("different pipeline and sh execution are accepted", func(t *testing.T) {
+		item, box := run(t, "linux-report-on-repeat",
+			`printf '#!/bin/sh\ngrep ERROR /workspace/incidents.log | cut -d " " -f 3 | sort -u > /reports/error-services.txt\n' > error-report.sh`,
+			"chmod 750 error-report.sh",
+			"sh error-report.sh",
+		)
+		assertComplete(t, item, box, true)
+	})
+
+	t.Run("repair without execution is incomplete", func(t *testing.T) {
+		item, box := run(t, "linux-report-on-repeat",
+			`sed -i 's/grep WARN/grep ERROR/' error-report.sh`,
+			"chmod 750 error-report.sh",
+		)
+		assertComplete(t, item, box, false)
+	})
+
+	t.Run("manual boss commands leak caller state", func(t *testing.T) {
+		item, box := run(t, "linux-scope-creep",
+			`sed -i 's/grep INFO/grep ERROR/' night-shift.sh`,
+			"chmod 750 night-shift.sh",
+			"cd /srv/night-shift",
+			"export REPORT_LABEL=night-shift",
+			`grep ERROR events.log | awk '{print $3}' | sort | uniq > /reports/night-services.txt`,
+			`echo "$REPORT_LABEL" > /reports/run-label.txt`,
+		)
+		assertComplete(t, item, box, false)
+	})
+
+	t.Run("sh preserves boss child scope", func(t *testing.T) {
+		item, box := run(t, "linux-scope-creep",
+			`sed -i 's/grep INFO/grep ERROR/' night-shift.sh`,
+			"chmod 750 night-shift.sh",
+			"sh night-shift.sh",
+		)
+		assertComplete(t, item, box, true)
+	})
 }
