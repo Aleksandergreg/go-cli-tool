@@ -237,7 +237,7 @@ $ make check
 $ make check-all
 ```
 
-`make check` runs agent-document validation, all Docker-independent Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete portable quality gate and adds race detection. GitHub Actions runs that same target without requiring Docker. `make docker-integration` is the explicit real-engine lifecycle gate for machines that have Docker and the pinned fixture image available.
+`make check` runs agent-document validation, all Docker-independent Go tests (including embedded mission integrity and canonical solutions), vet, a binary build, and the isolated CLI smoke test. `make check-all` is the complete portable quality gate and adds race detection. GitHub Actions runs that same target for pull requests and pushes to `main` without requiring Docker; superseded runs for the same PR are canceled. `make docker-integration` is the explicit real-engine lifecycle gate for machines that have Docker and the pinned fixture image available.
 
 The tests exercise outcome-based mission solutions, profile compatibility, achievements, persistence, filters, previews, diagnostics, mission controls, parser behavior, archives, the virtual filesystem, and host-isolation invariants. The smoke test builds a temporary binary, uses a temporary `OPSQUEST_HOME`, and removes Docker from its controlled `PATH`, so it neither writes to the developer's real profile nor contacts a local daemon.
 
