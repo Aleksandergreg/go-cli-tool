@@ -665,7 +665,7 @@ func renderViEditor(output io.Writer, editor *viEditor, width, height int) error
 		lineIndex := top + screenRow
 		line := "~"
 		if lineIndex < len(editor.lines) {
-			line = viDisplayWindow(displayViLine(editor.lines[lineIndex]), horizontalOffset, width)
+			line = displayViWindow(editor.lines[lineIndex], horizontalOffset, width)
 		}
 		screen.WriteString(padViLine(line, width))
 		screen.WriteString("\r\n")
@@ -709,41 +709,68 @@ func (e *viEditor) statusLine() string {
 	return fmt.Sprintf("%s%s  %s  %d,%d", sanitizeViText(e.request.DisplayPath), modified, mode, e.row+1, e.column+1)
 }
 
-func displayViLine(line []rune) string {
-	var displayed strings.Builder
-	columns := 0
-	for _, char := range line {
-		text := displayViRune(char, columns)
-		displayed.WriteString(text)
-		columns += len([]rune(text))
-	}
-	return displayed.String()
-}
-
 func displayViColumn(line []rune, column int) int {
 	if column > len(line) {
 		column = len(line)
 	}
 	columns := 0
 	for _, char := range line[:column] {
-		columns += len([]rune(displayViRune(char, columns)))
+		columns += displayViRuneWidth(char, columns)
 	}
 	return columns
 }
 
-func viDisplayWindow(value string, offset, width int) string {
-	runes := []rune(value)
-	if offset >= len(runes) {
-		return ""
-	}
+func displayViWindow(line []rune, offset, width int) string {
 	if offset < 0 {
 		offset = 0
 	}
-	end := offset + width
-	if end > len(runes) {
-		end = len(runes)
+	if width <= 0 {
+		return ""
 	}
-	return string(runes[offset:end])
+	var displayed strings.Builder
+	displayed.Grow(width)
+	columns := 0
+	written := 0
+	for _, char := range line {
+		segmentWidth := displayViRuneWidth(char, columns)
+		if columns+segmentWidth <= offset {
+			columns += segmentWidth
+			continue
+		}
+		if written >= width {
+			break
+		}
+		start := 0
+		if offset > columns {
+			start = offset - columns
+		}
+		available := segmentWidth - start
+		if available > width-written {
+			available = width - written
+		}
+		if char != '\t' && !unicode.IsControl(char) {
+			if start == 0 && available == 1 {
+				displayed.WriteRune(char)
+			}
+		} else {
+			text := displayViRune(char, columns)
+			segment := []rune(text)
+			displayed.WriteString(string(segment[start : start+available]))
+		}
+		written += available
+		columns += segmentWidth
+	}
+	return displayed.String()
+}
+
+func displayViRuneWidth(char rune, column int) int {
+	if char == '\t' {
+		return 8 - column%8
+	}
+	if unicode.IsControl(char) && char < 0x20 {
+		return 2
+	}
+	return 1
 }
 
 func displayViRune(char rune, column int) string {

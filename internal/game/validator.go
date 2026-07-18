@@ -69,41 +69,41 @@ func satisfiedOutcomeCount(outcomes []outcomeResult) int {
 
 func describeCondition(condition mission.Condition) string {
 	switch condition.Type {
-	case "output_equals":
+	case mission.ConditionOutputEquals:
 		return "Command output matches the required result"
-	case "output_contains":
+	case mission.ConditionOutputContains:
 		return fmt.Sprintf("Output contains %q", condition.Value)
-	case "output_contains_all":
+	case mission.ConditionOutputContainsAll:
 		return "Output contains every required match"
-	case "output_not_contains":
+	case mission.ConditionOutputNotContains:
 		return fmt.Sprintf("Output excludes %q", condition.Value)
-	case "cwd_equals":
+	case mission.ConditionCWDEquals:
 		return fmt.Sprintf("Current directory is %s", condition.Value)
-	case "file_exists":
+	case mission.ConditionFileExists:
 		return fmt.Sprintf("File exists: %s", condition.Path)
-	case "dir_exists":
+	case mission.ConditionDirectoryExists:
 		return fmt.Sprintf("Directory exists: %s", condition.Path)
-	case "path_missing":
+	case mission.ConditionPathMissing:
 		return fmt.Sprintf("Path no longer exists: %s", condition.Path)
-	case "file_content_equals":
+	case mission.ConditionFileContentEquals:
 		return fmt.Sprintf("File has the required content: %s", condition.Path)
-	case "file_content_contains":
+	case mission.ConditionFileContentContains:
 		return fmt.Sprintf("File contains the required text: %s", condition.Path)
-	case "file_lines_equal":
+	case mission.ConditionFileLinesEqual:
 		return fmt.Sprintf("File has the required lines: %s", condition.Path)
-	case "file_mode_equals":
+	case mission.ConditionFileModeEquals:
 		return fmt.Sprintf("File mode is %s: %s", condition.Value, condition.Path)
-	case "file_owner_equals":
+	case mission.ConditionFileOwnerEquals:
 		return fmt.Sprintf("File owner is %s: %s", condition.Value, condition.Path)
-	case "process_stopped":
+	case mission.ConditionProcessStopped:
 		return fmt.Sprintf("Process %d is stopped", condition.PID)
-	case "process_running":
+	case mission.ConditionProcessRunning:
 		return fmt.Sprintf("Process %d is still running", condition.PID)
-	case "env_equals":
+	case mission.ConditionEnvironmentEquals:
 		return fmt.Sprintf("Environment contains %s", condition.Value)
-	case "docker_container_running":
+	case mission.ConditionDockerContainerRunning:
 		return fmt.Sprintf("Container %s is running", condition.Container)
-	case "docker_container_count_equals":
+	case mission.ConditionDockerContainerCountEqual:
 		if condition.Count != nil {
 			return fmt.Sprintf("Exactly %d mission containers exist", *condition.Count)
 		}
@@ -115,18 +115,18 @@ func describeCondition(condition mission.Condition) string {
 
 func validateCondition(ctx context.Context, condition mission.Condition, environment Environment, output string) (bool, error) {
 	switch condition.Type {
-	case "output_equals":
+	case mission.ConditionOutputEquals:
 		return normalizeText(output) == normalizeText(condition.Value), nil
-	case "output_contains":
+	case mission.ConditionOutputContains:
 		return strings.Contains(output, condition.Value), nil
-	case "output_contains_all":
+	case mission.ConditionOutputContainsAll:
 		for _, value := range condition.Values {
 			if !strings.Contains(output, value) {
 				return false, nil
 			}
 		}
 		return true, nil
-	case "output_not_contains":
+	case mission.ConditionOutputNotContains:
 		return !strings.Contains(output, condition.Value), nil
 	default:
 		if environment == nil {

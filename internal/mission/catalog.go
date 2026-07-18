@@ -19,7 +19,8 @@ var missionFiles embed.FS
 
 type Catalog struct {
 	missions []Mission
-	byID     map[string]Mission
+	byID     map[string]int
+	byNumber map[int]int
 }
 
 func LoadCatalog() (Catalog, error) {
@@ -28,7 +29,8 @@ func LoadCatalog() (Catalog, error) {
 		return Catalog{}, fmt.Errorf("find embedded missions: %w", err)
 	}
 
-	catalog := Catalog{byID: make(map[string]Mission, len(paths))}
+	catalog := Catalog{}
+	ids := make(map[string]bool, len(paths))
 	numbers := make(map[int]string, len(paths))
 	for _, path := range paths {
 		data, err := missionFiles.ReadFile(path)
@@ -42,13 +44,13 @@ func LoadCatalog() (Catalog, error) {
 		if err := validateMission(item); err != nil {
 			return Catalog{}, fmt.Errorf("%s: %w", path, err)
 		}
-		if _, exists := catalog.byID[item.ID]; exists {
+		if ids[item.ID] {
 			return Catalog{}, fmt.Errorf("duplicate mission id %q", item.ID)
 		}
 		if other, exists := numbers[item.Number]; exists {
 			return Catalog{}, fmt.Errorf("missions %q and %q both use number %d", other, item.ID, item.Number)
 		}
-		catalog.byID[item.ID] = item
+		ids[item.ID] = true
 		numbers[item.Number] = item.ID
 		catalog.missions = append(catalog.missions, item)
 	}
@@ -59,6 +61,12 @@ func LoadCatalog() (Catalog, error) {
 		if item.Number != index+1 {
 			return Catalog{}, fmt.Errorf("mission numbers must be contiguous: expected %d, found %d", index+1, item.Number)
 		}
+	}
+	catalog.byID = make(map[string]int, len(catalog.missions))
+	catalog.byNumber = make(map[int]int, len(catalog.missions))
+	for index, item := range catalog.missions {
+		catalog.byID[item.ID] = index
+		catalog.byNumber[item.Number] = index
 	}
 	return catalog, nil
 }
@@ -84,6 +92,11 @@ var (
 	variablePattern             = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	dockerLogicalNamePattern    = regexp.MustCompile(`^[a-z0-9]+(?:[._-][a-z0-9]+)*$`)
 	dockerImageReferencePattern = regexp.MustCompile(`^[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_.-]+)?@sha256:[a-f0-9]{64}$`)
+)
+
+const (
+	maxDockerImagesPerMission     = 16
+	maxDockerContainersPerMission = 32
 )
 
 // ValidDockerLogicalName reports whether value is safe to use as a stable
@@ -129,8 +142,16 @@ func validateMission(item Mission) error {
 	if item.Number < 1 {
 		return fmt.Errorf("number must be positive")
 	}
+	switch item.Difficulty {
+	case DifficultyBeginner, DifficultyIntermediate, DifficultyAdvanced:
+	default:
+		return fmt.Errorf("unknown difficulty %q", item.Difficulty)
+	}
 	if item.Rewards.XP <= 0 || item.Rewards.HintPenalty < 0 {
 		return fmt.Errorf("XP must be positive and hint penalty cannot be negative")
+	}
+	if len(item.Hints) < 1 || len(item.Hints) > 5 {
+		return fmt.Errorf("missions require between 1 and 5 hints")
 	}
 	for index, hint := range item.Hints {
 		if strings.TrimSpace(hint) == "" {
@@ -157,7 +178,7 @@ func validateMission(item Mission) error {
 		if item.Docker == nil {
 			return fmt.Errorf("docker mission requires docker setup")
 		}
-		if err := validateDockerSetup(*item.Docker); err != nil {
+		if err := ValidateDockerSetup(*item.Docker); err != nil {
 			return err
 		}
 	}
@@ -168,7 +189,7 @@ func validateMission(item Mission) error {
 		if err := validateCondition(condition, environment); err != nil {
 			return fmt.Errorf("validation condition %d: %w", index+1, err)
 		}
-		if condition.Type == "docker_container_running" && !dockerSetupHasContainer(item.Docker, condition.Container) {
+		if condition.Type == ConditionDockerContainerRunning && !dockerSetupHasContainer(item.Docker, condition.Container) {
 			return fmt.Errorf("validation condition %d: unknown docker container %q", index+1, condition.Container)
 		}
 	}
@@ -180,12 +201,20 @@ func setupEmpty(setup Setup) bool {
 		len(setup.Environment) == 0 && len(setup.Archives) == 0
 }
 
-func validateDockerSetup(setup DockerSetup) error {
+// ValidateDockerSetup validates the declarative Docker fixture contract shared
+// by catalog loading and the runtime adapter. It does not contact Docker.
+func ValidateDockerSetup(setup DockerSetup) error {
 	if len(setup.Images) == 0 {
 		return fmt.Errorf("docker setup requires at least one image")
 	}
+	if len(setup.Images) > maxDockerImagesPerMission {
+		return fmt.Errorf("docker setup exceeds the %d-image limit", maxDockerImagesPerMission)
+	}
 	if len(setup.Containers) == 0 {
 		return fmt.Errorf("docker setup requires at least one container")
+	}
+	if len(setup.Containers) > maxDockerContainersPerMission {
+		return fmt.Errorf("docker setup exceeds the %d-container limit", maxDockerContainersPerMission)
 	}
 	images := make(map[string]bool, len(setup.Images))
 	for _, image := range setup.Images {
@@ -212,7 +241,7 @@ func validateDockerSetup(setup DockerSetup) error {
 			return fmt.Errorf("docker container %q references unknown image alias %q", container.Name, container.Image)
 		}
 		switch container.State {
-		case "running", "stopped":
+		case DockerStateRunning, DockerStateStopped:
 		default:
 			return fmt.Errorf("docker container %q has unknown state %q", container.Name, container.State)
 		}
@@ -330,34 +359,80 @@ func validateSetup(setup Setup, startDir string) error {
 	return nil
 }
 
+type conditionFields uint8
+
+const (
+	conditionPath conditionFields = 1 << iota
+	conditionValue
+	conditionValues
+	conditionPID
+	conditionContainer
+	conditionCount
+)
+
+var allowedConditionFields = map[ConditionType]conditionFields{
+	ConditionOutputEquals:              conditionValue,
+	ConditionOutputContains:            conditionValue,
+	ConditionOutputContainsAll:         conditionValues,
+	ConditionOutputNotContains:         conditionValue,
+	ConditionCWDEquals:                 conditionValue,
+	ConditionFileExists:                conditionPath,
+	ConditionDirectoryExists:           conditionPath,
+	ConditionPathMissing:               conditionPath,
+	ConditionFileContentEquals:         conditionPath | conditionValue,
+	ConditionFileContentContains:       conditionPath | conditionValue,
+	ConditionFileLinesEqual:            conditionPath | conditionValues,
+	ConditionFileModeEquals:            conditionPath | conditionValue,
+	ConditionFileOwnerEquals:           conditionPath | conditionValue,
+	ConditionProcessStopped:            conditionPID,
+	ConditionProcessRunning:            conditionPID,
+	ConditionEnvironmentEquals:         conditionValue,
+	ConditionDockerContainerRunning:    conditionContainer,
+	ConditionDockerContainerCountEqual: conditionCount,
+}
+
 func validateCondition(condition Condition, environment string) error {
-	if condition.Container != "" && condition.Type != "docker_container_running" {
-		return fmt.Errorf("container is not supported for type %q", condition.Type)
+	allowed, known := allowedConditionFields[condition.Type]
+	if !known {
+		return fmt.Errorf("unknown type %q", condition.Type)
 	}
-	if condition.Count != nil && condition.Type != "docker_container_count_equals" {
-		return fmt.Errorf("count is not supported for type %q", condition.Type)
+	for _, field := range []struct {
+		name    string
+		present bool
+		flag    conditionFields
+	}{
+		{name: "path", present: condition.Path != "", flag: conditionPath},
+		{name: "value", present: condition.Value != "", flag: conditionValue},
+		{name: "values", present: len(condition.Values) != 0, flag: conditionValues},
+		{name: "pid", present: condition.PID != 0, flag: conditionPID},
+		{name: "container", present: condition.Container != "", flag: conditionContainer},
+		{name: "count", present: condition.Count != nil, flag: conditionCount},
+	} {
+		if field.present && allowed&field.flag == 0 {
+			return fmt.Errorf("type %q does not support %s", condition.Type, field.name)
+		}
 	}
-	pathTypes := map[string]bool{
-		"file_exists": true, "dir_exists": true, "path_missing": true,
-		"file_content_equals": true, "file_content_contains": true,
-		"file_lines_equal": true, "file_mode_equals": true, "file_owner_equals": true,
+	pathTypes := map[ConditionType]bool{
+		ConditionFileExists: true, ConditionDirectoryExists: true, ConditionPathMissing: true,
+		ConditionFileContentEquals: true, ConditionFileContentContains: true,
+		ConditionFileLinesEqual: true, ConditionFileModeEquals: true, ConditionFileOwnerEquals: true,
 	}
 	if pathTypes[condition.Type] {
 		if environment != EnvironmentSimulated {
 			return fmt.Errorf("type %q requires a simulated environment", condition.Type)
 		}
-		if err := validateAbsolutePath(condition.Type, condition.Path, condition.Type == "dir_exists"); err != nil {
+		if err := validateAbsolutePath(string(condition.Type), condition.Path, condition.Type == ConditionDirectoryExists); err != nil {
 			return err
 		}
 	}
 	switch condition.Type {
-	case "output_equals":
+	case ConditionOutputEquals:
 		return nil
-	case "output_contains", "output_not_contains":
+	case ConditionOutputContains, ConditionOutputNotContains:
 		if condition.Value == "" {
 			return fmt.Errorf("value cannot be empty")
 		}
-	case "output_contains_all":
+	case ConditionOutputContainsAll:
 		if len(condition.Values) == 0 {
 			return fmt.Errorf("values cannot be empty")
 		}
@@ -366,18 +441,18 @@ func validateCondition(condition Condition, environment string) error {
 				return fmt.Errorf("values cannot contain an empty string")
 			}
 		}
-	case "cwd_equals":
+	case ConditionCWDEquals:
 		if environment != EnvironmentSimulated {
 			return fmt.Errorf("cwd_equals requires a simulated environment")
 		}
 		return validateAbsolutePath("cwd_equals", condition.Value, true)
-	case "file_exists", "dir_exists", "path_missing", "file_content_equals":
+	case ConditionFileExists, ConditionDirectoryExists, ConditionPathMissing, ConditionFileContentEquals:
 		return nil
-	case "file_content_contains":
+	case ConditionFileContentContains:
 		if condition.Value == "" {
 			return fmt.Errorf("value cannot be empty")
 		}
-	case "file_lines_equal":
+	case ConditionFileLinesEqual:
 		if len(condition.Values) == 0 {
 			return fmt.Errorf("values cannot be empty")
 		}
@@ -386,20 +461,20 @@ func validateCondition(condition Condition, environment string) error {
 				return fmt.Errorf("line values cannot be empty")
 			}
 		}
-	case "file_mode_equals":
+	case ConditionFileModeEquals:
 		return validateMode(condition.Value)
-	case "file_owner_equals":
+	case ConditionFileOwnerEquals:
 		if strings.TrimSpace(condition.Value) == "" {
 			return fmt.Errorf("owner cannot be empty")
 		}
-	case "process_stopped", "process_running":
+	case ConditionProcessStopped, ConditionProcessRunning:
 		if environment != EnvironmentSimulated {
 			return fmt.Errorf("%s requires a simulated environment", condition.Type)
 		}
 		if condition.PID <= 0 {
 			return fmt.Errorf("PID must be positive")
 		}
-	case "env_equals":
+	case ConditionEnvironmentEquals:
 		if environment != EnvironmentSimulated {
 			return fmt.Errorf("env_equals requires a simulated environment")
 		}
@@ -407,28 +482,20 @@ func validateCondition(condition Condition, environment string) error {
 		if !found || !variablePattern.MatchString(name) {
 			return fmt.Errorf("value must be NAME=value")
 		}
-	case "docker_container_running":
+	case ConditionDockerContainerRunning:
 		if environment != EnvironmentDocker {
 			return fmt.Errorf("docker_container_running requires a docker environment")
 		}
 		if !ValidDockerLogicalName(condition.Container) {
 			return fmt.Errorf("container %q must be a lowercase logical name", condition.Container)
 		}
-		if condition.Path != "" || condition.Value != "" || len(condition.Values) != 0 || condition.PID != 0 || condition.Count != nil {
-			return fmt.Errorf("docker_container_running accepts only container")
-		}
-	case "docker_container_count_equals":
+	case ConditionDockerContainerCountEqual:
 		if environment != EnvironmentDocker {
 			return fmt.Errorf("docker_container_count_equals requires a docker environment")
 		}
 		if condition.Count == nil || *condition.Count < 0 {
 			return fmt.Errorf("count must be a non-negative integer")
 		}
-		if condition.Path != "" || condition.Value != "" || len(condition.Values) != 0 || condition.PID != 0 || condition.Container != "" {
-			return fmt.Errorf("docker_container_count_equals accepts only count")
-		}
-	default:
-		return fmt.Errorf("unknown type %q", condition.Type)
 	}
 	return nil
 }
@@ -467,21 +534,21 @@ func validateArchiveEntry(value string) (string, error) {
 
 func (c Catalog) All() []Mission {
 	items := make([]Mission, len(c.missions))
-	copy(items, c.missions)
+	for index, item := range c.missions {
+		items[index] = cloneMission(item)
+	}
 	return items
 }
 
 func (c Catalog) Find(ref string) (Mission, bool) {
 	ref = strings.TrimSpace(ref)
-	if item, ok := c.byID[ref]; ok {
-		return item, true
+	if index, ok := c.byID[ref]; ok {
+		return cloneMission(c.missions[index]), true
 	}
 	number, err := strconv.Atoi(strings.TrimLeft(ref, "0"))
 	if err == nil {
-		for _, item := range c.missions {
-			if item.Number == number {
-				return item, true
-			}
+		if index, ok := c.byNumber[number]; ok {
+			return cloneMission(c.missions[index]), true
 		}
 	}
 	return Mission{}, false
@@ -497,7 +564,7 @@ func (c Catalog) InTrack(track string) []Mission {
 	items := make([]Mission, 0)
 	for _, item := range c.missions {
 		if item.EffectiveTrack() == track {
-			items = append(items, item)
+			items = append(items, cloneMission(item))
 		}
 	}
 	return items
@@ -505,9 +572,12 @@ func (c Catalog) InTrack(track string) []Mission {
 
 // NextInTrack returns the first incomplete mission in one learning track.
 func (c Catalog) NextInTrack(track string, completed func(string) bool) (Mission, bool) {
-	for _, item := range c.InTrack(track) {
-		if !completed(item.ID) {
-			return item, true
+	if track == "" {
+		track = TrackLinux
+	}
+	for _, item := range c.missions {
+		if item.EffectiveTrack() == track && !completed(item.ID) {
+			return cloneMission(item), true
 		}
 	}
 	return Mission{}, false
@@ -516,8 +586,93 @@ func (c Catalog) NextInTrack(track string, completed func(string) bool) (Mission
 func (c Catalog) Next(completed func(string) bool) (Mission, bool) {
 	for _, item := range c.missions {
 		if !completed(item.ID) {
-			return item, true
+			return cloneMission(item), true
 		}
 	}
 	return Mission{}, false
+}
+
+// FirstInTrack returns the first mission in global catalog order for track.
+func (c Catalog) FirstInTrack(track string) (Mission, bool) {
+	if track == "" {
+		track = TrackLinux
+	}
+	for _, item := range c.missions {
+		if item.EffectiveTrack() == track {
+			return cloneMission(item), true
+		}
+	}
+	return Mission{}, false
+}
+
+// LastInTrack returns the last mission in global catalog order for track.
+func (c Catalog) LastInTrack(track string) (Mission, bool) {
+	if track == "" {
+		track = TrackLinux
+	}
+	for index := len(c.missions) - 1; index >= 0; index-- {
+		if c.missions[index].EffectiveTrack() == track {
+			return cloneMission(c.missions[index]), true
+		}
+	}
+	return Mission{}, false
+}
+
+// AdjacentInTrack returns the previous or next mission in the current
+// mission's learning track. A negative direction moves backward and a
+// positive direction moves forward; zero has no adjacent mission.
+func (c Catalog) AdjacentInTrack(currentID string, direction int) (Mission, bool) {
+	if direction == 0 {
+		return Mission{}, false
+	}
+	currentIndex, found := c.byID[currentID]
+	if !found {
+		return Mission{}, false
+	}
+	track := c.missions[currentIndex].EffectiveTrack()
+	step := 1
+	if direction < 0 {
+		step = -1
+	}
+	for index := currentIndex + step; index >= 0 && index < len(c.missions); index += step {
+		if c.missions[index].EffectiveTrack() == track {
+			return cloneMission(c.missions[index]), true
+		}
+	}
+	return Mission{}, false
+}
+
+func cloneMission(item Mission) Mission {
+	cloned := item
+	cloned.Hints = append([]string(nil), item.Hints...)
+	cloned.Setup.Directories = append([]DirectorySpec(nil), item.Setup.Directories...)
+	cloned.Setup.Files = append([]FileSpec(nil), item.Setup.Files...)
+	cloned.Setup.Processes = append([]ProcessSpec(nil), item.Setup.Processes...)
+	cloned.Setup.Archives = make([]ArchiveSpec, len(item.Setup.Archives))
+	for index, archive := range item.Setup.Archives {
+		cloned.Setup.Archives[index] = archive
+		cloned.Setup.Archives[index].Entries = append([]ArchiveEntry(nil), archive.Entries...)
+	}
+	if item.Setup.Environment != nil {
+		cloned.Setup.Environment = make(map[string]string, len(item.Setup.Environment))
+		for name, value := range item.Setup.Environment {
+			cloned.Setup.Environment[name] = value
+		}
+	}
+	if item.Docker != nil {
+		dockerSetup := *item.Docker
+		dockerSetup.Images = append([]DockerImageSpec(nil), item.Docker.Images...)
+		dockerSetup.Containers = append([]DockerContainerSpec(nil), item.Docker.Containers...)
+		cloned.Docker = &dockerSetup
+	}
+	cloned.Validation.All = make([]Condition, len(item.Validation.All))
+	for index, condition := range item.Validation.All {
+		cloned.Validation.All[index] = condition
+		cloned.Validation.All[index].Values = append([]string(nil), condition.Values...)
+		if condition.Count != nil {
+			count := *condition.Count
+			cloned.Validation.All[index].Count = &count
+		}
+	}
+	return cloned
 }

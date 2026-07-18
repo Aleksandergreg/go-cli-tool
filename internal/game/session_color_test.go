@@ -51,9 +51,9 @@ func TestSessionColorsChromeWithoutColoringSandboxOutput(t *testing.T) {
 	session := Session{
 		Mission: item,
 		Player:  &player,
-		Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:     out,
-		Err:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
 		Reader:  reader,
 		Catalog: catalog,
 		Now:     func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) },
@@ -109,9 +109,9 @@ func TestSessionUsesIndependentErrorStyle(t *testing.T) {
 	session := Session{
 		Mission:    item,
 		Player:     &player,
-		Store:      profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:      profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:        &bytes.Buffer{},
-		Err:        errOut,
+		ErrOut:     errOut,
 		Reader:     reader,
 		Catalog:    catalog,
 		Style:      ui.Style{},

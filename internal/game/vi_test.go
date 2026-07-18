@@ -346,6 +346,55 @@ func TestViRendererScrollsHorizontallyWithTheCursor(t *testing.T) {
 	}
 }
 
+func TestDisplayViWindowClipsWithoutLosingSpecialCharacterColumns(t *testing.T) {
+	tests := []struct {
+		name   string
+		line   string
+		offset int
+		width  int
+		want   string
+	}{
+		{name: "plain", line: "abcdef", offset: 2, width: 3, want: "cde"},
+		{name: "inside tab", line: "a\tb", offset: 6, width: 4, want: "  b"},
+		{name: "control notation", line: "x\x1by", offset: 1, width: 3, want: "^[y"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := displayViWindow([]rune(test.line), test.offset, test.width); got != test.want {
+				t.Fatalf("displayViWindow() = %q, want %q", got, test.want)
+			}
+		})
+	}
+}
+
+func BenchmarkRenderViLongLine(b *testing.B) {
+	editor, err := newViEditor(sandbox.EditorRequest{
+		Path:        "/work/long.txt",
+		DisplayPath: "long.txt",
+		Content:     strings.Repeat("x", maxViFileBytes),
+	})
+	if err != nil {
+		b.Fatal(err)
+	}
+	for _, benchmark := range []struct {
+		name   string
+		column int
+	}{
+		{name: "cursor-start", column: 0},
+		{name: "cursor-end", column: len(editor.lines[0]) - 1},
+	} {
+		b.Run(benchmark.name, func(b *testing.B) {
+			editor.column = benchmark.column
+			b.ReportAllocs()
+			for range b.N {
+				if err := renderViEditor(io.Discard, editor, 80, 24); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	}
+}
+
 func TestNonTerminalViRefusalDoesNotConsumeTheNextCommand(t *testing.T) {
 	catalog, err := mission.LoadCatalog()
 	if err != nil {
@@ -356,8 +405,8 @@ func TestNonTerminalViRefusalDoesNotConsumeTheNextCommand(t *testing.T) {
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
 	session := Session{
-		Mission: item, Player: &player,
-		In: strings.NewReader("vi app.env\nquit\n"), Out: out, Err: errOut, Catalog: catalog,
+		Mission: item, Player: &player, Saver: profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		In: strings.NewReader("vi app.env\nquit\n"), Out: out, ErrOut: errOut, Catalog: catalog,
 	}
 	result, err := session.Run()
 	if err != nil {
@@ -412,8 +461,8 @@ func TestViSessionCompletesOutcomeAndRecordsMastery(t *testing.T) {
 	}
 	out := &bytes.Buffer{}
 	session := Session{
-		Mission: item, Player: &player, Store: store,
-		Out: out, Err: &bytes.Buffer{}, Reader: reader, Catalog: catalog,
+		Mission: item, Player: &player, Saver: store,
+		Out: out, ErrOut: &bytes.Buffer{}, Reader: reader, Catalog: catalog,
 		Now: func() time.Time { return time.Date(2026, 7, 17, 12, 0, 0, 0, time.UTC) },
 	}
 	result, err := session.Run()

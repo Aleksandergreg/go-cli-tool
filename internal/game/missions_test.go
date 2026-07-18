@@ -116,12 +116,12 @@ func (e *missionDockerEnvironment) PromptLabel() string { return "docker" }
 func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Execution, error) {
 	switch strings.TrimSpace(line) {
 	case "docker ps -a", "docker ps --all", "docker container ls -a", "docker container ls --all":
-		return Execution{Output: "api stopped\nmetrics running\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return Execution{Output: "api stopped\nmetrics running\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	case "docker start api", "docker container start api":
 		e.running["api"] = true
-		return Execution{Output: "api\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return Execution{Output: "api\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	case "docker start metrics", "docker container start metrics":
-		return Execution{Output: "metrics\n", Commands: []string{"docker"}, PipelineWidth: 1}, nil
+		return Execution{Output: "metrics\n", PracticedCommands: []string{"docker"}, PipelineWidth: 1}, nil
 	default:
 		return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
 	}

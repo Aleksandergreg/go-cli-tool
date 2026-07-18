@@ -111,6 +111,16 @@ func seamCatalogMission(t *testing.T, ref string) (mission.Catalog, mission.Miss
 	return catalog, item
 }
 
+func TestSessionRejectsMissingCoreDependencies(t *testing.T) {
+	player := profile.New("tester")
+	if _, err := (Session{}).Run(); err == nil || !strings.Contains(err.Error(), "player profile") {
+		t.Fatalf("Session without player error = %v", err)
+	}
+	if _, err := (Session{Player: &player}).Run(); err == nil || !strings.Contains(err.Error(), "profile persistence") {
+		t.Fatalf("Session without saver error = %v", err)
+	}
+}
+
 func TestSessionUsesFactoryContextAndClosesBeforeAwardingXP(t *testing.T) {
 	catalog, item := seamCatalogMission(t, "1")
 	player := profile.New("tester")
@@ -128,7 +138,7 @@ func TestSessionUsesFactoryContextAndClosesBeforeAwardingXP(t *testing.T) {
 			if line != "solve" {
 				return Execution{}, fmt.Errorf("unexpected command %q", line)
 			}
-			return Execution{Output: "/home/operator\n", Commands: []string{"solve"}}, nil
+			return Execution{Output: "/home/operator\n", PracticedCommands: []string{"solve"}}, nil
 		},
 		observe: func(_ context.Context, condition mission.Condition) (bool, error) {
 			return false, fmt.Errorf("output condition %s was delegated", condition.Type)
@@ -151,9 +161,9 @@ func TestSessionUsesFactoryContextAndClosesBeforeAwardingXP(t *testing.T) {
 	session := Session{
 		Mission: item,
 		Player:  &player,
-		Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:     out,
-		Err:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
 		Reader:  reader,
 		Catalog: catalog,
 		Context: ctx,
@@ -223,9 +233,9 @@ func TestSessionClosesEnvironmentOnEveryTerminalPath(t *testing.T) {
 			session := Session{
 				Mission: test.item,
 				Player:  &player,
-				Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+				Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 				Out:     &bytes.Buffer{},
-				Err:     &bytes.Buffer{},
+				ErrOut:  &bytes.Buffer{},
 				Reader:  test.reader,
 				Catalog: catalog,
 				Factory: FactoryFunc(func(context.Context, mission.Mission) (Environment, error) {
@@ -274,9 +284,9 @@ func TestSessionRestartClosesAndRecreatesEnvironment(t *testing.T) {
 	session := Session{
 		Mission: item,
 		Player:  &player,
-		Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:     &bytes.Buffer{},
-		Err:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
 		Reader:  reader,
 		Catalog: catalog,
 		Factory: factory,
@@ -308,9 +318,9 @@ func TestSessionCancellationDuringExecutionClosesEnvironment(t *testing.T) {
 	session := Session{
 		Mission: item,
 		Player:  &player,
-		Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:     &bytes.Buffer{},
-		Err:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
 		Reader:  &seamReader{lines: []string{"solve"}},
 		Catalog: catalog,
 		Context: ctx,
@@ -326,23 +336,30 @@ func TestSessionCancellationDuringExecutionClosesEnvironment(t *testing.T) {
 	}
 }
 
-func TestCompletionCleanupFailurePreventsXPAndIsNotRetried(t *testing.T) {
+func TestCompletionCleanupFailurePreventsXPAndIsRetriedByDefer(t *testing.T) {
 	catalog, item := seamCatalogMission(t, "1")
 	closeFailure := errors.New("cleanup failed")
+	closeAttempts := 0
 	environment := &seamEnvironment{
 		prompt: "/test",
 		execute: func(context.Context, string) (Execution, error) {
 			return Execution{Output: "/home/operator\n"}, nil
 		},
-		close: func() error { return closeFailure },
+		close: func() error {
+			closeAttempts++
+			if closeAttempts == 1 {
+				return closeFailure
+			}
+			return nil
+		},
 	}
 	player := profile.New("tester")
 	session := Session{
 		Mission: item,
 		Player:  &player,
-		Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:     &bytes.Buffer{},
-		Err:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
 		Reader:  &seamReader{lines: []string{"solve"}},
 		Catalog: catalog,
 		Factory: FactoryFunc(func(context.Context, mission.Mission) (Environment, error) { return environment, nil }),
@@ -355,8 +372,8 @@ func TestCompletionCleanupFailurePreventsXPAndIsNotRetried(t *testing.T) {
 	if player.XP != 0 || player.IsComplete(item.ID) {
 		t.Fatalf("cleanup failure awarded completion: XP = %d, completed = %v", player.XP, player.IsComplete(item.ID))
 	}
-	if environment.closeCount != 1 {
-		t.Fatalf("Close() calls = %d, want one idempotent attempt", environment.closeCount)
+	if environment.closeCount != 2 {
+		t.Fatalf("Close() calls = %d, want explicit attempt plus deferred retry", environment.closeCount)
 	}
 }
 
@@ -368,9 +385,9 @@ func TestDeferredCleanupFailureIsReturnedOnce(t *testing.T) {
 	session := Session{
 		Mission: item,
 		Player:  &player,
-		Store:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
 		Out:     &bytes.Buffer{},
-		Err:     &bytes.Buffer{},
+		ErrOut:  &bytes.Buffer{},
 		Reader:  &seamReader{lines: []string{"quit"}},
 		Catalog: catalog,
 		Factory: FactoryFunc(func(context.Context, mission.Mission) (Environment, error) { return environment, nil }),
@@ -507,23 +524,5 @@ func TestValidateAndProgressKeepSandboxCompatibility(t *testing.T) {
 	satisfied, total, err := Progress(validation, box, "wrong")
 	if err != nil || satisfied != 1 || total != 2 {
 		t.Fatalf("Progress() = %d/%d, %v", satisfied, total, err)
-	}
-}
-
-func TestAdjacentMissionStaysWithinTrack(t *testing.T) {
-	catalog, linuxBeforeDocker := seamCatalogMission(t, "16")
-	_, docker := seamCatalogMission(t, "17")
-	_, linuxAfterDocker := seamCatalogMission(t, "18")
-	if next, found := adjacentMission(catalog, linuxBeforeDocker.ID, 1); !found || next.ID != linuxAfterDocker.ID {
-		t.Fatalf("Linux next did not skip Docker mission: %#v, %v", next, found)
-	}
-	if previous, found := adjacentMission(catalog, linuxAfterDocker.ID, -1); !found || previous.ID != linuxBeforeDocker.ID {
-		t.Fatalf("Linux previous did not skip Docker mission: %#v, %v", previous, found)
-	}
-	if previous, found := adjacentMission(catalog, docker.ID, -1); found {
-		t.Fatalf("Docker previous crossed into Linux track: %#v", previous)
-	}
-	if next, found := adjacentMission(catalog, docker.ID, 1); found {
-		t.Fatalf("Docker next crossed into Linux track: %#v", next)
 	}
 }

@@ -29,7 +29,6 @@ const (
 type Sandbox struct {
 	FS        *FileSystem
 	CWD       string
-	Previous  string
 	Env       map[string]string
 	Processes map[int]*Process
 	Archives  map[string]Archive
@@ -71,7 +70,9 @@ func New(setup mission.Setup, startDir string) (*Sandbox, error) {
 			return nil, err
 		}
 		if file.Owner != "" {
-			_ = box.FS.Chown(file.Path, file.Owner)
+			if err := box.FS.Chown(file.Path, file.Owner); err != nil {
+				return nil, fmt.Errorf("file %s: %w", file.Path, err)
+			}
 		}
 	}
 	for _, process := range setup.Processes {
@@ -233,9 +234,13 @@ func (s *Sandbox) moveArchiveMetadata(source, destination string) {
 }
 
 func (s *Sandbox) removeArchiveMetadata(target string) {
-	for archivePath := range s.Archives {
+	removeArchiveMetadata(s.Archives, target)
+}
+
+func removeArchiveMetadata(archives map[string]Archive, target string) {
+	for archivePath := range archives {
 		if archivePath == target || strings.HasPrefix(archivePath, target+"/") {
-			delete(s.Archives, archivePath)
+			delete(archives, archivePath)
 		}
 	}
 }

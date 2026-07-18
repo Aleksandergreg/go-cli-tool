@@ -63,9 +63,9 @@ func (e *sandboxEnvironment) Execute(ctx context.Context, line string) (Executio
 	}
 	result, err := e.box.Execute(line)
 	execution := Execution{
-		Output:        result.Output,
-		Commands:      append([]string(nil), result.Commands...),
-		PipelineWidth: result.PipelineWidth,
+		Output:            result.Output,
+		PracticedCommands: append([]string(nil), result.Commands...),
+		PipelineWidth:     result.PipelineWidth,
 	}
 	if result.Editor != nil {
 		request := *result.Editor
@@ -84,28 +84,28 @@ func (e *sandboxEnvironment) Observe(ctx context.Context, condition mission.Cond
 		return false, err
 	}
 	switch condition.Type {
-	case "cwd_equals":
+	case mission.ConditionCWDEquals:
 		return e.box.CWD == condition.Value, nil
-	case "file_exists":
+	case mission.ConditionFileExists:
 		entry, exists := e.box.FS.Entry(condition.Path)
 		return exists && entry.Kind == sandbox.Regular, nil
-	case "dir_exists":
+	case mission.ConditionDirectoryExists:
 		return e.box.FS.IsDir(condition.Path), nil
-	case "path_missing":
+	case mission.ConditionPathMissing:
 		return !e.box.FS.Exists(condition.Path), nil
-	case "file_content_equals":
+	case mission.ConditionFileContentEquals:
 		content, err := e.box.FS.ReadFile(condition.Path)
 		if err != nil {
 			return false, nil
 		}
 		return normalizeText(content) == normalizeText(condition.Value), nil
-	case "file_content_contains":
+	case mission.ConditionFileContentContains:
 		content, err := e.box.FS.ReadFile(condition.Path)
 		if err != nil {
 			return false, nil
 		}
 		return strings.Contains(content, condition.Value), nil
-	case "file_lines_equal":
+	case mission.ConditionFileLinesEqual:
 		content, err := e.box.FS.ReadFile(condition.Path)
 		if err != nil {
 			return false, nil
@@ -120,7 +120,7 @@ func (e *sandboxEnvironment) Observe(ctx context.Context, condition mission.Cond
 			}
 		}
 		return true, nil
-	case "file_mode_equals":
+	case mission.ConditionFileModeEquals:
 		entry, exists := e.box.FS.Entry(condition.Path)
 		if !exists || entry.Kind != sandbox.Regular {
 			return false, nil
@@ -130,16 +130,16 @@ func (e *sandboxEnvironment) Observe(ctx context.Context, condition mission.Cond
 			return false, fmt.Errorf("invalid validation mode %q", condition.Value)
 		}
 		return entry.Mode == uint32(expected), nil
-	case "file_owner_equals":
+	case mission.ConditionFileOwnerEquals:
 		entry, exists := e.box.FS.Entry(condition.Path)
 		return exists && entry.Kind == sandbox.Regular && entry.Owner == condition.Value, nil
-	case "process_stopped":
+	case mission.ConditionProcessStopped:
 		process, exists := e.box.Processes[condition.PID]
 		return exists && !process.Running, nil
-	case "process_running":
+	case mission.ConditionProcessRunning:
 		process, exists := e.box.Processes[condition.PID]
 		return exists && process.Running, nil
-	case "env_equals":
+	case mission.ConditionEnvironmentEquals:
 		key, expected, found := strings.Cut(condition.Value, "=")
 		if !found {
 			return false, fmt.Errorf("env_equals value must be NAME=value")

@@ -1,8 +1,8 @@
 # OpsQuest — current implementation brief
 
-OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. It teaches Linux through short, story-driven operations missions while keeping all player commands inside a deterministic, in-memory environment.
+OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. Its Linux curriculum runs through short, story-driven operations missions in deterministic, in-memory environments; the current release also includes one optional Docker Foundations lab backed by isolated, attempt-owned containers.
 
-The current executable reports version **0.3.0**. It includes the first optional Docker Foundations vertical slice. Kubernetes remains a later expansion and is not implemented.
+The current executable reports version **0.3.0**. Kubernetes remains a later expansion and is not implemented.
 
 ## Product today
 
@@ -31,7 +31,7 @@ Each mission contains:
 - A short incident or story
 - Declarative setup for an isolated virtual environment
 - An objective that does not prescribe one exact command
-- Between one and several progressive hints with XP penalties
+- Between one and five progressive hints with XP penalties
 - One or more observable validation conditions
 - A completion explanation and XP reward
 
@@ -106,6 +106,8 @@ The parser supports:
 
 Unknown commands fail. There is no fallback to a host executable.
 
+Navigation keeps the sandbox working directory and `PWD` synchronized. `OLDPWD` is the single source of truth for `cd -`; scripts snapshot and restore it with the rest of their child-shell environment.
+
 ## Interactive terminal and vi
 
 The mission prompt supports Tab completion against the virtual filesystem, Up/Down history, arrows, Home/End, common word movement, Backspace, forward Delete, and bracketed-paste isolation.
@@ -152,7 +154,9 @@ The runner is deliberately bounded:
 - 1 MiB of collected output per script
 - Direct and indirect recursion rejection
 
-The shared sandbox also limits command lines to 64 KiB, each virtual file and command result to 2 MiB, total virtual-file content and logical archive content to 8 MiB each, and filesystem paths and archive entries to 4,096 each. The virtual environment is capped at 256 entries and 256 KiB. Writes, appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their affected state before committing it.
+The shared teaching shell limits each command line to 64 KiB. After variable and glob expansion, one line may contain at most 2 MiB of token text and 4,096 arguments. A pipeline may contain at most 64 stages, and one top-level execution may dispatch at most 512 commands across pipelines, `find -exec`, and nested scripts.
+
+Each virtual file and command result is capped at 2 MiB; aggregate virtual-filesystem content and logical archive payload are capped at 8 MiB each. Virtual paths are limited to 4,096 bytes, and the filesystem and archive metadata may each contain at most 4,096 entries. The virtual environment is capped at 256 entries and 256 KiB. Expansion and pipeline limits are checked before any stage mutates state. Writes, appends, recursive directory creation and copies, environment updates, and archive creation and copying preflight their affected state; archive extraction applies its filesystem and metadata changes transactionally only after every entry succeeds.
 
 The following are intentionally unsupported:
 
@@ -163,6 +167,7 @@ The following are intentionally unsupported:
 - Backtick or `$()` command substitution
 - Positional and special parameters such as `$1` and `$?`
 - External binaries, host shell escapes, and interactive `vi` inside a script
+- `tar -C` during archive creation or listing; destination changes are extraction-only
 
 Script output may feed a later pipeline stage or be redirected to a virtual file. Feeding pipeline or redirected input into a script is rejected because this teaching model does not emulate one shared script stdin stream.
 
@@ -184,13 +189,13 @@ Docker remains an optional capability. The Linux track, profile loading, normal 
 
 The first supported teaching subset is deliberately narrow: `docker ps`, `docker container ls`, `start`, `restart`, and `inspect`, plus lab help. Player text is parsed into typed actions before OpsQuest constructs fixed Docker CLI arguments; the raw line is never given to a host shell or unrestricted Docker invocation.
 
-Each attempt maps stable logical aliases such as `api` to generated engine names and exact returned container IDs. Resources are labeled with the mission and a cryptographically random session identifier, run without a network as a non-root user with a read-only filesystem, dropped capabilities, `no-new-privileges`, and bounded CPU, memory, process, and file-descriptor limits. Cleanup verifies ownership labels before removing exact IDs and is idempotent across completion, quit, restart, switching, setup failure, Ctrl-C cancellation, and ordinary errors. Labs never request privileged mode, host bind mounts, host networking, host PID/IPC namespace sharing, devices, or a mounted Docker socket.
+Each attempt maps stable logical aliases such as `api` to generated engine names and exact returned container IDs. A mission may declare at most 16 image aliases and 32 containers. Resources are labeled with the mission and a cryptographically random session identifier, run without a network as a non-root user with a read-only filesystem, dropped capabilities, `no-new-privileges`, and bounded CPU, memory, process, and file-descriptor limits. Cleanup verifies ownership labels before removing exact IDs and is idempotent across completion, quit, restart, switching, setup failure, Ctrl-C cancellation, and ordinary errors. Once cleanup begins, the lab rejects further commands; if inspection or removal fails, unresolved owned containers remain pending so a later close retries them, and the attempt is marked closed only after cleanup succeeds. Labs never request privileged mode, host bind mounts, host networking, host PID/IPC namespace sharing, devices, or a mounted Docker socket.
 
 Docker mission validation observes only resources labeled for the current attempt. Container Census requires both original tracked containers to be running and queries ownership labels to require exactly two attempt containers, so an additional attempt-owned replacement cannot satisfy the objective. Existing profile version 2 remains compatible: mission completion maps accept the stable IDs, while Linux percentages and new Linux Completionist unlocks now consider all 19 Linux missions. Achievements are monotonic, so a Completionist achievement earned before the curriculum expanded remains unlocked.
 
 ## Mission format
 
-Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, and validation types.
+Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, supported difficulties, one-to-five hint counts, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, validation field shapes, and bounded Docker fixtures. Lookups return deep copies so runtime adapters cannot mutate embedded content.
 
 Each mission has this conceptual shape:
 
@@ -208,18 +213,18 @@ Mission content remains declarative. Parser, command, filesystem, profile, and v
 ## Repository architecture
 
 ```text
-cmd/opsquest/       Executable entry point
-internal/cli/       Top-level commands, flags, help, and presentation
+cmd/opsquest/       Composition root and executable entry point
+internal/cli/       Top-level commands, flags, help, and adapter-independent presentation
 internal/ui/        Terminal-aware ANSI styles and color policy
 internal/game/      Sessions, rewards, terminal input, vi, and outcome validation
-internal/mission/   Mission schema, strict catalog loading, and embedded JSON data
+internal/mission/   Mission contracts, immutable catalog views, and embedded JSON data
 internal/profile/   Versioned progress model and atomic JSON persistence
 internal/sandbox/   Parser, dispatcher, virtual state, commands, and script runner
 internal/dockerlab/ Optional typed Docker adapter and attempt-owned resource lifecycle
 scripts/            Deterministic checks shared by local development and CI
 ```
 
-The environment interface is the gameplay boundary. The simulated implementation owns virtual paths, environment variables, processes, archive metadata, command history, nested command tracing, and resource limits; the optional Docker implementation owns only its labeled, attempt-scoped containers.
+The executable constructs the catalog, profile store, and combined environment factory, then injects them into the CLI. The environment interface is the gameplay boundary. The simulated implementation owns virtual paths, environment variables, processes, archive metadata, command history, nested command tracing, and resource limits; the optional Docker implementation owns only its labeled, attempt-scoped containers. Catalog lookups return deep copies so adapters cannot mutate embedded mission definitions.
 
 ## Safety and compatibility invariants
 

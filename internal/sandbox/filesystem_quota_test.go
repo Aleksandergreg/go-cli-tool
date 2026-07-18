@@ -310,11 +310,11 @@ func TestEnvironmentQuotasAreAtomic(t *testing.T) {
 		if !reflect.DeepEqual(box.Env, before) {
 			t.Error("rejected environment entry changed state")
 		}
-		beforeCWD, beforePrevious := box.CWD, box.Previous
+		beforeCWD := box.CWD
 		if _, err := box.cmdCD([]string{"/out"}); err == nil {
 			t.Error("cd that requires an over-limit OLDPWD entry unexpectedly succeeded")
 		}
-		if box.CWD != beforeCWD || box.Previous != beforePrevious || !reflect.DeepEqual(box.Env, before) {
+		if box.CWD != beforeCWD || !reflect.DeepEqual(box.Env, before) {
 			t.Error("rejected cd changed navigation or environment state")
 		}
 	})

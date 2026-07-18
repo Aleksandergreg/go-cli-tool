@@ -193,7 +193,6 @@ func TestShRestoresWorkingDirectoryAndEnvironmentWhileKeepingFiles(t *testing.T)
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			box := testSandbox(t)
-			box.Previous = "/previous"
 			box.Env["OLDPWD"] = "/previous"
 			beforeEnv := cloneEnvironment(box.Env)
 			writeTestScript(t, box, "state.sh", test.script, 0o644)
@@ -202,8 +201,8 @@ func TestShRestoresWorkingDirectoryAndEnvironmentWhileKeepingFiles(t *testing.T)
 			if (err != nil) != test.wantError {
 				t.Fatalf("Execute() error = %v, wantError %v", err, test.wantError)
 			}
-			if box.CWD != "/work" || box.Previous != "/previous" {
-				t.Errorf("restored navigation = CWD %q Previous %q", box.CWD, box.Previous)
+			if box.CWD != "/work" {
+				t.Errorf("restored CWD = %q, want /work", box.CWD)
 			}
 			if !reflect.DeepEqual(box.Env, beforeEnv) {
 				t.Errorf("restored environment = %#v, want %#v", box.Env, beforeEnv)

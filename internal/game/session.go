@@ -7,6 +7,7 @@ import (
 	"io"
 	"strings"
 	"time"
+	"unicode"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
@@ -16,10 +17,10 @@ import (
 type Session struct {
 	Mission      mission.Mission
 	Player       *profile.Profile
-	Store        profile.Store
+	Saver        ProfileSaver
 	In           io.Reader
 	Out          io.Writer
-	Err          io.Writer
+	ErrOut       io.Writer
 	Reader       CommandLineReader
 	Catalog      mission.Catalog
 	ListMissions func([]string) error
@@ -28,6 +29,12 @@ type Session struct {
 	ErrorStyle   ui.Style
 	Context      context.Context
 	Factory      Factory
+}
+
+// ProfileSaver is the narrow persistence boundary a mission attempt needs.
+// Loading, reset, and profile-path concerns stay in the CLI layer.
+type ProfileSaver interface {
+	Save(profile.Profile) error
 }
 
 type SessionResult struct {
@@ -41,6 +48,21 @@ type SessionResult struct {
 }
 
 func (s Session) Run() (returnResult SessionResult, returnErr error) {
+	if s.Player == nil {
+		return SessionResult{}, fmt.Errorf("mission session requires a player profile")
+	}
+	if s.Saver == nil {
+		return SessionResult{}, fmt.Errorf("mission session requires profile persistence")
+	}
+	if s.In == nil {
+		s.In = strings.NewReader("")
+	}
+	if s.Out == nil {
+		s.Out = io.Discard
+	}
+	if s.ErrOut == nil {
+		s.ErrOut = io.Discard
+	}
 	ctx := s.Context
 	if ctx == nil {
 		ctx = context.Background()
@@ -90,26 +112,30 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		if line == "" {
 			continue
 		}
-		if fields, navigation := missionNavigationFields(line); navigation {
+		if fields, navigation, navigationErr := missionNavigationFields(line); navigation {
+			if navigationErr != nil {
+				fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("invalid mission navigation: "+navigationErr.Error()))
+				continue
+			}
 			switch fields[0] {
 			case "list", "missions":
 				if s.ListMissions == nil {
-					fmt.Fprintln(s.Err, s.ErrorStyle.Failure("mission listing is unavailable in this session"))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("mission listing is unavailable in this session"))
 					continue
 				}
 				if err := s.ListMissions(fields[1:]); err != nil {
-					fmt.Fprintln(s.Err, s.ErrorStyle.Failure(err.Error()))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(err.Error()))
 				}
 				continue
 			case "play":
 				if len(fields) != 2 {
-					fmt.Fprintln(s.Err, s.ErrorStyle.Failure("usage inside a mission: play MISSION"))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: play MISSION"))
 					continue
 				}
 				target, found := s.Catalog.Find(fields[1])
 				if !found {
 					message := fmt.Sprintf("mission %q not found; use list to see available missions", fields[1])
-					fmt.Fprintln(s.Err, s.ErrorStyle.Failure(message))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
 					continue
 				}
 				if target.ID == s.Mission.ID {
@@ -126,10 +152,10 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				}
 				if len(fields) != 1 {
 					message := fmt.Sprintf("%s does not accept arguments", fields[0])
-					fmt.Fprintln(s.Err, s.ErrorStyle.Failure(message))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
 					continue
 				}
-				target, found := adjacentMission(s.Catalog, s.Mission.ID, direction)
+				target, found := s.Catalog.AdjacentInTrack(s.Mission.ID, direction)
 				if !found {
 					message := fmt.Sprintf("Mission %02d is already at this end of the catalog.", s.Mission.Number)
 					fmt.Fprintln(s.Out, s.Style.Warning(message))
@@ -150,7 +176,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				continue
 			}
 			hintsUsed = s.Player.RecordHint(s.Mission.ID)
-			if err := s.Store.Save(*s.Player); err != nil {
+			if err := s.Saver.Save(*s.Player); err != nil {
 				return SessionResult{}, err
 			}
 			penalty := s.Mission.Rewards.HintPenalty
@@ -188,7 +214,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			if err := ctx.Err(); err != nil {
 				return SessionResult{}, fmt.Errorf("execute command: %w", err)
 			}
-			fmt.Fprintln(s.Err, s.ErrorStyle.Failure(executeErr.Error()))
+			fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(executeErr.Error()))
 			continue
 		}
 		if err := ctx.Err(); err != nil {
@@ -201,7 +227,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			if err := result.Interactive.Run(reader); err != nil {
 				if errors.Is(err, ErrInteractiveEditor) || errors.Is(err, ErrUnsupportedEditorFile) {
 					message := fmt.Sprintf("%s: %v", result.Interactive.Command, err)
-					fmt.Fprintln(s.Err, s.ErrorStyle.Failure(message))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
 					continue
 				}
 				return SessionResult{}, fmt.Errorf("run %s: %w", result.Interactive.Command, err)
@@ -214,7 +240,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			}
 		}
 		lastOutput = result.Output
-		for _, command := range result.Commands {
+		for _, command := range result.PracticedCommands {
 			if !practicedSet[command] {
 				practiced = append(practiced, command)
 				practicedSet[command] = true
@@ -224,15 +250,14 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				discoveredSet[command] = true
 			}
 		}
-		s.Player.RecordCommands(result.Commands)
+		s.Player.RecordCommands(result.PracticedCommands)
 		unlocked := make([]profile.Achievement, 0)
+		achievementTime := s.Now()
 		if result.PipelineWidth >= 3 {
-			unlocked = unlock(s.Player, "pipe-dream", s.Now(), unlocked)
+			unlocked = unlock(s.Player, profile.AchievementPipeDream, achievementTime, unlocked)
 		}
-		if len(s.Player.Commands) >= 10 {
-			unlocked = unlock(s.Player, "command-collector", s.Now(), unlocked)
-		}
-		if err := s.Store.Save(*s.Player); err != nil {
+		unlocked = append(unlocked, ReconcileCommandAchievements(s.Player, achievementTime)...)
+		if err := s.Saver.Save(*s.Player); err != nil {
 			return SessionResult{}, err
 		}
 
@@ -256,20 +281,9 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		if !firstCompletion {
 			xp = 0
 		} else {
-			if len(s.Player.Completed) == 1 {
-				unlocked = unlock(s.Player, "first-fix", completedAt, unlocked)
-			}
-			if s.Player.HintFreeCompletions() >= 5 {
-				unlocked = unlock(s.Player, "self-reliant", completedAt, unlocked)
-			}
-			if s.Mission.Difficulty == "advanced" {
-				unlocked = unlock(s.Player, "boss-slayer", completedAt, unlocked)
-			}
-			if HasCompletedCatalog(*s.Player, s.Catalog) {
-				unlocked = unlock(s.Player, "linux-completionist", completedAt, unlocked)
-			}
+			unlocked = append(unlocked, ReconcileAchievements(s.Player, s.Catalog, completedAt)...)
 		}
-		if err := s.Store.Save(*s.Player); err != nil {
+		if err := s.Saver.Save(*s.Player); err != nil {
 			return SessionResult{}, err
 		}
 		printCompletion(s.Out, s.Mission, xp, firstCompletion, practiced, discovered, unlocked, s.Style)
@@ -294,8 +308,8 @@ func printMission(out io.Writer, item mission.Mission, hintsUsed int, style ui.S
 }
 
 func printMissionControls(out io.Writer, style ui.Style) {
-	fmt.Fprintf(out, "Mission controls: %s, %s, %s, %s, %s. Type %s to see completed and missing outcomes.\n",
-		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"), style.Accent("status"))
+	fmt.Fprintf(out, "Mission controls: %s, %s, %s, %s. Type %s to see completed and missing outcomes.\n",
+		style.Accent("hint"), style.Accent("objective"), style.Accent("restart"), style.Accent("quit"), style.Accent("status"))
 	fmt.Fprintf(out, "Navigation: %s, %s, %s, %s. An optional %s prefix also works.\n",
 		style.Accent("list --completed"), style.Accent("play NUMBER/ID"), style.Accent("next"), style.Accent("previous"), style.Accent("opsquest"))
 	fmt.Fprintf(out, "Type %s for lab commands; valid solutions are judged by their result, not by one command sequence.\n", style.Accent("help"))
@@ -305,43 +319,103 @@ func printMissionControls(out io.Writer, style ui.Style) {
 		style.Accent("Option/Ctrl-Left/Right"), style.Accent("Tab"), style.Accent("Backspace"), style.Accent("Delete"), style.Accent("Ctrl-W"))
 }
 
-func missionNavigationFields(line string) ([]string, bool) {
-	fields := strings.Fields(line)
+func missionNavigationFields(line string) ([]string, bool, error) {
+	fields, err := splitMissionNavigation(line)
 	if len(fields) == 0 {
-		return nil, false
+		return nil, false, nil
 	}
-	if fields[0] == "opsquest" {
+	prefixed := fields[0] == "opsquest"
+	if prefixed {
 		fields = fields[1:]
 		if len(fields) == 0 {
-			return []string{"missions"}, true
+			if err != nil {
+				return nil, true, err
+			}
+			return []string{"missions"}, true, nil
 		}
 	}
 	switch fields[0] {
 	case "list", "missions", "play", "next", "previous", "prev":
-		return fields, true
+		return fields, true, err
 	default:
-		return nil, false
+		if prefixed && err != nil {
+			return nil, true, err
+		}
+		// Non-navigation input belongs to the active environment, including its
+		// own quote and escape errors.
+		return nil, false, nil
 	}
 }
 
-func adjacentMission(catalog mission.Catalog, currentID string, direction int) (mission.Mission, bool) {
-	if direction == 0 {
-		return mission.Mission{}, false
+// splitMissionNavigation parses the small, host-independent argument syntax
+// accepted by in-mission navigation. It deliberately performs no expansion or
+// command execution: whitespace separates fields, quotes group text, and a
+// backslash escapes the next character outside single quotes.
+func splitMissionNavigation(line string) ([]string, error) {
+	fields := make([]string, 0)
+	var field strings.Builder
+	var quote rune
+	escaped := false
+	started := false
+
+	flush := func() {
+		if !started {
+			return
+		}
+		fields = append(fields, field.String())
+		field.Reset()
+		started = false
 	}
-	items := catalog.All()
-	for index, item := range items {
-		if item.ID != currentID {
+
+	for _, char := range line {
+		if escaped {
+			field.WriteRune(char)
+			escaped = false
+			started = true
 			continue
 		}
-		track := item.EffectiveTrack()
-		for target := index + direction; target >= 0 && target < len(items); target += direction {
-			if items[target].EffectiveTrack() == track {
-				return items[target], true
+		if quote != 0 {
+			if char == quote {
+				quote = 0
+				continue
 			}
+			if quote == '"' && char == '\\' {
+				escaped = true
+				continue
+			}
+			field.WriteRune(char)
+			continue
 		}
-		return mission.Mission{}, false
+
+		switch {
+		case unicode.IsSpace(char):
+			flush()
+		case char == '\'' || char == '"':
+			quote = char
+			started = true
+		case char == '\\':
+			escaped = true
+			started = true
+		default:
+			field.WriteRune(char)
+			started = true
+		}
 	}
-	return mission.Mission{}, false
+
+	if escaped {
+		flush()
+		return fields, fmt.Errorf("unfinished escape")
+	}
+	if quote != 0 {
+		flush()
+		name := "single"
+		if quote == '"' {
+			name = "double"
+		}
+		return fields, fmt.Errorf("unterminated %s quote", name)
+	}
+	flush()
+	return fields, nil
 }
 
 func printMissionSwitch(out io.Writer, target mission.Mission, style ui.Style) {
