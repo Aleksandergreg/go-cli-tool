@@ -7,6 +7,7 @@
   "story": "The on-call handover says to run the same pipeline every hour. Somebody helpfully saved it as a script, then filtered the warnings instead of the errors and forgot to make it executable.",
   "objective": "Repair /workspace/error-report.sh so it filters ERROR incidents, set its mode to 750, and use it to create /reports/error-services.txt containing each affected service once in sorted order.",
   "start_dir": "/workspace",
+  "suggested_commands": ["cat", "less", "vi", "sed", "chmod", "sh"],
   "hints": [
     "A shell script stores commands for repeatable execution. Inspect error-report.sh with cat, less, or vi, and use help sh to review the safe runner.",
     "The pipeline is already present, but its grep severity is wrong. You can edit it with vi or make a targeted replacement with sed -i.",

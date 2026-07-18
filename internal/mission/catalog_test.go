@@ -327,6 +327,33 @@ func TestMissionValidationRejectsUnknownDifficultyAndInvalidHintCount(t *testing
 	}
 }
 
+func TestMissionValidationRejectsInvalidSuggestedCommands(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	base, _ := catalog.Find("linux-orientation")
+	tests := []struct {
+		name     string
+		commands []string
+		wantErr  string
+	}{
+		{name: "missing", commands: nil, wantErr: "at least one suggested command"},
+		{name: "blank", commands: []string{""}, wantErr: "lowercase command name"},
+		{name: "syntax instead of command name", commands: []string{"grep ERROR"}, wantErr: "lowercase command name"},
+		{name: "duplicate", commands: []string{"pwd", "pwd"}, wantErr: "duplicate suggested command"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			item := base
+			item.SuggestedCommands = test.commands
+			if err := validateMission(item); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+				t.Fatalf("validateMission() error = %v, want substring %q", err, test.wantErr)
+			}
+		})
+	}
+}
+
 func TestMissionValidationRejectsFieldsOutsideConditionContract(t *testing.T) {
 	catalog, err := LoadCatalog()
 	if err != nil {
@@ -374,11 +401,12 @@ func TestCatalogResultsCannotMutateCatalogState(t *testing.T) {
 	}
 
 	archive, _ := catalog.Find("9")
+	archive.SuggestedCommands[0] = "changed"
 	archive.Hints[0] = "changed"
 	archive.Setup.Archives[0].Entries[0].Content = "changed"
 	archiveAgain, _ := catalog.Find("9")
-	if archiveAgain.Hints[0] == "changed" || archiveAgain.Setup.Archives[0].Entries[0].Content == "changed" {
-		t.Fatal("Find returned catalog-owned hint or archive storage")
+	if archiveAgain.SuggestedCommands[0] == "changed" || archiveAgain.Hints[0] == "changed" || archiveAgain.Setup.Archives[0].Entries[0].Content == "changed" {
+		t.Fatal("Find returned catalog-owned teaching or archive storage")
 	}
 
 	lines, _ := catalog.Find("12")

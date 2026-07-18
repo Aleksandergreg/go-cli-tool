@@ -95,6 +95,28 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 	}
 }
 
+func TestEveryMissionSuggestsCommandsSupportedByItsEnvironment(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	linuxCommands := make(map[string]bool)
+	for _, command := range sandbox.CommandNames() {
+		linuxCommands[command] = true
+	}
+	for _, item := range catalog.All() {
+		for _, command := range item.SuggestedCommands {
+			supported := linuxCommands[command]
+			if item.EffectiveEnvironment() == mission.EnvironmentDocker {
+				supported = command == "docker"
+			}
+			if !supported {
+				t.Errorf("mission %s suggests unsupported %s command %q", item.ID, item.EffectiveEnvironment(), command)
+			}
+		}
+	}
+}
+
 func canonicalMissionEnvironment(item mission.Mission) (Environment, error) {
 	if item.EffectiveEnvironment() == mission.EnvironmentDocker {
 		return newMissionDockerEnvironment(), nil

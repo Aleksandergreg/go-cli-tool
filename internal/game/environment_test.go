@@ -121,6 +121,35 @@ func TestSessionRejectsMissingCoreDependencies(t *testing.T) {
 	}
 }
 
+func TestObjectiveRecallsSuggestedCommandsWithoutUsingHint(t *testing.T) {
+	catalog, item := seamCatalogMission(t, "4")
+	player := profile.New("tester")
+	out := &bytes.Buffer{}
+	session := Session{
+		Mission: item,
+		Player:  &player,
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Out:     out,
+		ErrOut:  &bytes.Buffer{},
+		Reader:  &seamReader{lines: []string{"objective", "quit"}},
+		Catalog: catalog,
+	}
+
+	result, err := session.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Quit || result.HintsUsed != 0 || player.MissionHints(item.ID) != 0 {
+		t.Fatalf("result = %#v, persisted hints = %d", result, player.MissionHints(item.ID))
+	}
+	if got := strings.Count(out.String(), "Commands you may need to solve this level:"); got != 2 {
+		t.Fatalf("command guide occurrences = %d, want mission intro and objective recall\n%s", got, out.String())
+	}
+	if got := strings.Count(out.String(), "  find, grep"); got != 2 {
+		t.Fatalf("suggested command occurrences = %d, want 2\n%s", got, out.String())
+	}
+}
+
 func TestSessionUsesFactoryContextAndClosesBeforeAwardingXP(t *testing.T) {
 	catalog, item := seamCatalogMission(t, "1")
 	player := profile.New("tester")

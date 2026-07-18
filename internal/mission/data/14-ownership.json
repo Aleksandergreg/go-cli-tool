@@ -7,6 +7,7 @@
   "story": "The web service cannot read its own environment file because root owns it. Giving everyone access would work, in the same sense that removing the front door fixes a lost key.",
   "objective": "Make /srv/web/secrets.env owned by web with mode 640: owner read/write, group read, and no access for others.",
   "start_dir": "/srv/web",
+  "suggested_commands": ["stat", "chown", "chmod"],
   "hints": [
     "stat shows the current owner and permission mode.",
     "chown changes ownership; chmod changes permissions.",
@@ -29,4 +30,3 @@
   },
   "rewards": {"xp": 80, "hint_penalty": 15}
 }
-

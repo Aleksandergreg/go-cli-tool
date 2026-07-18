@@ -184,7 +184,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			fmt.Fprintln(s.Out, s.Style.Warning(message))
 			continue
 		case "objective":
-			fmt.Fprintln(s.Out, s.Mission.Objective)
+			fmt.Fprintf(s.Out, "%s\n\n%s\n", s.Mission.Objective, s.Style.CommandGuide(s.Mission.SuggestedCommands))
 			continue
 		case "status":
 			outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, lastOutput)
@@ -304,6 +304,7 @@ func printMission(out io.Writer, item mission.Mission, hintsUsed int, style ui.S
 		fmt.Fprintln(out, style.Warning(fmt.Sprintf("Hints already used: %d/%d", hintsUsed, len(item.Hints))))
 	}
 	fmt.Fprintf(out, "\n%s\n\n%s\n\n", item.Story, item.Objective)
+	fmt.Fprintf(out, "%s\n\n", style.CommandGuide(item.SuggestedCommands))
 	printMissionControls(out, style)
 }
 

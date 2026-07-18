@@ -7,6 +7,7 @@
   "story": "A release file still begins with DRAFT=true. The deploy bot has interpreted this as a thoughtful request to do absolutely nothing.",
   "objective": "Remove the first line from /workspace/release.env while preserving the SERVICE and LOG_LEVEL lines and the file's mode 640.",
   "start_dir": "/workspace",
+  "suggested_commands": ["cat", "vi"],
   "hints": [
     "Use vi release.env to edit the virtual file. Type help vi first if modal editing is new to you.",
     "vi starts in Normal mode with the cursor on the first line. The dd command deletes the current line.",

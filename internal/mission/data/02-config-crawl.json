@@ -7,6 +7,7 @@
   "story": "The web team hid the live configuration three directories deep, then called that a deployment strategy.",
   "objective": "Move your shell into /srv/web/config/live.",
   "start_dir": "/home/operator",
+  "suggested_commands": ["pwd", "ls", "cd"],
   "hints": [
     "cd changes the current working directory.",
     "You can use an absolute path: cd /srv/web/config/live"
@@ -30,4 +31,3 @@
   },
   "rewards": {"xp": 45, "hint_penalty": 10}
 }
-

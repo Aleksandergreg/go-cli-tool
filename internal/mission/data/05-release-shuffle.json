@@ -7,6 +7,7 @@
   "story": "A completed incident report is still in the incoming tray. Audit says this is a process failure; everyone else says it is Tuesday.",
   "objective": "Move /incoming/incident-104.txt to /archive/2026/incident-104.txt so the original no longer exists.",
   "start_dir": "/incoming",
+  "suggested_commands": ["ls", "mv", "cp", "rm"],
   "hints": [
     "mv relocates or renames a file.",
     "The destination directory already exists.",

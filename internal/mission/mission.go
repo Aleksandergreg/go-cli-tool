@@ -50,22 +50,23 @@ const (
 // world the player receives; Validation describes the observable outcome that
 // completes the mission.
 type Mission struct {
-	ID          string       `json:"id"`
-	Number      int          `json:"number"`
-	Track       string       `json:"track,omitempty"`
-	Environment string       `json:"environment,omitempty"`
-	Title       string       `json:"title"`
-	Campaign    string       `json:"campaign"`
-	Difficulty  string       `json:"difficulty"`
-	Story       string       `json:"story"`
-	Objective   string       `json:"objective"`
-	StartDir    string       `json:"start_dir"`
-	Hints       []string     `json:"hints"`
-	Explanation string       `json:"explanation"`
-	Setup       Setup        `json:"setup"`
-	Docker      *DockerSetup `json:"docker,omitempty"`
-	Validation  Validation   `json:"validation"`
-	Rewards     Rewards      `json:"rewards"`
+	ID                string       `json:"id"`
+	Number            int          `json:"number"`
+	Track             string       `json:"track,omitempty"`
+	Environment       string       `json:"environment,omitempty"`
+	Title             string       `json:"title"`
+	Campaign          string       `json:"campaign"`
+	Difficulty        string       `json:"difficulty"`
+	Story             string       `json:"story"`
+	Objective         string       `json:"objective"`
+	StartDir          string       `json:"start_dir"`
+	SuggestedCommands []string     `json:"suggested_commands"`
+	Hints             []string     `json:"hints"`
+	Explanation       string       `json:"explanation"`
+	Setup             Setup        `json:"setup"`
+	Docker            *DockerSetup `json:"docker,omitempty"`
+	Validation        Validation   `json:"validation"`
+	Rewards           Rewards      `json:"rewards"`
 }
 
 // EffectiveTrack preserves compatibility with missions written before tracks

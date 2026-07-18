@@ -7,6 +7,7 @@
   "story": "Your first ticket simply says: \"Check where the onboarding shell dropped you.\" The documentation, naturally, does not say.",
   "objective": "Print the absolute path of your current directory.",
   "start_dir": "/home/operator",
+  "suggested_commands": ["pwd"],
   "hints": [
     "The command name is short for print working directory.",
     "Try: pwd"
@@ -27,4 +28,3 @@
   },
   "rewards": {"xp": 40, "hint_penalty": 10}
 }
-

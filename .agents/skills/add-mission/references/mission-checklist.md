@@ -8,7 +8,7 @@ Every mission supplies:
 
 - Identity and placement: `id`, `number`, `title`, `campaign`, `difficulty`.
 - An effective learning `track` and `environment`; omitted values preserve the legacy `linux` and `simulated` defaults.
-- Teaching content: `story`, `objective`, `hints`, `explanation`.
+- Teaching content: `story`, `objective`, one or more unique base names in `suggested_commands`, `hints`, and `explanation`.
 - Simulated labs: an absolute clean `start_dir` plus declarative `setup` containing `directories`, `files`, `processes`, `environment`, and `archives` as needed.
 - Docker labs: `track: docker`, `environment: docker`, and a declarative `docker` setup containing digest-pinned image references and logical `running` or `stopped` container fixtures. They do not define simulated setup or a start directory.
 - Declarative `validation.all`: one or more observable conditions.
@@ -35,6 +35,7 @@ Output-only validation is appropriate when producing the exact useful output is 
 - The learning objective and success outcome are written down before implementation.
 - Filename, number, ID, campaign, difficulty, XP, and hint penalty fit adjacent missions.
 - Story and objective avoid giving away one exact command.
+- Suggested commands are supported base names, cover meaningful alternative routes where useful, and do not include flags, arguments, or full solutions.
 - Hints progress from concept through the relevant tool or option to concrete help; explanation teaches the underlying operations idea.
 - Setup contains no host path, host process, executable hook, mutable Docker tag, privileged option, or player-supplied engine argument.
 - Validation accepts every legitimate route and rejects incomplete or collateral outcomes.

@@ -364,6 +364,8 @@ func TestShowDockerMissionReportsReadinessAndToolHints(t *testing.T) {
 		"Track: Docker",
 		"Outcome checks: 3",
 		"Hints available: 3",
+		"Commands you may need to solve this level:",
+		"  docker",
 		"Docker lab ready.",
 	} {
 		if !strings.Contains(out.String(), expected) {
@@ -471,7 +473,9 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"show", "16"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "Production Friday") || !strings.Contains(out.String(), "Reward: 160 XP") {
+	if !strings.Contains(out.String(), "Production Friday") || !strings.Contains(out.String(), "Reward: 160 XP") ||
+		!strings.Contains(out.String(), "Commands you may need to solve this level:") ||
+		!strings.Contains(out.String(), "  tar, sed, vi, chmod, ps, kill") {
 		t.Fatalf("show output = %s", out.String())
 	}
 

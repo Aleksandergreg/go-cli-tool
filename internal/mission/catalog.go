@@ -89,6 +89,7 @@ func decodeMission(data []byte) (Mission, error) {
 
 var (
 	missionIDPattern            = regexp.MustCompile(`^[a-z0-9]+(?:-[a-z0-9]+)*$`)
+	commandNamePattern          = regexp.MustCompile(`^[a-z][a-z0-9-]*$`)
 	variablePattern             = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	dockerLogicalNamePattern    = regexp.MustCompile(`^[a-z0-9]+(?:[._-][a-z0-9]+)*$`)
 	dockerImageReferencePattern = regexp.MustCompile(`^[a-z0-9]+(?:[._/-][a-z0-9]+)*(?::[A-Za-z0-9_.-]+)?@sha256:[a-f0-9]{64}$`)
@@ -149,6 +150,19 @@ func validateMission(item Mission) error {
 	}
 	if item.Rewards.XP <= 0 || item.Rewards.HintPenalty < 0 {
 		return fmt.Errorf("XP must be positive and hint penalty cannot be negative")
+	}
+	if len(item.SuggestedCommands) == 0 {
+		return fmt.Errorf("at least one suggested command is required")
+	}
+	seenCommands := make(map[string]bool, len(item.SuggestedCommands))
+	for index, command := range item.SuggestedCommands {
+		if !commandNamePattern.MatchString(command) {
+			return fmt.Errorf("suggested command %d %q must be a lowercase command name", index+1, command)
+		}
+		if seenCommands[command] {
+			return fmt.Errorf("duplicate suggested command %q", command)
+		}
+		seenCommands[command] = true
 	}
 	if len(item.Hints) < 1 || len(item.Hints) > 5 {
 		return fmt.Errorf("missions require between 1 and 5 hints")
@@ -648,6 +662,7 @@ func (c Catalog) AdjacentInTrack(currentID string, direction int) (Mission, bool
 
 func cloneMission(item Mission) Mission {
 	cloned := item
+	cloned.SuggestedCommands = append([]string(nil), item.SuggestedCommands...)
 	cloned.Hints = append([]string(nil), item.Hints...)
 	cloned.Setup.Directories = append([]DirectorySpec(nil), item.Setup.Directories...)
 	cloned.Setup.Files = append([]FileSpec(nil), item.Setup.Files...)

@@ -7,6 +7,7 @@
   "story": "The release archive arrived with debug logging, a non-executable deploy script, and a stale watcher holding the old release open. Naturally, the change calendar says this should take five minutes.",
   "objective": "Restore /backups/release.tar into /deploy. In the restored app, set LOG_LEVEL to info, set deploy.sh to mode 750, and stop stale release-watcher PID 9001 without stopping metrics-agent PID 9002.",
   "start_dir": "/backups",
+  "suggested_commands": ["tar", "sed", "vi", "chmod", "ps", "kill"],
   "hints": [
     "Break the incident into outcomes: extract, edit, set permissions, then stop the stale process.",
     "Use tar -xf with -C /deploy. sed -i can update app.env, and chmod changes deploy.sh.",
@@ -43,4 +44,3 @@
   },
   "rewards": {"xp": 160, "hint_penalty": 25}
 }
-

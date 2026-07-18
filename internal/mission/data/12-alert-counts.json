@@ -7,6 +7,7 @@
   "story": "The alert router sent the same pages repeatedly. Before tuning it, the team needs a count by service instead of six identical screenshots.",
   "objective": "Create /reports/alert-counts.txt from /alerts/raw.txt. It must contain each service alphabetically with its occurrence count: database, gateway, then worker.",
   "start_dir": "/alerts",
+  "suggested_commands": ["cat", "sort", "uniq"],
   "hints": [
     "uniq counts adjacent duplicates, so arrange equal lines next to each other first.",
     "sort orders the service names; uniq -c counts each group.",
@@ -29,4 +30,3 @@
   },
   "rewards": {"xp": 85, "hint_penalty": 15}
 }
-

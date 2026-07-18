@@ -512,7 +512,7 @@ func (a *App) runShow(args []string) error {
 		styledStatus = a.style.Success(status)
 	}
 	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints available: %d\n\n", styledStatus, len(item.Validation.All), len(item.Hints))
-	fmt.Fprintf(a.out, "%s\n\n%s\n", item.Story, item.Objective)
+	fmt.Fprintf(a.out, "%s\n\n%s\n\n%s\n", item.Story, item.Objective, a.style.CommandGuide(item.SuggestedCommands))
 	if item.EffectiveEnvironment() == mission.EnvironmentDocker {
 		availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
 		fmt.Fprintln(a.out)

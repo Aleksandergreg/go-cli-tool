@@ -7,6 +7,7 @@
   "story": "Someone deleted the status page and left behind a tar archive labeled definitely-current-v2-final. Restore it before anyone asks what v1 was.",
   "objective": "Extract /backups/status-site.tar into /restore so /restore/index.html and /restore/assets/status.txt are restored.",
   "start_dir": "/backups",
+  "suggested_commands": ["ls", "tar"],
   "hints": [
     "tar works with file archives; x extracts and f names the archive file.",
     "The -C option chooses the destination directory.",
@@ -36,4 +37,3 @@
   },
   "rewards": {"xp": 80, "hint_penalty": 15}
 }
-

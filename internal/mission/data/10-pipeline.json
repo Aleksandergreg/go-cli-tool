@@ -7,6 +7,7 @@
   "story": "Management wants the incident summary before stand-up. Stand-up began seven minutes ago. Produce evidence that looks intentional.",
   "objective": "From /logs/incidents.log, create /reports/error-services.txt containing only the names of services with ERROR entries, one per line, alphabetically sorted with duplicates removed.",
   "start_dir": "/logs",
+  "suggested_commands": ["cat", "grep", "awk", "sort", "uniq"],
   "hints": [
     "Build the result in stages: filter ERROR lines, select the third field, sort, then remove duplicates.",
     "awk '{print $3}' prints the third whitespace-separated field. sort and uniq can process its output.",
@@ -29,4 +30,3 @@
   },
   "rewards": {"xp": 125, "hint_penalty": 20}
 }
-

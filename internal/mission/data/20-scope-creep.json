@@ -7,6 +7,7 @@
   "story": "The night-shift automation writes a cheerful label and the wrong service report. Running its commands by hand also leaves the operator shell wandering through another directory with somebody else's environment. It is technically automation in the same way a rake is a robot.",
   "objective": "Repair /workspace/night-shift.sh, set its mode to 750, and use it to write the unique ERROR services to /reports/night-services.txt and night-shift to /reports/run-label.txt. After it finishes, remain in /workspace with REPORT_LABEL=operator-shell.",
   "start_dir": "/workspace",
+  "suggested_commands": ["cat", "less", "vi", "sed", "chmod", "sh", "pwd", "env"],
   "hints": [
     "Scripts run several teaching-shell commands in order. Inspect night-shift.sh with cat, less, or vi before changing it.",
     "The report pipeline selects the wrong severity. Edit INFO to ERROR with vi or sed -i while leaving the script's other lines intact.",

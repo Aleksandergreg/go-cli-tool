@@ -38,6 +38,7 @@ Version 0.3 starts Docker Foundations while preserving the complete Linux campai
 - Safe virtual shell scripts with bounded nesting and line-numbered errors
 - Outcome-based validation for output, files, permissions, processes, archives, and environment variables
 - Progressive hints that introduce relevant tools and syntax, with persistent XP penalties
+- A free Bandit-style command guide for every mission, separate from XP-costing hints
 - Mission status and environment restart controls
 - Persistent XP, ranks, mission completion, command mastery, and six learning achievements
 - Replayable missions without duplicate XP
@@ -200,14 +201,14 @@ internal/sandbox/   Virtual filesystem, shell parser, and commands
 internal/dockerlab/ Optional, label-scoped Docker lab adapter
 ```
 
-Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown or malformed validators, unsupported difficulties, hint counts outside one to five, oversized Docker setup, and non-contiguous numbering. Catalog results are deep copies, so adapters cannot mutate embedded mission state. A future external mission-pack loader can add YAML support without coupling content to the game engine.
+Mission content lives in [`internal/mission/data`](internal/mission/data). JSON keeps the binary dependency-free while retaining the proposed declarative setup/validation design. Mission decoding rejects unknown fields, missing or malformed suggested-command guides, unsafe paths, conflicting setup entries, invalid modes, duplicate PIDs, unknown or malformed validators, unsupported difficulties, hint counts outside one to five, oversized Docker setup, and non-contiguous numbering. Catalog results are deep copies, so adapters cannot mutate embedded mission state. A future external mission-pack loader can add YAML support without coupling content to the game engine.
 
 Each mission defines:
 
 ```text
 story + objective + environment type
 setup: simulated state or attempt-scoped Docker fixtures
-hints + explanation + rewards
+suggested command names + progressive hints + explanation + rewards
 validation: one or more observable outcome conditions
 ```
 

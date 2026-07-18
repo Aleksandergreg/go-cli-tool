@@ -31,6 +31,7 @@ Each mission contains:
 - A short incident or story
 - Declarative setup for an isolated virtual environment
 - An objective that does not prescribe one exact command
+- A free list of relevant command names without flags or a prescribed sequence
 - Between one and five progressive hints with XP penalties
 - One or more observable validation conditions
 - A completion explanation and XP reward
@@ -195,14 +196,14 @@ Docker mission validation observes only resources labeled for the current attemp
 
 ## Mission format
 
-Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, supported difficulties, one-to-five hint counts, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, validation field shapes, and bounded Docker fixtures. Lookups return deep copies so runtime adapters cannot mutate embedded content.
+Mission content lives in `internal/mission/data/*.json` and is embedded into the binary. Decoding rejects unknown fields. Catalog construction validates identifiers, contiguous numbering, supported difficulties, suggested command names, one-to-five hint counts, paths, modes, setup conflicts, archive traversal, duplicate PIDs, rewards, validation field shapes, and bounded Docker fixtures. Lookups return deep copies so runtime adapters cannot mutate embedded content.
 
 Each mission has this conceptual shape:
 
 ```text
 Mission
 ├── ID, number, title, campaign, and difficulty
-├── Story, objective, hints, and explanation
+├── Story, objective, suggested commands, hints, and explanation
 ├── Start directory and declarative setup
 ├── One or more observable validation conditions
 └── XP and hint-penalty rewards

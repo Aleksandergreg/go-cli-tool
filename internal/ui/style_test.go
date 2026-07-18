@@ -35,6 +35,7 @@ func TestZeroValueStyleIsPlainText(t *testing.T) {
 		"difficulty":    {got: style.Difficulty("beginner"), want: "beginner"},
 		"prompt":        {got: style.Prompt("/workspace"), want: "opsquest:/workspace$ "},
 		"progress":      {got: style.Progress("██", "░░"), want: "██░░"},
+		"command guide": {got: style.CommandGuide([]string{"find", "grep"}), want: "Commands you may need to solve this level:\n  find, grep"},
 		"empty colored": {got: style.Header(""), want: ""},
 	}
 	for name, test := range tests {
@@ -56,16 +57,17 @@ func TestEnabledStyleUsesSemanticColors(t *testing.T) {
 		got  string
 		want string
 	}{
-		"header":      {got: style.Header("mission"), want: "\x1b[1;36mmission\x1b[0m"},
-		"accent":      {got: style.Accent("next"), want: "\x1b[36mnext\x1b[0m"},
-		"success":     {got: style.Success("done"), want: "\x1b[32mdone\x1b[0m"},
-		"warning":     {got: style.Warning("hint"), want: "\x1b[33mhint\x1b[0m"},
-		"failure":     {got: style.Failure("error"), want: "\x1b[31merror\x1b[0m"},
-		"reward":      {got: style.Reward("+40 XP"), want: "\x1b[1;33m+40 XP\x1b[0m"},
-		"achievement": {got: style.Achievement("star"), want: "\x1b[1;35mstar\x1b[0m"},
-		"muted":       {got: style.Muted("locked"), want: "\x1b[2mlocked\x1b[0m"},
-		"prompt":      {got: style.Prompt("/tmp"), want: "\x1b[36mopsquest:/tmp$ \x1b[0m"},
-		"progress":    {got: style.Progress("██", "░░"), want: "\x1b[32m██\x1b[0m\x1b[2m░░\x1b[0m"},
+		"header":        {got: style.Header("mission"), want: "\x1b[1;36mmission\x1b[0m"},
+		"accent":        {got: style.Accent("next"), want: "\x1b[36mnext\x1b[0m"},
+		"success":       {got: style.Success("done"), want: "\x1b[32mdone\x1b[0m"},
+		"warning":       {got: style.Warning("hint"), want: "\x1b[33mhint\x1b[0m"},
+		"failure":       {got: style.Failure("error"), want: "\x1b[31merror\x1b[0m"},
+		"reward":        {got: style.Reward("+40 XP"), want: "\x1b[1;33m+40 XP\x1b[0m"},
+		"achievement":   {got: style.Achievement("star"), want: "\x1b[1;35mstar\x1b[0m"},
+		"muted":         {got: style.Muted("locked"), want: "\x1b[2mlocked\x1b[0m"},
+		"prompt":        {got: style.Prompt("/tmp"), want: "\x1b[36mopsquest:/tmp$ \x1b[0m"},
+		"progress":      {got: style.Progress("██", "░░"), want: "\x1b[32m██\x1b[0m\x1b[2m░░\x1b[0m"},
+		"command guide": {got: style.CommandGuide([]string{"find", "grep"}), want: "Commands you may need to solve this level:\n  \x1b[36mfind, grep\x1b[0m"},
 	}
 	for name, test := range tests {
 		t.Run(name, func(t *testing.T) {
