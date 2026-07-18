@@ -94,7 +94,7 @@ func (p *Profile) Normalize() {
 		p.Hints = make(map[string]int)
 	}
 	for missionID, count := range p.Hints {
-		if count < 0 {
+		if count < 0 || p.IsComplete(missionID) {
 			delete(p.Hints, missionID)
 		}
 	}

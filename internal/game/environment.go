@@ -45,8 +45,10 @@ type CompletionSource interface {
 
 // Environment is one isolated mission attempt. Implementations execute only
 // their supported teaching subset, observe declarative outcomes, and release
-// every resource owned by the attempt from Close. Close must be safe to call
-// after partial setup and retryable after a cleanup error.
+// every resource owned by the attempt from Close. A Session calls gameplay
+// methods serially and only closes an attempt after the active call returns;
+// implementations do not need to support concurrent Execute and Close. Close
+// must be safe after partial setup and retryable after a cleanup error.
 type Environment interface {
 	PromptLabel() string
 	Execute(context.Context, string) (Execution, error)

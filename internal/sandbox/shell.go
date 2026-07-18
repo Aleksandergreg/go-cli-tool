@@ -241,7 +241,14 @@ func parseCommandLine(tokens []token) (commandLine, error) {
 func (s *Sandbox) expandCommandLine(parsed commandLine) (expandedCommandLine, error) {
 	expanded := expandedCommandLine{stages: make([]expandedPipelineStage, 0, len(parsed.stages))}
 	argumentCount := 0
-	argumentBytes := 0
+	tokenBytes := 0
+	consumeTokenBytes := func(value string) error {
+		if len(value) > maxExpandedTokenBytes-tokenBytes {
+			return fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
+		}
+		tokenBytes += len(value)
+		return nil
+	}
 	for _, stage := range parsed.stages {
 		args := make([]string, 0, len(stage.args))
 		for _, word := range stage.args {
@@ -255,13 +262,18 @@ func (s *Sandbox) expandCommandLine(parsed commandLine) (expandedCommandLine, er
 				if argumentCount == maxExpandedArguments {
 					return expandedCommandLine{}, fmt.Errorf("expanded command exceeds the %d-argument limit", maxExpandedArguments)
 				}
-				if len(value) > maxExpandedTokenBytes-argumentBytes {
-					return expandedCommandLine{}, fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
+				if err := consumeTokenBytes(value); err != nil {
+					return expandedCommandLine{}, err
 				}
 				argumentCount++
-				argumentBytes += len(value)
 				args = append(args, value)
 			}
+		}
+		if err := consumeTokenBytes(stage.inputPath); err != nil {
+			return expandedCommandLine{}, err
+		}
+		if err := consumeTokenBytes(stage.outputPath); err != nil {
+			return expandedCommandLine{}, err
 		}
 		expanded.stages = append(expanded.stages, expandedPipelineStage{
 			args:       args,

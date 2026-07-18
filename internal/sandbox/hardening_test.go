@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"fmt"
 	"reflect"
 	"strings"
 	"testing"
@@ -33,6 +34,37 @@ func TestExpandedArgumentLimitPreflightsBeforeMutation(t *testing.T) {
 	}
 	if box.FS.Exists("/out/argument-side-effect") {
 		t.Fatal("expanded-argument rejection ran an earlier pipeline stage")
+	}
+}
+
+func TestExpandedTokenLimitIncludesRedirectionPathsAfterGlobbing(t *testing.T) {
+	box := testSandbox(t)
+	const matchCount = 512
+	const relativePathBytes = maxVirtualPathBytes - len("/work/")
+	for index := 0; index < matchCount; index++ {
+		prefix := fmt.Sprintf("limit-%03d-", index)
+		name := prefix + strings.Repeat("x", relativePathBytes-len(prefix))
+		if err := box.FS.WriteFile("/work/"+name, "", 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	remaining := maxExpandedTokenBytes - len("echo") - matchCount*relativePathBytes
+	if remaining <= 0 {
+		t.Fatalf("test fixture leaves invalid redirection budget %d", remaining)
+	}
+	parsed := commandLine{stages: []pipelineStage{{
+		args: []shellWord{
+			{value: "echo"},
+			{value: "limit-*", glob: true},
+		},
+		outputPath: strings.Repeat("r", remaining),
+	}}}
+	if _, err := box.expandCommandLine(parsed); err != nil {
+		t.Fatalf("exact expanded-token boundary error = %v", err)
+	}
+	parsed.stages[0].outputPath += "r"
+	if _, err := box.expandCommandLine(parsed); err == nil || !strings.Contains(err.Error(), "token limit") {
+		t.Fatalf("over-limit redirection error = %v", err)
 	}
 }
 
@@ -110,12 +142,17 @@ func TestTarExtractionFailureIsTransactional(t *testing.T) {
 
 func TestTarRejectsUnsupportedChangeDirectorySemantics(t *testing.T) {
 	box := testSandbox(t)
-	for _, line := range []string{
-		"tar -cf /out/events.tar -C /work events.log",
-		"tar -tf /work/backup.tar -C /out",
+	for _, test := range []struct {
+		line    string
+		wantErr string
+	}{
+		{line: "tar -cf /out/events.tar -C /work events.log", wantErr: "-C is supported only when extracting"},
+		{line: "tar -cf /out/events.tar -C . events.log", wantErr: "-C is supported only when extracting"},
+		{line: "tar -tf /work/backup.tar -C .", wantErr: "-C is supported only when extracting"},
+		{line: "tar -xf /work/backup.tar -C /out -C /work", wantErr: "multiple -C options"},
 	} {
-		if _, err := box.Execute(line); err == nil || !strings.Contains(err.Error(), "-C is supported only when extracting") {
-			t.Errorf("Execute(%q) error = %v", line, err)
+		if _, err := box.Execute(test.line); err == nil || !strings.Contains(err.Error(), test.wantErr) {
+			t.Errorf("Execute(%q) error = %v, want %q", test.line, err, test.wantErr)
 		}
 	}
 	if box.FS.Exists("/out/events.tar") {

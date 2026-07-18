@@ -36,6 +36,7 @@ type fakeDockerRunner struct {
 	createAttempts    int
 	failNextStart     bool
 	failNextInspect   map[string]error
+	hideNextInspect   map[string]bool
 	failNextRemove    map[string]error
 }
 
@@ -44,6 +45,7 @@ func newFakeDockerRunner() *fakeDockerRunner {
 		containers:      make(map[string]*fakeContainer),
 		imageAvailable:  true,
 		failNextInspect: make(map[string]error),
+		hideNextInspect: make(map[string]bool),
 		failNextRemove:  make(map[string]error),
 	}
 }
@@ -110,6 +112,10 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		if err := r.failNextInspect[reference]; err != nil {
 			delete(r.failNextInspect, reference)
 			return runResult{stderr: err.Error()}, err
+		}
+		if r.hideNextInspect[reference] {
+			delete(r.hideNextInspect, reference)
+			return missingContainerResult(reference)
 		}
 		id := r.resolveContainer(reference)
 		container, exists := r.containers[id]
@@ -695,6 +701,24 @@ func TestSetupFailureCleansAlreadyCreatedContainers(t *testing.T) {
 		}
 		if commandRunner.containerCount() != 0 {
 			t.Fatalf("containers after retried reconciliation cleanup = %d", commandRunner.containerCount())
+		}
+		if err := partial.Close(); err != nil {
+			t.Fatalf("Close() after setup cleanup = %v", err)
+		}
+	})
+
+	t.Run("delayed ambiguous create remains cleanup eligible", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.failAfterCreateAt = 2
+		ambiguousName := "opsquest-aaaaaaaaaaaaaaaaaaaaaaaa-c02"
+		commandRunner.hideNextInspect[ambiguousName] = true
+
+		partial, err := testFactory(commandRunner).Create(context.Background(), testDockerMission())
+		if err == nil || partial == nil {
+			t.Fatalf("Create() = environment %T, error %v; want partial environment and error", partial, err)
+		}
+		if commandRunner.containerCount() != 0 {
+			t.Fatalf("containers after delayed reconciliation cleanup = %d", commandRunner.containerCount())
 		}
 		if err := partial.Close(); err != nil {
 			t.Fatalf("Close() after setup cleanup = %v", err)

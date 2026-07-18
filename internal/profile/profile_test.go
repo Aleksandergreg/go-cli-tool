@@ -91,6 +91,22 @@ func TestNormalizeRemovesNegativeHintProgress(t *testing.T) {
 	}
 }
 
+func TestNormalizeRemovesLegacyHintProgressForCompletedMissions(t *testing.T) {
+	player := New("operator")
+	player.Completed["completed"] = Completion{XP: 25, HintsUsed: 1, CompletedAt: time.Unix(1, 0)}
+	player.Hints["completed"] = 3
+	player.Hints["in-progress"] = 2
+
+	player.Normalize()
+
+	if got := player.MissionHints("completed"); got != 0 {
+		t.Fatalf("completed mission hints = %d, want 0", got)
+	}
+	if got := player.MissionHints("in-progress"); got != 2 {
+		t.Fatalf("in-progress mission hints = %d, want 2", got)
+	}
+}
+
 func TestRankAndNextRankShareThresholds(t *testing.T) {
 	tests := []struct {
 		xp      int

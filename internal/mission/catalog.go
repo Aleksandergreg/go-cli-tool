@@ -396,6 +396,7 @@ func validateCondition(condition Condition, environment string) error {
 	if !known {
 		return fmt.Errorf("unknown type %q", condition.Type)
 	}
+	present := condition.present
 	for _, field := range []struct {
 		name    string
 		present bool
@@ -408,7 +409,10 @@ func validateCondition(condition Condition, environment string) error {
 		{name: "container", present: condition.Container != "", flag: conditionContainer},
 		{name: "count", present: condition.Count != nil, flag: conditionCount},
 	} {
-		if field.present && allowed&field.flag == 0 {
+		if field.present {
+			present |= field.flag
+		}
+		if present&field.flag != 0 && allowed&field.flag == 0 {
 			return fmt.Errorf("type %q does not support %s", condition.Type, field.name)
 		}
 	}

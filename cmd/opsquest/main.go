@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
-	"syscall"
 
 	"github.com/aleksandergregersen/opsquest/internal/cli"
 	"github.com/aleksandergregersen/opsquest/internal/dockerlab"
@@ -23,7 +22,7 @@ func main() {
 }
 
 func run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
 	defer stop()
 
 	catalog, err := mission.LoadCatalog()

@@ -199,7 +199,7 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 	if options.archiveName == "" {
 		return "", fmt.Errorf("archive file is required with -f")
 	}
-	if options.operation != 'x' && options.destination != "." {
+	if options.operation != 'x' && options.destinationSet {
 		return "", fmt.Errorf("-C is supported only when extracting an archive")
 	}
 	archivePath := s.Resolve(options.archiveName)
@@ -322,11 +322,12 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 }
 
 type tarOptions struct {
-	operation   byte
-	archiveName string
-	destination string
-	verbose     bool
-	operands    []string
+	operation      byte
+	archiveName    string
+	destination    string
+	destinationSet bool
+	verbose        bool
+	operands       []string
 }
 
 func parseTarArgs(args []string) (tarOptions, error) {
@@ -334,11 +335,15 @@ func parseTarArgs(args []string) (tarOptions, error) {
 	for index := 0; index < len(args); index++ {
 		arg := args[index]
 		if arg == "-C" {
+			if options.destinationSet {
+				return tarOptions{}, fmt.Errorf("multiple -C options are not supported")
+			}
 			if index+1 >= len(args) {
 				return tarOptions{}, fmt.Errorf("-C requires a directory")
 			}
 			index++
 			options.destination = args[index]
+			options.destinationSet = true
 			continue
 		}
 		isOptionGroup := strings.HasPrefix(arg, "-") || index == 0 && len(arg) > 0 && strings.ContainsRune("xct", rune(arg[0]))

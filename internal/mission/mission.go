@@ -1,5 +1,10 @@
 package mission
 
+import (
+	"encoding/json"
+	"fmt"
+)
+
 const (
 	TrackLinux  = "linux"
 	TrackDocker = "docker"
@@ -148,6 +153,47 @@ type Condition struct {
 	PID       int           `json:"pid,omitempty"`
 	Container string        `json:"container,omitempty"`
 	Count     *int          `json:"count,omitempty"`
+	present   conditionFields
+}
+
+// UnmarshalJSON retains field presence so validation can reject an unsupported
+// field even when its explicit JSON value is empty or zero. Condition owns a
+// custom decoder, so it also preserves the catalog's unknown-field rejection.
+func (c *Condition) UnmarshalJSON(data []byte) error {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(data, &fields); err != nil {
+		return err
+	}
+	for name := range fields {
+		switch name {
+		case "type", "path", "value", "values", "pid", "container", "count":
+		default:
+			return fmt.Errorf("json: unknown field %q", name)
+		}
+	}
+	type wireCondition Condition
+	var decoded wireCondition
+	if err := json.Unmarshal(data, &decoded); err != nil {
+		return err
+	}
+	*c = Condition(decoded)
+	for name := range fields {
+		switch name {
+		case "path":
+			c.present |= conditionPath
+		case "value":
+			c.present |= conditionValue
+		case "values":
+			c.present |= conditionValues
+		case "pid":
+			c.present |= conditionPID
+		case "container":
+			c.present |= conditionContainer
+		case "count":
+			c.present |= conditionCount
+		}
+	}
+	return nil
 }
 
 type Rewards struct {

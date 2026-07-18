@@ -247,7 +247,10 @@ func (e *environment) reconcileAmbiguousCreate(tracked *trackedContainer, create
 		return tracked, errors.Join(createErr, fmt.Errorf("reconcile Docker fixture %s: %w", tracked.alias, err))
 	}
 	if !exists {
-		return nil, createErr
+		// A successful create can become visible just after a transient missing
+		// result. Keep the generated name in the cleanup set so Close performs
+		// one more ownership-checked inspection before considering it absent.
+		return tracked, createErr
 	}
 	labels := inspection.Config.Labels
 	if labels[managedLabel] != "true" || labels[sessionLabel] != e.sessionID || labels[missionLabel] != e.missionID || labels[aliasLabel] != tracked.alias {
