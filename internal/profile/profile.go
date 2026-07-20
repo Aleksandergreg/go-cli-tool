@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"sort"
@@ -107,6 +108,14 @@ func (p *Profile) Normalize() {
 		p.Unlocked = make(map[string]time.Time)
 	}
 	p.Name = normalizeName(p.Name)
+}
+
+func (p Profile) clone() Profile {
+	p.Completed = maps.Clone(p.Completed)
+	p.Commands = maps.Clone(p.Commands)
+	p.Hints = maps.Clone(p.Hints)
+	p.Unlocked = maps.Clone(p.Unlocked)
+	return p
 }
 
 // ValidateName validates a user-supplied profile display name before it is
@@ -367,6 +376,10 @@ func (s Store) Save(player Profile) error {
 	if err := ValidateName(player.Name); err != nil {
 		return fmt.Errorf("invalid profile name: %w", err)
 	}
+	// Profile is passed by value, but its maps still alias the caller. Clone
+	// them before compatibility normalization so saving never mutates the live
+	// session (notably when completed-mission replay hints are omitted on disk).
+	player = player.clone()
 	player.Normalize()
 	data, err := json.MarshalIndent(player, "", "  ")
 	if err != nil {

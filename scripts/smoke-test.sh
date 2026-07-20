@@ -92,6 +92,10 @@ assert_contains "one-shot play" "${once_output}" "NEXT RECOMMENDED"
 assert_not_contains "one-shot play" "${once_output}" "MISSION 02: Configuration Crawl"
 
 printf 'pwd\n' | run_route_opsquest play --once 1 >/dev/null
+replay_hints_output="$(printf 'hint\nhint\nhint\nquit\n' | run_route_opsquest play 1)"
+assert_contains "replay hints" "${replay_hints_output}" "Hint 1/2 (no XP cost):"
+assert_contains "replay hints" "${replay_hints_output}" "Hint 2/2 (no XP cost):"
+assert_contains "replay hints" "${replay_hints_output}" "No more hints."
 selected_route_output="$(printf 'mkdir -p reports/daily\ntouch reports/daily/summary.txt\nquit\n' | run_route_opsquest play 3)"
 assert_contains "selected route" "${selected_route_output}" "Continuing to Mission 04: The Missing Log File"
 assert_contains "selected route" "${selected_route_output}" "MISSION 04: The Missing Log File"
@@ -167,4 +171,4 @@ assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: onboarding, sticky selected routes, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'
+printf 'smoke-test: onboarding, replay hints, sticky selected routes, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'

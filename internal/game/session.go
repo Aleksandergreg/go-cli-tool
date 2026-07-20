@@ -88,8 +88,9 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		s.Now = time.Now
 	}
 
+	replaying := s.Player.IsComplete(s.Mission.ID)
 	hintsUsed := s.Player.MissionHints(s.Mission.ID)
-	printMission(s.Out, s.Mission, hintsUsed, s.Player.IsComplete(s.Mission.ID), s.Catalog, s.Style)
+	printMission(s.Out, s.Mission, hintsUsed, replaying, s.Catalog, s.Style)
 	reader := s.Reader
 	if reader == nil {
 		reader = NewCommandLineReader(s.In, s.Out)
@@ -225,12 +226,17 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				fmt.Fprintln(s.Out, s.Style.Warning("No more hints. ByteWorks has exhausted its documentation budget."))
 				continue
 			}
-			before := AdjustedReward(s.Mission, hintsUsed)
-			hintsUsed = s.Player.RecordHint(s.Mission.ID)
-			if err := s.Saver.Save(*s.Player); err != nil {
-				return SessionResult{}, err
+			cost := 0
+			if replaying {
+				hintsUsed++
+			} else {
+				before := AdjustedReward(s.Mission, hintsUsed)
+				hintsUsed = s.Player.RecordHint(s.Mission.ID)
+				if err := s.Saver.Save(*s.Player); err != nil {
+					return SessionResult{}, err
+				}
+				cost = before - AdjustedReward(s.Mission, hintsUsed)
 			}
-			cost := before - AdjustedReward(s.Mission, hintsUsed)
 			costLabel := fmt.Sprintf("-%d XP", cost)
 			if cost == 0 {
 				costLabel = "no XP cost"

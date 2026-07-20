@@ -644,6 +644,43 @@ func TestHintReportsTheActualFloorAdjustedCost(t *testing.T) {
 	}
 }
 
+func TestReplayHintsAdvanceWithoutChangingProgress(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	player := profile.New("alex")
+	completedAt := time.Unix(1, 0)
+	player.Complete("linux-find-logs", 75, 0, completedAt)
+	if err := store.Save(player); err != nil {
+		t.Fatal(err)
+	}
+
+	app, out, errOut := testApp(t, "hint\nhint\nhint\nhint\nquit\n", store)
+	if err := app.Run([]string{"play", "4"}); err != nil {
+		t.Fatalf("replay hints error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{
+		"Hint 1/3 (no XP cost):",
+		"Hint 2/3 (no XP cost):",
+		"Hint 3/3 (no XP cost):",
+		"No more hints.",
+	} {
+		if count := strings.Count(out.String(), expected); count != 1 {
+			t.Fatalf("replay output contains %q %d times, want once:\n%s", expected, count, out.String())
+		}
+	}
+
+	loaded, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	completion := loaded.Completed["linux-find-logs"]
+	if loaded.XP != 75 || completion.XP != 75 || !completion.CompletedAt.Equal(completedAt) {
+		t.Fatalf("replay hints changed completion progress: %#v", loaded)
+	}
+	if got := loaded.MissionHints("linux-find-logs"); got != 0 {
+		t.Fatalf("replay hint progress persisted as %d, want 0", got)
+	}
+}
+
 func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "newbie")
 	app, out, _ := testApp(t, "", store)
