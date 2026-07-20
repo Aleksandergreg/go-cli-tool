@@ -19,6 +19,18 @@ import (
 
 var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
+var linuxMissionIDsThroughNine = []string{
+	"linux-orientation",
+	"linux-config-crawl",
+	"linux-workspace",
+	"linux-find-logs",
+	"linux-release-shuffle",
+	"linux-permissions",
+	"linux-environment",
+	"linux-runaway",
+	"linux-archive-rescue",
+}
+
 func testApp(t *testing.T, input string, store profile.Store) (*App, *bytes.Buffer, *bytes.Buffer) {
 	t.Helper()
 	catalog, err := mission.LoadCatalog()
@@ -33,6 +45,17 @@ func testApp(t *testing.T, input string, store profile.Store) (*App, *bytes.Buff
 		Catalog: catalog,
 		Store:   store,
 	}), out, errOut
+}
+
+func seedCompletedMissions(t *testing.T, store profile.Store, missionIDs ...string) {
+	t.Helper()
+	player := profile.New("alex")
+	for _, id := range missionIDs {
+		player.Complete(id, 0, 0, time.Unix(1, 0))
+	}
+	if err := store.Save(player); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestNewUsesSafeContextAndFactoryDefaults(t *testing.T) {
@@ -205,11 +228,7 @@ func TestSelectedMissionContinuesAfterCompletion(t *testing.T) {
 
 func TestSelectedMissionReplayContinuesWithoutRepeatingWorldCompletion(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	player := profile.New("alex")
-	player.Complete("linux-orientation", 40, 0, time.Unix(1, 0))
-	if err := store.Save(player); err != nil {
-		t.Fatal(err)
-	}
+	seedCompletedMissions(t, store, linuxMissionIDsThroughNine...)
 
 	app, out, errOut := testApp(t, "pwd\nquit\n", store)
 	if err := app.Run([]string{"play", "1"}); err != nil {
@@ -222,6 +241,33 @@ func TestSelectedMissionReplayContinuesWithoutRepeatingWorldCompletion(t *testin
 	}
 	if strings.Contains(out.String(), "World 1 complete") {
 		t.Fatalf("replay repeated an already-earned world completion:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "Continuing to Mission 10") {
+		t.Fatalf("selected replay snapped back to global progress:\n%s", out.String())
+	}
+}
+
+func TestInMissionJumpFollowsTheSelectedSequence(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	seedCompletedMissions(t, store, linuxMissionIDsThroughNine...)
+
+	app, out, errOut := testApp(t, "play 1\npwd\nquit\n", store)
+	if err := app.Run([]string{"play", "10"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+	output := out.String()
+	switchIndex := strings.Index(output, "Switching to Mission 01")
+	if switchIndex < 0 {
+		t.Fatalf("mission jump was not shown:\n%s", output)
+	}
+	afterJump := output[switchIndex:]
+	for _, expected := range []string{"MISSION 01: Where Am I?", "Replay complete", "Continuing to Mission 02: Configuration Crawl", "MISSION 02"} {
+		if !strings.Contains(afterJump, expected) {
+			t.Fatalf("selected sequence missing %q:\n%s", expected, afterJump)
+		}
+	}
+	if strings.Contains(afterJump, "Continuing to Mission 10") {
+		t.Fatalf("in-mission jump snapped back to global progress:\n%s", afterJump)
 	}
 }
 
@@ -348,6 +394,28 @@ func TestPlayCanJumpToAndCompleteOneWorld(t *testing.T) {
 		t.Fatalf("world play did not stop at its boundary:\n%s", out.String())
 	}
 
+	replayStore := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	seedCompletedMissions(t, replayStore, linuxMissionIDsThroughNine[:5]...)
+	app, out, errOut = testApp(t, commands, replayStore)
+	if err := app.Run([]string{"play", "--world", "1"}); err != nil {
+		t.Fatalf("completed world replay error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{
+		"World 1 is complete; replaying Stage 1",
+		"MISSION 02: Configuration Crawl",
+		"MISSION 03: A Place for Everything",
+		"MISSION 04: The Missing Log File",
+		"MISSION 05: The Release Shuffle",
+		"World 1 complete: First Day!",
+	} {
+		if !strings.Contains(out.String(), expected) {
+			t.Fatalf("completed world replay missing %q:\n%s", expected, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "MISSION 06") {
+		t.Fatalf("completed world replay crossed its boundary:\n%s", out.String())
+	}
+
 	app, _, _ = testApp(t, "", store)
 	if err := app.Run([]string{"play", "--world", "99"}); err == nil || !strings.Contains(err.Error(), "world 99 does not exist") {
 		t.Fatalf("invalid world error = %v", err)
@@ -388,6 +456,24 @@ func TestMissionPromptCanShowMapAndJumpWorlds(t *testing.T) {
 	}
 }
 
+func TestMissionPromptCanScopeTheCurrentStageToItsWorld(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	seedCompletedMissions(t, store, linuxMissionIDsThroughNine[:4]...)
+
+	app, out, errOut := testApp(t, "world 1\nmv incident-104.txt /archive/2026/incident-104.txt\n", store)
+	if err := app.Run([]string{"play"}); err != nil {
+		t.Fatalf("same-stage world selection error = %v; stderr = %s", err, errOut.String())
+	}
+	for _, expected := range []string{"World 1 route selected", "World 1 complete: First Day!"} {
+		if !strings.Contains(out.String(), expected) {
+			t.Fatalf("same-stage world selection missing %q:\n%s", expected, out.String())
+		}
+	}
+	if strings.Contains(out.String(), "MISSION 06") {
+		t.Fatalf("same-stage world route crossed its boundary:\n%s", out.String())
+	}
+}
+
 func TestMissionPromptReportsInvalidWorldWithoutDispatchingIt(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, _, errOut := testApp(t, "world 0\nworld 99\nquit\n", store)
@@ -406,19 +492,16 @@ func TestMissionPromptReportsInvalidWorldWithoutDispatchingIt(t *testing.T) {
 
 func TestMissionPromptExplainsCompletedWorldReplay(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	player := profile.New("alex")
-	for _, id := range []string{"linux-orientation", "linux-config-crawl", "linux-workspace", "linux-find-logs", "linux-release-shuffle"} {
-		player.Complete(id, 0, 0, time.Unix(1, 0))
-	}
-	if err := store.Save(player); err != nil {
-		t.Fatal(err)
-	}
-	app, out, errOut := testApp(t, "world 1\nquit\n", store)
+	seedCompletedMissions(t, store, linuxMissionIDsThroughNine[:5]...)
+	app, out, errOut := testApp(t, "world 1\npwd\nquit\n", store)
 	if err := app.Run([]string{"play", "6"}); err != nil {
 		t.Fatalf("play error = %v; stderr = %s", err, errOut.String())
 	}
 	if !strings.Contains(out.String(), "World 1 is complete; replaying Stage 1") || !strings.Contains(out.String(), "MISSION 01: Where Am I?") {
 		t.Fatalf("completed-world replay was not explained:\n%s", out.String())
+	}
+	if !strings.Contains(out.String(), "Continuing to Mission 02: Configuration Crawl") || !strings.Contains(out.String(), "MISSION 02") {
+		t.Fatalf("completed-world replay did not retain its world route:\n%s", out.String())
 	}
 }
 

@@ -12,6 +12,7 @@ fi
 SMOKE_ROOT="$(mktemp -d "${SMOKE_TEMPLATE}")"
 PROFILE_HOME="${SMOKE_ROOT}/profile"
 FRESH_PROFILE_HOME="${SMOKE_ROOT}/fresh-profile"
+ROUTE_PROFILE_HOME="${SMOKE_ROOT}/route-profile"
 BINARY="${SMOKE_ROOT}/opsquest"
 EMPTY_BIN="${SMOKE_ROOT}/empty-bin"
 mkdir -p "${EMPTY_BIN}"
@@ -61,7 +62,11 @@ run_opsquest() {
 }
 
 run_fresh_opsquest() {
-  env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${FRESH_PROFILE_HOME}" OPSQUEST_PLAYER="fresh-operator" "${BINARY}" "$@"
+	env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${FRESH_PROFILE_HOME}" OPSQUEST_PLAYER="fresh-operator" "${BINARY}" "$@"
+}
+
+run_route_opsquest() {
+	env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${ROUTE_PROFILE_HOME}" OPSQUEST_PLAYER="route-operator" "${BINARY}" "$@"
 }
 
 cd "${REPO_ROOT}"
@@ -85,6 +90,12 @@ assert_contains "selected continuous play" "${selected_play_output}" "MISSION 02
 once_output="$(printf 'pwd\n' | run_fresh_opsquest play --once 1)"
 assert_contains "one-shot play" "${once_output}" "NEXT RECOMMENDED"
 assert_not_contains "one-shot play" "${once_output}" "MISSION 02: Configuration Crawl"
+
+printf 'pwd\n' | run_route_opsquest play --once 1 >/dev/null
+selected_route_output="$(printf 'mkdir -p reports/daily\ntouch reports/daily/summary.txt\nquit\n' | run_route_opsquest play 3)"
+assert_contains "selected route" "${selected_route_output}" "Continuing to Mission 04: The Missing Log File"
+assert_contains "selected route" "${selected_route_output}" "MISSION 04: The Missing Log File"
+assert_not_contains "selected route" "${selected_route_output}" "Continuing to Mission 02"
 
 guide_output="$(run_opsquest guide)"
 assert_no_ansi "guide" "${guide_output}"
@@ -156,4 +167,4 @@ assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: onboarding, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'
+printf 'smoke-test: onboarding, sticky selected routes, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'

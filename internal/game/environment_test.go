@@ -235,11 +235,13 @@ func TestSessionClosesEnvironmentOnEveryTerminalPath(t *testing.T) {
 		observe    func(context.Context, mission.Condition) (bool, error)
 		wantQuit   bool
 		wantSwitch string
+		wantWorld  int
 		wantErrIs  error
 	}{
 		{name: "quit", item: first, reader: &seamReader{lines: []string{"quit"}}, wantQuit: true},
 		{name: "EOF", item: first, reader: &seamReader{}, wantQuit: true},
 		{name: "switch", item: first, reader: &seamReader{lines: []string{"next"}}, wantSwitch: "linux-config-crawl"},
+		{name: "world switch", item: first, reader: &seamReader{lines: []string{"world 2"}}, wantSwitch: "linux-permissions", wantWorld: 2},
 		{name: "read error", item: first, reader: &seamReader{endErr: readFailure}, wantErrIs: readFailure},
 		{
 			name:   "validation error",
@@ -279,7 +281,7 @@ func TestSessionClosesEnvironmentOnEveryTerminalPath(t *testing.T) {
 			if test.wantErrIs != nil && !errors.Is(err, test.wantErrIs) {
 				t.Fatalf("Run() error = %v, want errors.Is(..., %v)", err, test.wantErrIs)
 			}
-			if result.Quit != test.wantQuit || result.SwitchMission != test.wantSwitch {
+			if result.Quit != test.wantQuit || result.SwitchMission != test.wantSwitch || result.WorldRoute != test.wantWorld {
 				t.Fatalf("result = %#v", result)
 			}
 			if environment.closeCount != 1 {

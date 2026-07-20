@@ -162,7 +162,7 @@ Each script runs with child-shell working-directory and environment scope: `cd` 
 
 This is not a complete POSIX shell. Options such as `sh -c`, positional arguments, stdin-fed scripts, standalone assignments, loops, conditionals, functions, substitutions, background jobs, external programs, and interactive `vi` calls from a script are rejected rather than approximated. Use `help sh` for the exact limits.
 
-`opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the Linux track. A mission argument such as `opsquest play 4` or `opsquest play linux-find-logs` chooses where that continuous session starts. `opsquest play --world 2` stays within World 2 and stops at its boundary. Add `--once` to return after one completed mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
+`opsquest play` resumes the first incomplete mission and follows the recommended path. A direct mission jump such as `opsquest play 4` or the in-lab `play 4` advances sequentially from that exact stage instead of snapping back to the player's latest progress. `opsquest play --world 2` and the in-lab `world 2` stay within World 2 and stop at its boundary. Add `--once` to return after one completed mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
 
 The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
 

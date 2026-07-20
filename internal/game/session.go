@@ -46,6 +46,9 @@ type SessionResult struct {
 	// SwitchMission contains a validated mission ID requested from inside the
 	// lab. The CLI starts that mission with a fresh environment.
 	SwitchMission string
+	// WorldRoute preserves a world-scoped route requested with `world N`.
+	// It may accompany either a mission switch or completion of the current lab.
+	WorldRoute int
 }
 
 func (s Session) Run() (returnResult SessionResult, returnErr error) {
@@ -96,6 +99,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 	practiced := make([]string, 0)
 	practicedSet := make(map[string]bool)
 	lastOutput := ""
+	worldRoute := 0
 
 	for {
 		if err := ctx.Err(); err != nil {
@@ -160,9 +164,10 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 					continue
 				}
 				if target.ID == s.Mission.ID {
-					message := fmt.Sprintf("Already playing the recommended stage in World %d.", worldNumber)
+					worldRoute = worldNumber
+					message := fmt.Sprintf("World %d route selected; already playing the recommended stage.", worldNumber)
 					if replayingCompletedWorld {
-						message = fmt.Sprintf("World %d is complete; already replaying Stage 1.", worldNumber)
+						message = fmt.Sprintf("World %d replay selected; already playing Stage 1.", worldNumber)
 					}
 					fmt.Fprintln(s.Out, s.Style.Accent(message))
 					continue
@@ -171,7 +176,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 					fmt.Fprintln(s.Out, s.Style.Accent(fmt.Sprintf("World %d is complete; replaying Stage 1.", worldNumber)))
 				}
 				printMissionSwitch(s.Out, target, s.Style)
-				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
+				return SessionResult{SwitchMission: target.ID, WorldRoute: worldNumber, HintsUsed: hintsUsed}, nil
 			case "play":
 				if len(fields) != 2 {
 					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: play MISSION"))
@@ -337,7 +342,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			return SessionResult{}, err
 		}
 		printCompletion(s.Out, s.Mission, xp, firstCompletion, practiced, discovered, unlocked, s.Style)
-		return SessionResult{Completed: true, XPAwarded: xp, HintsUsed: hintsUsed}, nil
+		return SessionResult{Completed: true, XPAwarded: xp, HintsUsed: hintsUsed, WorldRoute: worldRoute}, nil
 	}
 }
 

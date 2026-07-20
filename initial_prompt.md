@@ -86,7 +86,7 @@ reset      version             help
 
 Inside a mission, players can use `hint`, `objective`, `status`, `restart`, `quit`, and `?` for the expanded control guide. They can navigate with `map`, `world NUMBER`, `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
 
-`opsquest play` continues through incomplete Linux missions after a success. `opsquest play NUMBER_OR_ID` starts that continuous session at a chosen mission, while `--once` returns after one completion. `opsquest play --world NUMBER` follows one world's incomplete stages and stops at its boundary. An explicitly selected Docker lab follows the same rule. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
+`opsquest play` resumes the first incomplete Linux mission and follows the recommended path. `opsquest play NUMBER_OR_ID` starts a sequential route at that exact mission instead of snapping back to the global progress gap, while `--once` returns after one completion. `opsquest play --world NUMBER` and the in-lab `world NUMBER` stay in one world and stop at its boundary. An explicitly selected Docker lab follows the same routing rules. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
 
 ## Teaching shell
 
