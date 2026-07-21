@@ -161,14 +161,17 @@ assert_contains "in-mission list" "${play_output}" "1/19 missions complete"
 assert_contains "in-mission switch" "${play_output}" "Switching to Mission 03: A Place for Everything"
 assert_contains "in-mission switch" "${play_output}" "MISSION 03: A Place for Everything"
 
-world_output="$(printf 'quit\n' | run_opsquest play --world 2)"
+world_output="$(printf 'play 3\nquit\n' | run_opsquest play --world 2)"
 assert_no_ansi "world jump" "${world_output}"
 assert_contains "world jump" "${world_output}" "MISSION 06: Permission to Deploy"
 assert_contains "world jump" "${world_output}" "World 2/4: The Logpocalypse · Stage 1/5"
+assert_contains "world stage jump" "${world_output}" "Switching to Mission 08: The Runaway Worker"
+assert_contains "world stage jump" "${world_output}" "World 2/4: The Logpocalypse · Stage 3/5"
+assert_not_contains "world stage jump" "${world_output}" "MISSION 03: A Place for Everything"
 
 final_profile="$(run_opsquest profile)"
 assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: onboarding, replay hints, sticky selected routes, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'
+printf 'smoke-test: onboarding, replay hints, sticky selected routes, continuous and one-shot play, worlds, world-local stages, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'

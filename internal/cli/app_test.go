@@ -247,11 +247,11 @@ func TestSelectedMissionReplayContinuesWithoutRepeatingWorldCompletion(t *testin
 	}
 }
 
-func TestInMissionJumpFollowsTheSelectedSequence(t *testing.T) {
+func TestInMissionIDJumpFollowsTheSelectedSequence(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	seedCompletedMissions(t, store, linuxMissionIDsThroughNine...)
 
-	app, out, errOut := testApp(t, "play 1\npwd\nquit\n", store)
+	app, out, errOut := testApp(t, "play linux-orientation\npwd\nquit\n", store)
 	if err := app.Run([]string{"play", "10"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
@@ -514,7 +514,7 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 
 	input := strings.Join([]string{
 		"opsquest list --completed",
-		"opsquest play 3",
+		"opsquest play linux-workspace",
 		"mkdir -p reports/daily",
 		"list --completed",
 		"status",
@@ -540,6 +540,51 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 	}
 	if strings.Contains(errOut.String(), "command not available") {
 		t.Fatalf("navigation reached the sandbox dispatcher: %s", errOut.String())
+	}
+}
+
+func TestMissionPromptUsesWorldLocalStageNumbers(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "play 3\nquit\n", store)
+	if err := app.Run([]string{"play", "6"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+
+	output := out.String()
+	for _, expected := range []string{
+		"Navigate: map · world N · play STAGE/ID",
+		"Switching to Mission 08: The Runaway Worker",
+		"MISSION 08: The Runaway Worker",
+		"World 2/4: The Logpocalypse · Stage 3/5",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("world-local stage navigation missing %q:\n%s", expected, output)
+		}
+	}
+	if strings.Contains(output, "MISSION 03: A Place for Everything") {
+		t.Fatalf("World 2 stage navigation fell back to the global Mission 03:\n%s", output)
+	}
+	if errOut.Len() != 0 {
+		t.Fatalf("world-local stage navigation stderr = %s", errOut.String())
+	}
+}
+
+func TestMissionPromptHandlesCurrentAndOutOfRangeWorldStages(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "play 1\nplay 6\nquit\n", store)
+	if err := app.Run([]string{"play", "6"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+
+	if !strings.Contains(out.String(), "Already playing Mission 06: Permission to Deploy.") {
+		t.Fatalf("same-stage navigation was not explained:\n%s", out.String())
+	}
+	if strings.Contains(out.String(), "Switching to Mission") {
+		t.Fatalf("same or invalid stage unexpectedly switched missions:\n%s", out.String())
+	}
+	wantError := `stage "6" does not exist in World 2; choose a stage from 1 to 5 or use map`
+	if !strings.Contains(errOut.String(), wantError) {
+		t.Fatalf("out-of-range stage error missing %q: %s", wantError, errOut.String())
 	}
 }
 

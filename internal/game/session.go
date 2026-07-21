@@ -46,7 +46,8 @@ type SessionResult struct {
 	// SwitchMission contains a validated mission ID requested from inside the
 	// lab. The CLI starts that mission with a fresh environment.
 	SwitchMission string
-	// WorldRoute preserves a world-scoped route requested with `world N`.
+	// WorldRoute preserves a world-scoped route requested with `world N` or
+	// an in-mission numeric stage jump.
 	// It may accompany either a mission switch or completion of the current lab.
 	WorldRoute int
 }
@@ -180,22 +181,44 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				return SessionResult{SwitchMission: target.ID, WorldRoute: worldNumber, HintsUsed: hintsUsed}, nil
 			case "play":
 				if len(fields) != 2 {
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: play MISSION"))
+					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: play STAGE_OR_ID"))
 					continue
 				}
-				target, found := s.Catalog.Find(fields[1])
+				ref := fields[1]
+				target, found := mission.Mission{}, false
+				targetWorldRoute := 0
+				if stageNumber, err := strconv.Atoi(ref); err == nil {
+					placement, placed := s.Catalog.Placement(s.Mission.ID)
+					if placed {
+						targetWorldRoute = placement.WorldNumber
+						world, worldFound := s.Catalog.World(placement.Track, placement.WorldNumber)
+						if worldFound && stageNumber >= 1 && stageNumber <= len(world.Missions) {
+							target, found = world.Missions[stageNumber-1], true
+						}
+						if !found {
+							message := fmt.Sprintf("stage %q does not exist in World %d; choose a stage from 1 to %d or use map", ref, placement.WorldNumber, placement.StageTotal)
+							fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
+							continue
+						}
+					}
+				} else {
+					target, found = s.Catalog.Find(ref)
+				}
 				if !found {
-					message := fmt.Sprintf("mission %q not found; use list to see available missions", fields[1])
+					message := fmt.Sprintf("mission %q not found; use list --ids to see available mission IDs", ref)
 					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
 					continue
 				}
 				if target.ID == s.Mission.ID {
+					if targetWorldRoute > 0 {
+						worldRoute = targetWorldRoute
+					}
 					message := fmt.Sprintf("Already playing Mission %02d: %s.", target.Number, target.Title)
 					fmt.Fprintln(s.Out, s.Style.Accent(message))
 					continue
 				}
 				printMissionSwitch(s.Out, target, s.Style)
-				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
+				return SessionResult{SwitchMission: target.ID, WorldRoute: targetWorldRoute, HintsUsed: hintsUsed}, nil
 			case "next", "previous", "prev":
 				direction := 1
 				if fields[0] != "next" {
@@ -393,7 +416,7 @@ func printCompactMissionControls(out io.Writer, style ui.Style) {
 	fmt.Fprintf(out, "Controls: %s · %s · %s · %s · %s · %s for the full guide\n",
 		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"), style.Accent("?"))
 	fmt.Fprintf(out, "Navigate: %s · %s · %s · %s · %s\n",
-		style.Accent("map"), style.Accent("world N"), style.Accent("play NUMBER/ID"), style.Accent("next"), style.Accent("previous"))
+		style.Accent("map"), style.Accent("world N"), style.Accent("play STAGE/ID"), style.Accent("next"), style.Accent("previous"))
 	fmt.Fprintf(out, "Lab: %s lists commands · %s completes · arrows edit and recall history\n",
 		style.Accent("help"), style.Accent("Tab"))
 }
@@ -403,7 +426,7 @@ func printMissionControls(out io.Writer, style ui.Style) {
 	fmt.Fprintf(out, "  Controls: %s, %s, %s, %s, %s\n",
 		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"))
 	fmt.Fprintf(out, "  Navigate: %s, %s, %s, %s, %s\n",
-		style.Accent("map"), style.Accent("world N"), style.Accent("play NUMBER/ID"), style.Accent("next"), style.Accent("previous"))
+		style.Accent("map"), style.Accent("world N"), style.Accent("play STAGE/ID"), style.Accent("next"), style.Accent("previous"))
 	fmt.Fprintf(out, "  Lab commands: %s or %s. Valid solutions are judged by their result.\n", style.Accent("help"), style.Accent("help COMMAND"))
 	fmt.Fprintf(out, "  Line editing: arrows move and recall history; %s or %s jump across the line.\n",
 		style.Accent("Home/End"), style.Accent("Ctrl-A/E"))

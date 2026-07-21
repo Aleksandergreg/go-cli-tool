@@ -482,7 +482,7 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 	if shown > 0 {
 		if inMission {
 			fmt.Fprintf(a.out, "Navigate here: %s · %s · reveal IDs with %s\n",
-				a.style.Accent("world N"), a.style.Accent("play NUMBER/ID"), a.style.Accent("list --ids"))
+				a.style.Accent("world N"), a.style.Accent("play STAGE/ID"), a.style.Accent("list --ids"))
 		} else {
 			commandTrack := selectedTrack
 			if commandTrack == "all" && len(displayedTracks) == 1 {
