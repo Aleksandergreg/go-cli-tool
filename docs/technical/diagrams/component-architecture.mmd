@@ -1,0 +1,45 @@
+%% Editable source for the rendered SVG beside this file.
+flowchart TB
+    MAIN["cmd/opsquest<br/>composition root"]
+    CLI["internal/cli<br/>commands, routes, presentation"]
+    GAME["internal/game<br/>session, outcomes, progression"]
+    MISSION["internal/mission<br/>schema, catalog, worlds"]
+    PROFILE["internal/profile<br/>progress and atomic storage"]
+    SANDBOX["internal/sandbox<br/>in-memory teaching shell"]
+    DOCKER["internal/dockerlab<br/>typed Docker adapter"]
+    UI["internal/ui<br/>terminal-aware styling"]
+    BUILD["internal/buildinfo<br/>release version"]
+
+    MAIN --> CLI
+    MAIN --> MISSION
+    MAIN --> PROFILE
+    MAIN --> GAME
+    MAIN --> DOCKER
+    MAIN --> UI
+
+    CLI --> BUILD
+    CLI --> GAME
+    CLI --> MISSION
+    CLI --> PROFILE
+    CLI --> UI
+
+    GAME --> MISSION
+    GAME --> PROFILE
+    GAME --> SANDBOX
+    GAME --> UI
+
+    SANDBOX --> MISSION
+    DOCKER --> GAME
+    DOCKER --> MISSION
+
+    classDef entry fill:#172554,color:#ffffff,stroke:#172554,stroke-width:2px
+    classDef orchestration fill:#dbeafe,color:#172554,stroke:#2563eb,stroke-width:2px
+    classDef domain fill:#dcfce7,color:#14532d,stroke:#16a34a,stroke-width:2px
+    classDef adapter fill:#fef3c7,color:#78350f,stroke:#d97706,stroke-width:2px
+    classDef support fill:#f1f5f9,color:#334155,stroke:#64748b,stroke-width:1px
+
+    class MAIN entry
+    class CLI,GAME orchestration
+    class MISSION,PROFILE domain
+    class SANDBOX,DOCKER adapter
+    class UI,BUILD support

@@ -14,7 +14,10 @@ OpsQuest is a Go 1.22 CLI game with 19 in-memory Linux missions and an optional 
 - `internal/dockerlab`: optional Docker capability detection, typed teaching commands, isolated resource lifecycle, and Docker observations.
 - `internal/profile`: versioned profile model and atomic JSON persistence.
 - `scripts`: deterministic repository checks used by both Make and CI.
-- `docs/iteration_N.md`: observed delivery reports for completed product iterations.
+- `docs/game`: current curriculum and learning-design documentation.
+- `docs/technical`: current architecture, safety, and implementation diagrams.
+- `docs/roadmap`: explicitly labeled proposals and unfinished improvements.
+- `docs/history/iterations`: observed delivery reports for completed product iterations.
 
 ## Working workflow
 
@@ -51,7 +54,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Normal local gate: `make check`.
 - Comprehensive gate, including race detection: `make check-all`.
 
-Update README command lists, mission counts, safety notes, or roadmap claims when behavior changes. Use `$prepare-iteration` for a release-sized milestone and base its `docs/iteration_N.md` report on the supplied template.
+Update README command lists, mission counts, safety notes, or roadmap claims when behavior changes. Use `$prepare-iteration` for a release-sized milestone and base its `docs/history/iterations/iteration-NN.md` report on the supplied template.
 
 ## Definition of done
 
