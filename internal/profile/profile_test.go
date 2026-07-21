@@ -54,6 +54,28 @@ func TestStoreRoundTripAndReset(t *testing.T) {
 	}
 }
 
+func TestStoreSaveDoesNotNormalizeThroughCallerMapAliases(t *testing.T) {
+	store := NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	player := New("alex")
+	player.Complete("completed", 40, 0, time.Unix(1, 0))
+	player.RecordHint("completed")
+
+	if err := store.Save(player); err != nil {
+		t.Fatal(err)
+	}
+	if got := player.MissionHints("completed"); got != 1 {
+		t.Fatalf("Save() mutated caller hint progress to %d, want 1", got)
+	}
+
+	loaded, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := loaded.MissionHints("completed"); got != 0 {
+		t.Fatalf("persisted completed-mission hint progress = %d, want 0", got)
+	}
+}
+
 func TestValidateName(t *testing.T) {
 	maximum := strings.Repeat("a", MaxPlayerNameRunes)
 	tests := []struct {

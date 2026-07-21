@@ -68,7 +68,7 @@ The current Linux curriculum is split into track-local worlds:
 3. **Production Friday** — aggregation, transformation, ownership, disk usage, and a multi-step boss incident
 4. **The Automation Shift** — modal editing, reusable scripts, executable modes, and child-shell scope
 
-Global mission numbers and IDs remain stable references. The UI separately shows `World N/M` and `Stage N/M`, and `opsquest map` summarizes progress. Worlds provide a recommended path rather than locks: players may jump directly to any world, mission number, or ID and replay completed content.
+Global mission numbers and IDs remain stable top-level references. The UI separately shows `World N/M` and `Stage N/M`, and `opsquest map` summarizes progress. Inside a mission, a numeric `play` reference selects a stage in the current world while a stable ID can jump across worlds. Worlds provide a recommended path rather than locks: players may jump directly to any world, mission, or stage and replay completed content.
 
 XP, ranks, active and completed hint usage, completed missions, practiced commands, achievements, and the additive onboarding marker persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not. Display names are limited to 40 printable Unicode characters so persisted terminal controls cannot spoof CLI output.
 
@@ -84,9 +84,9 @@ profile    commands            achievements       doctor
 reset      version             help
 ```
 
-Inside a mission, players can use `hint`, `objective`, `status`, `restart`, `quit`, and `?` for the expanded control guide. They can navigate with `map`, `world NUMBER`, `list`, `play MISSION`, `next`, and `previous`, optionally prefixed with `opsquest`.
+Inside a mission, players can use `hint`, `objective`, `status`, `restart`, `quit`, and `?` for the expanded control guide. They can navigate with `map`, `world NUMBER`, `list`, `play STAGE_OR_ID`, `next`, and `previous`, optionally prefixed with `opsquest`.
 
-`opsquest play` continues through incomplete Linux missions after a success. `opsquest play NUMBER_OR_ID` starts that continuous session at a chosen mission, while `--once` returns after one completion. `opsquest play --world NUMBER` follows one world's incomplete stages and stops at its boundary. An explicitly selected Docker lab follows the same rule. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
+`opsquest play` resumes the first incomplete Linux mission and follows the recommended path. At the top level, `opsquest play NUMBER_OR_ID` starts a sequential route at that exact global mission instead of snapping back to the progress gap. Inside a mission, `play STAGE` selects that stage in the current world and retains the world route, while `play ID` provides an unambiguous cross-world jump. `--once` returns after one completion. `opsquest play --world NUMBER` and the in-lab `world NUMBER` stay in one world and stop at its boundary. An explicitly selected Docker lab follows the same routing rules. `opsquest map --track docker` discovers the optional Docker track, and `--ids` reveals stable mission IDs. A fresh Linux profile receives a concise quick start once before its first mission; an additive profile marker prevents repetition after an immediate quit, while `opsquest guide` shows the comprehensive version later.
 
 ## Teaching shell
 

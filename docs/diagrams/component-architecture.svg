@@ -1,0 +1,98 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-labelledby="title desc">
+  <title id="title">OpsQuest component architecture</title>
+  <desc id="desc">Package dependency diagram showing the composition root, CLI and game orchestration, mission and profile domains, sandbox and Docker adapters, and UI and build information support packages.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
+    </marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%">
+      <feDropShadow dx="0" dy="3" stdDeviation="4" flood-color="#0f172a" flood-opacity="0.12"/>
+    </filter>
+    <style>
+      .title{font:700 34px Inter,system-ui,sans-serif;fill:#0f172a}.subtitle{font:400 17px Inter,system-ui,sans-serif;fill:#475569}
+      .name{font:700 18px Inter,system-ui,sans-serif}.body{font:400 14px Inter,system-ui,sans-serif}.small{font:600 13px Inter,system-ui,sans-serif;fill:#64748b}
+      .edge{fill:none;stroke:#64748b;stroke-width:2;marker-end:url(#arrow)}.wire{fill:none;stroke:#94a3b8;stroke-width:1.5;stroke-dasharray:6 5;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1400" height="920" fill="#f8fafc"/>
+  <text x="60" y="58" class="title">Component architecture</text>
+  <text x="60" y="88" class="subtitle">Imports point toward contracts and data; the composition root selects concrete adapters.</text>
+
+  <path class="wire" d="M700 202 C500 215 410 235 360 270"/>
+  <path class="wire" d="M700 202 C830 220 900 240 930 270"/>
+  <path class="wire" d="M700 202 C650 330 610 455 570 570"/>
+  <path class="wire" d="M700 202 C760 330 800 455 830 570"/>
+  <path class="wire" d="M700 202 C925 315 1085 490 1135 680"/>
+  <path class="wire" d="M700 202 C450 330 255 490 205 680"/>
+
+  <path class="edge" d="M500 320 L790 320"/>
+  <path class="edge" d="M350 370 C390 465 485 520 550 570"/>
+  <path class="edge" d="M390 370 C530 450 730 500 805 570"/>
+  <path class="edge" d="M305 370 C250 480 220 565 205 680"/>
+  <path class="edge" d="M270 370 C210 410 160 460 145 500"/>
+  <path class="edge" d="M930 370 C895 455 855 510 830 570"/>
+  <path class="edge" d="M880 370 C760 460 655 520 570 570"/>
+  <path class="edge" d="M890 370 C820 500 650 625 545 700"/>
+  <path class="edge" d="M845 370 C610 455 345 575 205 680"/>
+  <path class="edge" d="M490 730 C600 680 710 640 785 620"/>
+  <path class="edge" d="M1090 680 C1030 640 960 620 875 615"/>
+  <path class="edge" d="M1090 680 C1130 540 1090 430 1000 370"/>
+
+  <g filter="url(#shadow)">
+    <rect x="500" y="118" width="400" height="84" rx="18" fill="#172554" stroke="#172554" stroke-width="2"/>
+    <text x="700" y="151" text-anchor="middle" class="name" fill="#fff">cmd/opsquest</text>
+    <text x="700" y="178" text-anchor="middle" class="body" fill="#dbeafe">composition root · signals · process errors</text>
+  </g>
+
+  <text x="60" y="246" class="small">APPLICATION ORCHESTRATION</text>
+  <g filter="url(#shadow)">
+    <rect x="210" y="270" width="290" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="355" y="307" text-anchor="middle" class="name" fill="#172554">internal/cli</text>
+    <text x="355" y="334" text-anchor="middle" class="body" fill="#1e3a8a">commands · routes · presentation</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="790" y="270" width="290" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/>
+    <text x="935" y="307" text-anchor="middle" class="name" fill="#172554">internal/game</text>
+    <text x="935" y="334" text-anchor="middle" class="body" fill="#1e3a8a">session · outcomes · progression</text>
+  </g>
+
+  <text x="60" y="476" class="small">DOMAIN AND CONTRACTS</text>
+  <g filter="url(#shadow)">
+    <rect x="420" y="570" width="260" height="96" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="550" y="606" text-anchor="middle" class="name" fill="#14532d">internal/profile</text>
+    <text x="550" y="632" text-anchor="middle" class="body" fill="#166534">progress · atomic storage</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="740" y="570" width="270" height="96" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/>
+    <text x="875" y="606" text-anchor="middle" class="name" fill="#14532d">internal/mission</text>
+    <text x="875" y="632" text-anchor="middle" class="body" fill="#166534">schema · catalog · worlds</text>
+  </g>
+
+  <text x="60" y="656" class="small">ADAPTERS AND SUPPORT</text>
+  <g filter="url(#shadow)">
+    <rect x="340" y="700" width="270" height="104" rx="16" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="475" y="738" text-anchor="middle" class="name" fill="#78350f">internal/sandbox</text>
+    <text x="475" y="764" text-anchor="middle" class="body" fill="#92400e">in-memory teaching shell</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="990" y="680" width="290" height="104" rx="16" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="1135" y="718" text-anchor="middle" class="name" fill="#78350f">internal/dockerlab</text>
+    <text x="1135" y="744" text-anchor="middle" class="body" fill="#92400e">typed optional Docker adapter</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="80" y="680" width="250" height="92" rx="16" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="205" y="715" text-anchor="middle" class="name" fill="#334155">internal/ui</text>
+    <text x="205" y="741" text-anchor="middle" class="body" fill="#475569">semantic terminal styles</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="60" y="500" width="220" height="86" rx="16" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="170" y="533" text-anchor="middle" class="name" fill="#334155">internal/buildinfo</text>
+    <text x="170" y="558" text-anchor="middle" class="body" fill="#475569">release version</text>
+  </g>
+
+  <rect x="60" y="850" width="18" height="4" rx="2" fill="#64748b"/>
+  <text x="88" y="858" class="body" fill="#475569">solid: package dependency</text>
+  <line x1="280" y1="852" x2="304" y2="852" stroke="#94a3b8" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="314" y="858" class="body" fill="#475569">dashed: composition wiring</text>
+  <text x="1340" y="858" text-anchor="end" class="body" fill="#64748b">Source: component-architecture.mmd</text>
+</svg>

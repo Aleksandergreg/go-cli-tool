@@ -12,6 +12,7 @@ fi
 SMOKE_ROOT="$(mktemp -d "${SMOKE_TEMPLATE}")"
 PROFILE_HOME="${SMOKE_ROOT}/profile"
 FRESH_PROFILE_HOME="${SMOKE_ROOT}/fresh-profile"
+ROUTE_PROFILE_HOME="${SMOKE_ROOT}/route-profile"
 BINARY="${SMOKE_ROOT}/opsquest"
 EMPTY_BIN="${SMOKE_ROOT}/empty-bin"
 mkdir -p "${EMPTY_BIN}"
@@ -61,7 +62,11 @@ run_opsquest() {
 }
 
 run_fresh_opsquest() {
-  env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${FRESH_PROFILE_HOME}" OPSQUEST_PLAYER="fresh-operator" "${BINARY}" "$@"
+	env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${FRESH_PROFILE_HOME}" OPSQUEST_PLAYER="fresh-operator" "${BINARY}" "$@"
+}
+
+run_route_opsquest() {
+	env PATH="${EMPTY_BIN}" OPSQUEST_HOME="${ROUTE_PROFILE_HOME}" OPSQUEST_PLAYER="route-operator" "${BINARY}" "$@"
 }
 
 cd "${REPO_ROOT}"
@@ -85,6 +90,16 @@ assert_contains "selected continuous play" "${selected_play_output}" "MISSION 02
 once_output="$(printf 'pwd\n' | run_fresh_opsquest play --once 1)"
 assert_contains "one-shot play" "${once_output}" "NEXT RECOMMENDED"
 assert_not_contains "one-shot play" "${once_output}" "MISSION 02: Configuration Crawl"
+
+printf 'pwd\n' | run_route_opsquest play --once 1 >/dev/null
+replay_hints_output="$(printf 'hint\nhint\nhint\nquit\n' | run_route_opsquest play 1)"
+assert_contains "replay hints" "${replay_hints_output}" "Hint 1/2 (no XP cost):"
+assert_contains "replay hints" "${replay_hints_output}" "Hint 2/2 (no XP cost):"
+assert_contains "replay hints" "${replay_hints_output}" "No more hints."
+selected_route_output="$(printf 'mkdir -p reports/daily\ntouch reports/daily/summary.txt\nquit\n' | run_route_opsquest play 3)"
+assert_contains "selected route" "${selected_route_output}" "Continuing to Mission 04: The Missing Log File"
+assert_contains "selected route" "${selected_route_output}" "MISSION 04: The Missing Log File"
+assert_not_contains "selected route" "${selected_route_output}" "Continuing to Mission 02"
 
 guide_output="$(run_opsquest guide)"
 assert_no_ansi "guide" "${guide_output}"
@@ -146,14 +161,17 @@ assert_contains "in-mission list" "${play_output}" "1/19 missions complete"
 assert_contains "in-mission switch" "${play_output}" "Switching to Mission 03: A Place for Everything"
 assert_contains "in-mission switch" "${play_output}" "MISSION 03: A Place for Everything"
 
-world_output="$(printf 'quit\n' | run_opsquest play --world 2)"
+world_output="$(printf 'play 3\nquit\n' | run_opsquest play --world 2)"
 assert_no_ansi "world jump" "${world_output}"
 assert_contains "world jump" "${world_output}" "MISSION 06: Permission to Deploy"
 assert_contains "world jump" "${world_output}" "World 2/4: The Logpocalypse · Stage 1/5"
+assert_contains "world stage jump" "${world_output}" "Switching to Mission 08: The Runaway Worker"
+assert_contains "world stage jump" "${world_output}" "World 2/4: The Logpocalypse · Stage 3/5"
+assert_not_contains "world stage jump" "${world_output}" "MISSION 03: A Place for Everything"
 
 final_profile="$(run_opsquest profile)"
 assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: onboarding, continuous and one-shot play, worlds, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'
+printf 'smoke-test: onboarding, replay hints, sticky selected routes, continuous and one-shot play, worlds, world-local stages, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'

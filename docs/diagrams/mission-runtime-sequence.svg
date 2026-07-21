@@ -1,0 +1,60 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1120" viewBox="0 0 1600 1120" role="img" aria-labelledby="title desc">
+  <title id="title">OpsQuest mission runtime sequence</title>
+  <desc id="desc">Sequence from player route selection through profile load, environment creation, repeated command execution and outcome evaluation, cleanup, and completion persistence.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#334155"/></marker>
+    <marker id="arrowBlue" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#2563eb"/></marker>
+    <style>
+      .title{font:700 34px Inter,system-ui,sans-serif;fill:#0f172a}.subtitle{font:400 17px Inter,system-ui,sans-serif;fill:#475569}
+      .head{font:700 15px Inter,system-ui,sans-serif;fill:#172554}.label{font:500 13px Inter,system-ui,sans-serif;fill:#334155}.note{font:600 13px Inter,system-ui,sans-serif;fill:#78350f}
+      .life{stroke:#94a3b8;stroke-width:1.5;stroke-dasharray:6 6}.call{stroke:#334155;stroke-width:1.8;marker-end:url(#arrow)}.return{stroke:#2563eb;stroke-width:1.8;stroke-dasharray:6 4;marker-end:url(#arrowBlue)}
+    </style>
+  </defs>
+  <rect width="1600" height="1120" fill="#f8fafc"/>
+  <text x="50" y="56" class="title">One mission attempt</text>
+  <text x="50" y="86" class="subtitle">The environment closes successfully before first-completion XP is persisted.</text>
+
+  <g>
+    <rect x="45" y="120" width="150" height="56" rx="12" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/><text x="120" y="154" text-anchor="middle" class="head">Player</text>
+    <rect x="235" y="120" width="150" height="56" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="310" y="154" text-anchor="middle" class="head">cli.App</text>
+    <rect x="435" y="120" width="160" height="56" rx="12" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="515" y="154" text-anchor="middle" class="head">profile.Store</text>
+    <rect x="650" y="120" width="170" height="56" rx="12" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="735" y="154" text-anchor="middle" class="head">game.Session</text>
+    <rect x="875" y="120" width="160" height="56" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="955" y="154" text-anchor="middle" class="head">game.Factory</text>
+    <rect x="1090" y="120" width="170" height="56" rx="12" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="1175" y="154" text-anchor="middle" class="head">Environment</text>
+    <rect x="1325" y="120" width="220" height="56" rx="12" fill="#f1f5f9" stroke="#64748b" stroke-width="2"/><text x="1435" y="154" text-anchor="middle" class="head">Outcome evaluator</text>
+  </g>
+
+  <line x1="120" y1="176" x2="120" y2="1110" class="life"/><line x1="310" y1="176" x2="310" y2="1110" class="life"/>
+  <line x1="515" y1="176" x2="515" y2="1110" class="life"/><line x1="735" y1="176" x2="735" y2="1110" class="life"/>
+  <line x1="955" y1="176" x2="955" y2="1110" class="life"/><line x1="1175" y1="176" x2="1175" y2="1110" class="life"/>
+  <line x1="1435" y1="176" x2="1435" y2="1110" class="life"/>
+
+  <line x1="120" y1="215" x2="310" y2="215" class="call"/><text x="215" y="207" text-anchor="middle" class="label">play [route]</text>
+  <line x1="310" y1="260" x2="515" y2="260" class="call"/><text x="412" y="252" text-anchor="middle" class="label">Load()</text>
+  <line x1="515" y1="300" x2="310" y2="300" class="return"/><text x="412" y="292" text-anchor="middle" class="label">normalized profile</text>
+  <path d="M310 330 h80 v36 h-80" fill="none" class="call"/><text x="395" y="351" class="label">select mission + route</text>
+  <line x1="310" y1="395" x2="735" y2="395" class="call"/><text x="522" y="387" text-anchor="middle" class="label">Run(mission, profile, factory)</text>
+  <line x1="735" y1="440" x2="955" y2="440" class="call"/><text x="845" y="432" text-anchor="middle" class="label">Create(context, mission)</text>
+  <line x1="955" y1="480" x2="735" y2="480" class="return"/><text x="845" y="472" text-anchor="middle" class="label">fresh managed environment</text>
+
+  <rect x="78" y="505" width="1405" height="410" rx="14" fill="#ffffff" fill-opacity="0.65" stroke="#93c5fd" stroke-width="2"/>
+  <rect x="78" y="505" width="250" height="30" rx="10" fill="#dbeafe"/><text x="94" y="526" class="head">LOOP · until quit, switch, or complete</text>
+  <line x1="120" y1="565" x2="735" y2="565" class="call"/><text x="427" y="557" text-anchor="middle" class="label">command or mission control</text>
+  <rect x="650" y="586" width="170" height="35" rx="8" fill="#f1f5f9" stroke="#94a3b8"/><text x="735" y="608" text-anchor="middle" class="label">handle controls locally</text>
+  <text x="842" y="608" class="label">or execute an environment command:</text>
+  <line x1="735" y1="650" x2="1175" y2="650" class="call"/><text x="955" y="642" text-anchor="middle" class="label">Execute(context, line)</text>
+  <line x1="1175" y1="690" x2="735" y2="690" class="return"/><text x="955" y="682" text-anchor="middle" class="label">output + safe learning metadata</text>
+  <line x1="735" y1="730" x2="515" y2="730" class="call"/><text x="625" y="722" text-anchor="middle" class="label">Save(practice / achievements)</text>
+  <line x1="735" y1="770" x2="1435" y2="770" class="call"/><text x="1085" y="762" text-anchor="middle" class="label">evaluate mission conditions</text>
+  <line x1="1435" y1="810" x2="1175" y2="810" class="call"/><text x="1305" y="802" text-anchor="middle" class="label">Observe(state condition)</text>
+  <line x1="1175" y1="846" x2="1435" y2="846" class="return"/><text x="1305" y="838" text-anchor="middle" class="label">satisfied?</text>
+  <line x1="1435" y1="882" x2="735" y2="882" class="return"/><text x="1085" y="874" text-anchor="middle" class="label">outcome results · continue if incomplete</text>
+
+  <rect x="650" y="935" width="610" height="94" rx="14" fill="#fff7ed" stroke="#d97706" stroke-width="2"/>
+  <text x="670" y="960" class="note">EVERY OUTCOME PASSES</text>
+  <line x1="735" y1="982" x2="1175" y2="982" class="call"/><text x="955" y="974" text-anchor="middle" class="label">Close() · cleanup first</text>
+  <line x1="1175" y1="1012" x2="735" y2="1012" class="return"/><text x="955" y="1005" text-anchor="middle" class="label">cleanup complete</text>
+  <line x1="735" y1="1048" x2="515" y2="1048" class="call"/><text x="625" y="1040" text-anchor="middle" class="label">Save(completion + XP)</text>
+  <line x1="735" y1="1080" x2="310" y2="1080" class="return"/><text x="522" y="1072" text-anchor="middle" class="label">completed SessionResult</text>
+  <line x1="310" y1="1102" x2="120" y2="1102" class="return"/><text x="215" y="1094" text-anchor="middle" class="label">completion + next route</text>
+</svg>

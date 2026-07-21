@@ -29,6 +29,19 @@ type App struct {
 	errorStyle ui.Style
 }
 
+type playRouteKind uint8
+
+const (
+	playRouteRecommended playRouteKind = iota
+	playRouteSequential
+	playRouteWorld
+)
+
+type playRoute struct {
+	kind        playRouteKind
+	worldNumber int
+}
+
 // Config contains the process-level dependencies required by the CLI. The
 // executable supplies persistent storage and the combined environment factory;
 // focused tests may omit Context and Factory to use safe in-process defaults.
@@ -167,13 +180,16 @@ func (a *App) runPlay(args []string) error {
 		return err
 	}
 	var item mission.Mission
+	route := playRoute{kind: playRouteRecommended}
 	if flags.NArg() == 1 {
 		var found bool
 		item, found = a.catalog.Find(flags.Arg(0))
 		if !found {
 			return fmt.Errorf("mission %q not found; run 'opsquest list'", flags.Arg(0))
 		}
+		route.kind = playRouteSequential
 	} else if *worldNumber > 0 {
+		route = playRoute{kind: playRouteWorld, worldNumber: *worldNumber}
 		var found bool
 		item, found = a.catalog.NextInWorld(selectedTrack, *worldNumber, player.IsComplete)
 		if !found {
@@ -231,8 +247,15 @@ func (a *App) runPlay(args []string) error {
 		}
 		if result.SwitchMission != "" {
 			item, _ = a.catalog.Find(result.SwitchMission)
-			*worldNumber = 0
+			if result.WorldRoute > 0 {
+				route = playRoute{kind: playRouteWorld, worldNumber: result.WorldRoute}
+			} else {
+				route = playRoute{kind: playRouteSequential}
+			}
 			continue
+		}
+		if result.WorldRoute > 0 {
+			route = playRoute{kind: playRouteWorld, worldNumber: result.WorldRoute}
 		}
 		if !result.Completed {
 			return nil
@@ -242,19 +265,9 @@ func (a *App) runPlay(args []string) error {
 			return nil
 		}
 
-		var next mission.Mission
-		var found bool
-		if *worldNumber > 0 {
-			next, found = a.catalog.NextInWorld(item.EffectiveTrack(), *worldNumber, player.IsComplete)
-		} else {
-			next, found = a.catalog.NextInTrack(item.EffectiveTrack(), player.IsComplete)
-		}
+		next, found := a.nextOnRoute(route, item, player)
 		if !found {
-			if placement, exists := a.catalog.Placement(item.ID); exists && *worldNumber > 0 {
-				fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("World %d complete: %s!", placement.WorldNumber, placement.WorldName)))
-			} else {
-				fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("%s track complete!", trackDisplayName(item.EffectiveTrack()))))
-			}
+			a.printRouteFinished(route, item, player)
 			return nil
 		}
 		if current, ok := a.catalog.Placement(item.ID); ok {
@@ -275,6 +288,42 @@ func (a *App) runPlay(args []string) error {
 		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("→ Continuing to Mission %02d: %s", next.Number, next.Title)))
 		item = next
 	}
+}
+
+func (a *App) nextOnRoute(route playRoute, current mission.Mission, player profile.Profile) (mission.Mission, bool) {
+	switch route.kind {
+	case playRouteSequential:
+		return a.catalog.AdjacentInTrack(current.ID, 1)
+	case playRouteWorld:
+		next, found := a.catalog.AdjacentInTrack(current.ID, 1)
+		if !found {
+			return mission.Mission{}, false
+		}
+		placement, found := a.catalog.Placement(next.ID)
+		if !found || placement.Track != current.EffectiveTrack() || placement.WorldNumber != route.worldNumber {
+			return mission.Mission{}, false
+		}
+		return next, true
+	default:
+		return a.catalog.NextInTrack(current.EffectiveTrack(), player.IsComplete)
+	}
+}
+
+func (a *App) printRouteFinished(route playRoute, current mission.Mission, player profile.Profile) {
+	if route.kind == playRouteWorld {
+		if placement, found := a.catalog.Placement(current.ID); found && a.worldComplete(placement, player) {
+			fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("World %d complete: %s!", placement.WorldNumber, placement.WorldName)))
+			return
+		}
+		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("Reached the end of World %d; unfinished stages remain. Resume with 'opsquest play --world %d'.", route.worldNumber, route.worldNumber)))
+		return
+	}
+
+	if _, remaining := a.catalog.NextInTrack(current.EffectiveTrack(), player.IsComplete); remaining {
+		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent("Reached the end of the selected route. Resume unfinished missions with 'opsquest play'."))
+		return
+	}
+	fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("%s track complete!", trackDisplayName(current.EffectiveTrack()))))
 }
 
 func (a *App) worldComplete(placement mission.Placement, player profile.Profile) bool {
@@ -433,7 +482,7 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 	if shown > 0 {
 		if inMission {
 			fmt.Fprintf(a.out, "Navigate here: %s · %s · reveal IDs with %s\n",
-				a.style.Accent("world N"), a.style.Accent("play NUMBER/ID"), a.style.Accent("list --ids"))
+				a.style.Accent("world N"), a.style.Accent("play STAGE/ID"), a.style.Accent("list --ids"))
 		} else {
 			commandTrack := selectedTrack
 			if commandTrack == "all" && len(displayedTracks) == 1 {
@@ -834,8 +883,9 @@ func (a *App) runHelp(args []string) error {
 
 func (a *App) printPlayUsage(out io.Writer) {
 	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [MISSION]")
-	fmt.Fprintln(out, "Continue through incomplete missions until you quit or finish the selected world/track.")
-	fmt.Fprintln(out, "A mission number or ID chooses where to start; --once returns after that mission is completed.")
+	fmt.Fprintln(out, "Without a selector, resume the first incomplete mission and continue the recommended path.")
+	fmt.Fprintln(out, "A mission number or ID follows catalog order from that exact stage; --world stays inside one world.")
+	fmt.Fprintln(out, "Use --once to return after one completed mission.")
 }
 
 func (a *App) printListUsage(out io.Writer) {

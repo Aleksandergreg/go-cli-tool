@@ -125,13 +125,13 @@ You can navigate without leaving the mission prompt:
 ```console
 opsquest:/backups$ list --completed
 opsquest:/backups$ map
-opsquest:/backups$ world 1
-opsquest:/backups$ play 3
-opsquest:/workspace$ next
-opsquest:/srv/release$ previous
+opsquest:/backups$ world 2
+opsquest:/srv/release$ play 3
+opsquest:/home/operator$ next
+opsquest:/backups$ previous
 ```
 
-The `opsquest` prefix is optional inside a mission, so `opsquest map` and `opsquest play 3` also work. Listing preserves the current sandbox; switching missions or worlds starts the selected stage with a fresh sandbox while keeping persistent profile progress. Type `?` for the full mission and line-editing guide.
+The `opsquest` prefix is optional inside a mission, so `opsquest map` and `opsquest play 3` also work. An in-mission number selects that stage in the current world: from World 2, `play 3` opens Mission 08, not global Mission 03. Use a stable mission ID from `list --ids` to jump across worlds. Listing preserves the current sandbox; switching missions or worlds starts the selected stage with a fresh sandbox while keeping persistent profile progress. Type `?` for the full mission and line-editing guide.
 
 Interactive editing supports Left/Right cursor movement, Up/Down history, Home/End and Ctrl-A/E line boundaries, Option/Ctrl-Left/Right word movement, Tab completion, Backspace, Delete, and Ctrl-W. Command-arrow sequences are treated as Home/End when the terminal reports the modifier.
 
@@ -162,7 +162,7 @@ Each script runs with child-shell working-directory and environment scope: `cd` 
 
 This is not a complete POSIX shell. Options such as `sh -c`, positional arguments, stdin-fed scripts, standalone assignments, loops, conditionals, functions, substitutions, background jobs, external programs, and interactive `vi` calls from a script are rejected rather than approximated. Use `help sh` for the exact limits.
 
-`opsquest play` continues to the next incomplete mission after each success until you type `quit` or finish the Linux track. A mission argument such as `opsquest play 4` or `opsquest play linux-find-logs` chooses where that continuous session starts. `opsquest play --world 2` stays within World 2 and stops at its boundary. Add `--once` to return after one completed mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
+`opsquest play` resumes the first incomplete mission and follows the recommended path. At the top level, a direct mission jump such as `opsquest play 4` uses the stable global mission number or ID and advances sequentially from there. Inside a mission, `play 4` selects Stage 4 of the current world and keeps the route inside that world; a stable ID remains the unambiguous cross-world form. `opsquest play --world 2` and the in-lab `world 2` also stay within World 2 and stop at its boundary. Add `--once` to return after one completed mission. Worlds are guidance rather than locks: every stage remains directly playable and replayable.
 
 The game accepts any supported command sequence that produces the objective's final outcome. After an incomplete command it reports how many checks pass; `status` lists each satisfied and missing outcome without prescribing a command. `restart` rebuilds the mission environment while retaining hint penalties and command mastery.
 
@@ -228,6 +228,16 @@ setup: simulated state or attempt-scoped Docker fixtures
 suggested command names + progressive hints + explanation + rewards
 validation: one or more observable outcome conditions
 ```
+
+### Technical documentation
+
+The living technical guides start at [`docs/README.md`](docs/README.md):
+
+- [`docs/architecture.md`](docs/architecture.md) maps the packages, runtime sequence, environment contract, and persistence boundaries.
+- [`docs/curriculum.md`](docs/curriculum.md) maps every mission to its learning focus, suggested tools, and observable outcomes.
+- [`docs/sandbox-and-safety.md`](docs/sandbox-and-safety.md) traces command execution, virtual state, trust boundaries, Docker isolation, and resource ceilings.
+
+Editable Mermaid and Excalidraw sources plus repository-viewable SVG exports live in [`docs/diagrams`](docs/diagrams). Numbered iteration reports remain delivery history rather than the source of truth for the current design.
 
 ## Development
 
