@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.4.0...v0.5.0) (2026-07-21)
+
+
+### Features
+
+* Documentation and overview of the system and correct jumping through levels ([26f643d](https://github.com/Aleksandergreg/go-cli-tool/commit/26f643d8e9fe6b76533c4de1510fb72a05fe5eb4))
+
+
+### Bug Fixes
+
+* **game:** advance hints correctly during mission replays ([d81537d](https://github.com/Aleksandergreg/go-cli-tool/commit/d81537d05d5afa0bf148e24cd5522db569d32c28))
+* level increment ([5addfe3](https://github.com/Aleksandergreg/go-cli-tool/commit/5addfe32fd582defebd8eea8ef93cf9778e544c2))
+
 ## [0.4.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.3.0...v0.4.0) (2026-07-18)
 
 
