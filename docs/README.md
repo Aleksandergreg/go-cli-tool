@@ -1,31 +1,32 @@
-# OpsQuest technical documentation
+# OpsQuest documentation
 
-This directory contains the living explanation of how OpsQuest works today. The root [README](../README.md) remains the player-facing introduction and command reference; the numbered iteration reports preserve delivery history.
+This is the repository-level map for OpsQuest documentation. The root [README](../README.md) remains the player-facing introduction and command reference; material here explains the game design, implementation, future direction, and delivery history in progressively more detail.
 
-## Start here
+## Choose a section
 
-| If you want to understand… | Read… | Then inspect… |
+| Section | Use it for | Authority |
 | --- | --- | --- |
-| The whole system and its package boundaries | [Architecture](architecture.md) | [`cmd/opsquest/main.go`](../cmd/opsquest/main.go) and [`internal/game/environment.go`](../internal/game/environment.go) |
-| What each mission teaches and why it appears there | [Curriculum](curriculum.md) | [`internal/mission/data`](../internal/mission/data) and [`internal/mission/world.go`](../internal/mission/world.go) |
-| How player commands remain isolated | [Sandbox and safety](sandbox-and-safety.md) | [`internal/sandbox`](../internal/sandbox) and [`internal/dockerlab`](../internal/dockerlab) |
+| [Game and learning](game/README.md) | The learning loop, worlds, missions, progression, and curriculum decisions | Current product documentation |
+| [Technical](technical/README.md) | Architecture, runtime behavior, sandbox isolation, Docker boundaries, and implementation diagrams | Current technical documentation; code and tests win if they disagree |
+| [Roadmap](roadmap/README.md) | Proposed work, unfinished campaign increments, and improvement options | Forward-looking; each page must state its status |
+| [Delivery history](history/README.md) | What a completed iteration delivered and which checks were observed at that time | Historical evidence, not current behavior |
 
-The three guides are intentionally layered:
+For a first technical pass, read [Architecture](technical/architecture.md), then [Sandbox and safety](technical/sandbox-and-safety.md). For the product and learning model, start with the [Curriculum](game/curriculum.md).
 
-1. **Architecture** establishes the runtime and ownership model.
-2. **Curriculum** explains the product and learning model built on that runtime.
-3. **Sandbox and safety** goes deeper into parsing, virtual state, Docker isolation, and resource limits.
+## Placement rules
 
-## Diagram sources
+Use the document's purpose—not its file type or creation date—to decide where it belongs:
 
-Editable sources and rendered exports live in [`diagrams/`](diagrams/):
+1. Put player experience, teaching strategy, mission sequencing, and game-system explanations in `game/`.
+2. Put descriptions of implemented code, runtime flows, contracts, and safety properties in `technical/`.
+3. Put proposals and unfinished work in `roadmap/`, with an explicit status near the top.
+4. Put point-in-time delivery reports in `history/iterations/`; use zero-padded filenames so they sort chronologically.
+5. Keep editable diagram sources and their rendered SVGs beside the section that owns them, under that section's `diagrams/` directory.
 
-- Mermaid (`.mmd`) is used for exact component, sequence, and execution flows that should change alongside code.
-- Excalidraw (`.excalidraw`) is used for conceptual maps where spatial grouping and annotations communicate the idea faster.
-- SVG exports make every diagram readable directly from the repository and embeddable in these guides.
+Current guides should describe what OpsQuest does now. A delivered proposal should be folded into the appropriate current guide; its roadmap page may remain as rationale, but must be marked delivered. Historical reports should not be rewritten into the source of truth.
 
-When a diagram changes, update its editable source and SVG export together. The Markdown guides link to both so a reviewer can compare them.
+## Diagram convention
 
-## Historical documentation
+Mermaid (`.mmd`) is used for exact component, sequence, and execution flows that should change alongside code. Excalidraw (`.excalidraw`) is used for conceptual maps where spatial grouping helps. Each editable source has a repository-viewable SVG export with the same basename; update and review the pair together.
 
-Files named `iteration_N.md` record what was delivered and observed at a point in time. They are evidence and history, not the source of truth for current architecture. Plans under [`plans/`](plans/) and improvement notes under [`improvements/`](improvements/) may describe unfinished work; each file should state that status explicitly.
+The [hosted documentation proposal](roadmap/hosted-documentation.md) applies this same information architecture to a possible public site.

@@ -1,0 +1,66 @@
+<!-- Rendered export; edit the matching Mermaid source. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="1680" height="980" viewBox="0 0 1680 980" role="img" aria-labelledby="title desc">
+  <title id="title">Teaching-shell command execution pipeline</title>
+  <desc id="desc">Flow from bounded player input through lexing, parsing, virtual expansion, preflight, Go command dispatch, virtual state, redirection, execution metadata, and mission outcome evaluation.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#475569"/></marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="2" stdDeviation="3" flood-color="#0f172a" flood-opacity="0.12"/></filter>
+    <style>
+      .title{font:700 34px Inter,system-ui,sans-serif;fill:#0f172a}.subtitle{font:400 17px Inter,system-ui,sans-serif;fill:#475569}
+      .head{font:700 16px Inter,system-ui,sans-serif}.body{font:400 13px Inter,system-ui,sans-serif}.tiny{font:600 12px Inter,system-ui,sans-serif;letter-spacing:.08em}
+      .edge{fill:none;stroke:#475569;stroke-width:2;marker-end:url(#arrow)}.dash{fill:none;stroke:#7c3aed;stroke-width:2;stroke-dasharray:7 5;marker-end:url(#arrow)}.stateedge{fill:none;stroke:#16a34a;stroke-width:1.7;stroke-dasharray:5 5}
+    </style>
+  </defs>
+  <rect width="1680" height="980" fill="#f8fafc"/>
+  <text x="55" y="58" class="title">Teaching-shell command execution</text>
+  <text x="55" y="88" class="subtitle">Every Linux player command stays inside bounded Go parsing and virtual state.</text>
+  <rect x="55" y="255" width="410" height="42" rx="21" fill="#fee2e2" stroke="#dc2626" stroke-width="1.5"/>
+  <text x="260" y="281" text-anchor="middle" class="body" fill="#991b1b">FAILED GATE → bounded error · no external fallback</text>
+
+  <path class="edge" d="M225 180 H290"/><path class="edge" d="M450 180 H510"/><path class="edge" d="M710 180 H760"/><path class="edge" d="M960 180 H1010"/><path class="edge" d="M1210 180 H1260"/>
+  <path class="edge" d="M1430 225 C1430 280 1380 300 1310 322"/>
+  <path class="edge" d="M1180 380 H1090"/><path class="edge" d="M900 380 H810"/><path class="edge" d="M620 380 H530"/><path class="edge" d="M340 380 H260"/>
+  <path class="edge" d="M165 430 C165 505 235 515 320 535"/><path class="edge" d="M510 575 H590"/><path class="edge" d="M790 575 H875"/><path class="edge" d="M1075 575 H1155"/>
+  <path class="edge" d="M1345 575 H1430"/>
+  <path class="edge" d="M975 510 C975 468 988 450 990 430"/>
+  <text x="990" y="478" class="body" fill="#475569">yes</text>
+  <path class="edge" d="M415 640 C415 690 930 690 975 640"/>
+  <text x="690" y="681" text-anchor="middle" class="body" fill="#475569">no redirect</text>
+  <text x="540" y="562" class="body" fill="#475569">yes</text>
+  <text x="1095" y="562" class="body" fill="#475569">no</text>
+  <path class="stateedge" d="M430 430 C275 480 220 570 220 700"/>
+  <path class="edge" d="M1525 625 C1525 690 1430 700 1360 720"/>
+  <text x="1450" y="700" class="body" fill="#475569">observe</text>
+
+  <g filter="url(#shadow)"><rect x="55" y="130" width="170" height="100" rx="16" fill="#172554"/><text x="140" y="170" text-anchor="middle" class="head" fill="#fff">Player line</text><text x="140" y="197" text-anchor="middle" class="body" fill="#dbeafe">untrusted text</text></g>
+  <g filter="url(#shadow)"><path d="M370 125 L455 180 L370 235 L285 180z" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="370" y="173" text-anchor="middle" class="head" fill="#78350f">≤ 64 KiB?</text><text x="370" y="195" text-anchor="middle" class="body" fill="#92400e">before history</text></g>
+  <g filter="url(#shadow)"><rect x="510" y="130" width="200" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="610" y="168" text-anchor="middle" class="head" fill="#172554">Bounded history</text><text x="610" y="195" text-anchor="middle" class="body" fill="#1e3a8a">last 100 lines</text></g>
+  <g filter="url(#shadow)"><rect x="760" y="130" width="200" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="860" y="165" text-anchor="middle" class="head" fill="#172554">Lex</text><text x="860" y="190" text-anchor="middle" class="body" fill="#1e3a8a">quotes · variables</text><text x="860" y="210" text-anchor="middle" class="body" fill="#1e3a8a">pipes · redirection</text></g>
+  <g filter="url(#shadow)"><rect x="1010" y="130" width="200" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="1110" y="165" text-anchor="middle" class="head" fill="#172554">Parse</text><text x="1110" y="190" text-anchor="middle" class="body" fill="#1e3a8a">stages + redirect</text><text x="1110" y="210" text-anchor="middle" class="body" fill="#1e3a8a">shape checks</text></g>
+  <g filter="url(#shadow)"><rect x="1260" y="130" width="220" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="1370" y="165" text-anchor="middle" class="head" fill="#172554">Expand</text><text x="1370" y="190" text-anchor="middle" class="body" fill="#1e3a8a">virtual globs</text><text x="1370" y="210" text-anchor="middle" class="body" fill="#1e3a8a">token + argument budgets</text></g>
+
+  <g filter="url(#shadow)"><path d="M1295 310 L1415 380 L1295 450 L1175 380z" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="1295" y="366" text-anchor="middle" class="head" fill="#78350f">Preflight</text><text x="1295" y="390" text-anchor="middle" class="body" fill="#92400e">composition + limits</text></g>
+  <g filter="url(#shadow)"><rect x="890" y="330" width="200" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="990" y="367" text-anchor="middle" class="head" fill="#172554">Read input</text><text x="990" y="393" text-anchor="middle" class="body" fill="#1e3a8a">prior output or VFS</text></g>
+  <g filter="url(#shadow)"><rect x="610" y="330" width="200" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="710" y="367" text-anchor="middle" class="head" fill="#172554">Go dispatcher</text><text x="710" y="393" text-anchor="middle" class="body" fill="#1e3a8a">closed teaching subset</text></g>
+  <g filter="url(#shadow)"><rect x="330" y="330" width="200" height="100" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="430" y="367" text-anchor="middle" class="head" fill="#14532d">Virtual operation</text><text x="430" y="393" text-anchor="middle" class="body" fill="#166534">preflight affected state</text></g>
+  <g filter="url(#shadow)"><path d="M165 320 L260 380 L165 440 L70 380z" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="165" y="373" text-anchor="middle" class="head" fill="#78350f">Output</text><text x="165" y="395" text-anchor="middle" class="body" fill="#92400e">within limit?</text></g>
+
+  <g filter="url(#shadow)"><path d="M415 510 L510 575 L415 640 L320 575z" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="415" y="568" text-anchor="middle" class="head" fill="#78350f">Redirect?</text><text x="415" y="590" text-anchor="middle" class="body" fill="#92400e">virtual only</text></g>
+  <g filter="url(#shadow)"><rect x="590" y="525" width="200" height="100" rx="16" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="690" y="563" text-anchor="middle" class="head" fill="#14532d">Virtual write</text><text x="690" y="589" text-anchor="middle" class="body" fill="#166534">replace or append</text></g>
+  <g filter="url(#shadow)"><path d="M975 510 L1075 575 L975 640 L875 575z" fill="#fef3c7" stroke="#d97706" stroke-width="2"/><text x="975" y="568" text-anchor="middle" class="head" fill="#78350f">Next stage?</text><text x="975" y="590" text-anchor="middle" class="body" fill="#92400e">bounded loop</text></g>
+  <g filter="url(#shadow)"><rect x="1155" y="525" width="190" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="1250" y="562" text-anchor="middle" class="head" fill="#172554">Execution result</text><text x="1250" y="587" text-anchor="middle" class="body" fill="#1e3a8a">output + metadata</text></g>
+  <g filter="url(#shadow)"><rect x="1430" y="525" width="190" height="100" rx="16" fill="#dbeafe" stroke="#2563eb" stroke-width="2"/><text x="1525" y="562" text-anchor="middle" class="head" fill="#172554">Validate</text><text x="1525" y="587" text-anchor="middle" class="body" fill="#1e3a8a">text + observations</text></g>
+
+  <rect x="220" y="700" width="1140" height="150" rx="24" fill="#f0fdf4" fill-opacity="0.35" stroke="#16a34a" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="250" y="724" class="tiny" fill="#166534">ATTEMPT-LOCAL VIRTUAL STATE</text>
+  <g filter="url(#shadow)"><rect x="1135" y="735" width="190" height="100" rx="50" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="1230" y="780" text-anchor="middle" class="head" fill="#14532d">Filesystem</text><text x="1230" y="805" text-anchor="middle" class="body" fill="#166534">paths · content · modes</text></g>
+  <g filter="url(#shadow)"><rect x="845" y="735" width="190" height="100" rx="50" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="940" y="780" text-anchor="middle" class="head" fill="#14532d">Environment</text><text x="940" y="805" text-anchor="middle" class="body" fill="#166534">virtual variables</text></g>
+  <g filter="url(#shadow)"><rect x="550" y="735" width="190" height="100" rx="50" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="645" y="780" text-anchor="middle" class="head" fill="#14532d">Processes</text><text x="645" y="805" text-anchor="middle" class="body" fill="#166534">virtual PID state</text></g>
+  <g filter="url(#shadow)"><rect x="250" y="735" width="190" height="100" rx="50" fill="#dcfce7" stroke="#16a34a" stroke-width="2"/><text x="345" y="780" text-anchor="middle" class="head" fill="#14532d">Archives</text><text x="345" y="805" text-anchor="middle" class="body" fill="#166534">logical payload</text></g>
+
+  <path class="dash" d="M735 880 C735 800 720 500 710 430"/>
+  <rect x="480" y="865" width="510" height="76" rx="14" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/>
+  <text x="735" y="895" text-anchor="middle" class="head" fill="#4c1d95">Invariant: no host shell, host path lookup, or external fallback</text>
+  <text x="735" y="920" text-anchor="middle" class="body" fill="#5b21b6">Unsupported names stop at the Go dispatcher.</text>
+  <text x="1625" y="936" text-anchor="end" class="body" fill="#64748b">Source: command-execution-pipeline.mmd</text>
+</svg>

@@ -229,15 +229,16 @@ suggested command names + progressive hints + explanation + rewards
 validation: one or more observable outcome conditions
 ```
 
-### Technical documentation
+### Project documentation
 
-The living technical guides start at [`docs/README.md`](docs/README.md):
+The documentation map starts at [`docs/README.md`](docs/README.md) and separates material by purpose:
 
-- [`docs/architecture.md`](docs/architecture.md) maps the packages, runtime sequence, environment contract, and persistence boundaries.
-- [`docs/curriculum.md`](docs/curriculum.md) maps every mission to its learning focus, suggested tools, and observable outcomes.
-- [`docs/sandbox-and-safety.md`](docs/sandbox-and-safety.md) traces command execution, virtual state, trust boundaries, Docker isolation, and resource ceilings.
+- [Game and learning](docs/game/README.md) covers curriculum, missions, worlds, progression, and learning design.
+- [Technical](docs/technical/README.md) covers architecture, runtime behavior, sandbox safety, Docker isolation, and their diagrams.
+- [Roadmap](docs/roadmap/README.md) contains explicitly labeled proposals and unfinished improvements.
+- [Delivery history](docs/history/README.md) preserves numbered iteration reports without treating them as the source of truth for current behavior.
 
-Editable Mermaid and Excalidraw sources plus repository-viewable SVG exports live in [`docs/diagrams`](docs/diagrams). Numbered iteration reports remain delivery history rather than the source of truth for the current design.
+Editable Mermaid and Excalidraw sources live beside their owning section with repository-viewable SVG exports.
 
 ## Development
 
@@ -245,7 +246,7 @@ Codex reads [`AGENTS.md`](AGENTS.md) for the repository's scope, safety invarian
 
 - `$add-mission` guides declarative mission content, outcome validation, and solution coverage.
 - `$extend-sandbox-command` guides changes to the simulated shell's teaching subset.
-- `$prepare-iteration` guides release-sized validation, documentation, and `docs/iteration_N.md` reporting.
+- `$prepare-iteration` guides release-sized validation, documentation, and `docs/history/iterations/iteration-NN.md` reporting.
 
 Mention a skill by name in a Codex request (for example, “use `$add-mission`”) or ask for the matching task so Codex can discover it from its trigger description.
 
