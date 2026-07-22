@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.6.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.5.0...v0.6.0) (2026-07-22)
+
+
+### Features
+
+* infrastructure to define repo guidelines and secrets workflow ([c8d2792](https://github.com/Aleksandergreg/go-cli-tool/commit/c8d27926acccdd0a276324cfcfd8dbe79ce99eaf))
+* infrastructure to define repo guidelines and secrets workflow ([857955f](https://github.com/Aleksandergreg/go-cli-tool/commit/857955f034d6f82134443d03ef149e92d62a4fe7))
+
+
+### Bug Fixes
+
+* Set discussions, projects, issues to true for repo ([e4af833](https://github.com/Aleksandergreg/go-cli-tool/commit/e4af833731836837aee9db0552e671509225713e))
+* typo ([678332e](https://github.com/Aleksandergreg/go-cli-tool/commit/678332e6204fafbf24cb0e8b7674f9ac52221352))
+
 ## [0.5.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.4.0...v0.5.0) (2026-07-21)
 
 
