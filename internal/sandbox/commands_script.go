@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -72,10 +73,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	}
 	lines := strings.Split(content, "\n")
 	if requireShebang {
-		firstLine := ""
-		if len(lines) > 0 {
-			firstLine = strings.TrimSuffix(lines[0], "\r")
-		}
+		firstLine := strings.TrimSuffix(lines[0], "\r")
 		if firstLine != "#!/bin/sh" && firstLine != "#!/usr/bin/env sh" {
 			return "", fmt.Errorf("%s: executable scripts require #!/bin/sh or #!/usr/bin/env sh", scriptPath)
 		}
@@ -83,10 +81,8 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	if len(context.scriptStack) >= maxScriptDepth {
 		return "", fmt.Errorf("script nesting limit of %d exceeded", maxScriptDepth)
 	}
-	for _, activePath := range context.scriptStack {
-		if activePath == scriptPath {
-			return "", fmt.Errorf("recursive script invocation of %s is not supported", scriptPath)
-		}
+	if slices.Contains(context.scriptStack, scriptPath) {
+		return "", fmt.Errorf("recursive script invocation of %s is not supported", scriptPath)
 	}
 
 	savedCWD := s.CWD

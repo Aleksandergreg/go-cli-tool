@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"path"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -16,9 +17,7 @@ import (
 type SandboxFactory struct{}
 
 func (SandboxFactory) Availability(ctx context.Context, item mission.Mission) Availability {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = defaultContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return Availability{Detail: err.Error()}
 	}
@@ -29,9 +28,7 @@ func (SandboxFactory) Availability(ctx context.Context, item mission.Mission) Av
 }
 
 func (SandboxFactory) Create(ctx context.Context, item mission.Mission) (Environment, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
+	ctx = defaultContext(ctx)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
@@ -64,7 +61,7 @@ func (e *sandboxEnvironment) Execute(ctx context.Context, line string) (Executio
 	result, err := e.box.Execute(line)
 	execution := Execution{
 		Output:            result.Output,
-		PracticedCommands: append([]string(nil), result.Commands...),
+		PracticedCommands: slices.Clone(result.Commands),
 		PipelineWidth:     result.PipelineWidth,
 	}
 	if result.Editor != nil {
@@ -110,16 +107,9 @@ func (e *sandboxEnvironment) Observe(ctx context.Context, condition mission.Cond
 		if err != nil {
 			return false, nil
 		}
-		actual := normalizedLines(content)
-		if len(actual) != len(condition.Values) {
-			return false, nil
-		}
-		for index := range actual {
-			if actual[index] != strings.Join(strings.Fields(condition.Values[index]), " ") {
-				return false, nil
-			}
-		}
-		return true, nil
+		return slices.EqualFunc(normalizedLines(content), condition.Values, func(actual, expected string) bool {
+			return actual == strings.Join(strings.Fields(expected), " ")
+		}), nil
 	case mission.ConditionFileModeEquals:
 		entry, exists := e.box.FS.Entry(condition.Path)
 		if !exists || entry.Kind != sandbox.Regular {

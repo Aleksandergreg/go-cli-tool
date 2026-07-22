@@ -42,12 +42,11 @@ func (c Catalog) Worlds(track string) []World {
 // World returns one track-local world by its one-based number. An empty track
 // selects Linux. Unknown tracks and out-of-range numbers return false.
 func (c Catalog) World(track string, number int) (World, bool) {
-	track = defaultTrack(track)
-	worlds := c.worlds[track]
-	if number < 1 || number > len(worlds) {
+	world, found := c.world(track, number)
+	if !found {
 		return World{}, false
 	}
-	return cloneWorld(worlds[number-1]), true
+	return cloneWorld(world), true
 }
 
 // Placement returns the track-local world and stage position for missionID.
@@ -149,9 +148,6 @@ func defaultTrack(track string) string {
 
 func cloneWorld(world World) World {
 	cloned := world
-	cloned.Missions = make([]Mission, len(world.Missions))
-	for index, item := range world.Missions {
-		cloned.Missions[index] = cloneMission(item)
-	}
+	cloned.Missions = cloneMissions(world.Missions)
 	return cloned
 }

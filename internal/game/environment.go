@@ -82,12 +82,8 @@ type AvailabilityChecker interface {
 // EnvironmentAvailability reports ready by default so simple test factories
 // and the simulated environment do not need boilerplate capability checks.
 func EnvironmentAvailability(ctx context.Context, factory Factory, item mission.Mission) Availability {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if factory == nil {
-		factory = SandboxFactory{}
-	}
+	ctx = defaultContext(ctx)
+	factory = defaultFactory(factory)
 	if checker, ok := factory.(AvailabilityChecker); ok {
 		return checker.Availability(ctx, item)
 	}
@@ -102,18 +98,28 @@ func (f FactoryFunc) Create(ctx context.Context, item mission.Mission) (Environm
 	return f(ctx, item)
 }
 
+func defaultContext(ctx context.Context) context.Context {
+	if ctx == nil {
+		return context.Background()
+	}
+	return ctx
+}
+
+func defaultFactory(factory Factory) Factory {
+	if factory == nil {
+		return SandboxFactory{}
+	}
+	return factory
+}
+
 type managedEnvironment struct {
 	Environment
 	closed bool
 }
 
 func createManagedEnvironment(ctx context.Context, factory Factory, item mission.Mission) (*managedEnvironment, error) {
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	if factory == nil {
-		factory = SandboxFactory{}
-	}
+	ctx = defaultContext(ctx)
+	factory = defaultFactory(factory)
 	environment, err := factory.Create(ctx, item)
 	if err != nil {
 		if environment != nil {

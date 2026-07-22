@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"fmt"
+	"maps"
 	"path"
 	"strconv"
 	"strings"
@@ -134,11 +135,7 @@ func (s *Sandbox) finalDestination(source, destination string) string {
 }
 
 func cloneArchives(source map[string]Archive) map[string]Archive {
-	clone := make(map[string]Archive, len(source))
-	for archivePath, archive := range source {
-		clone[archivePath] = archive
-	}
-	return clone
+	return cloneMap(source)
 }
 
 func validateEnvironment(environment map[string]string) error {
@@ -157,11 +154,15 @@ func validateEnvironment(environment map[string]string) error {
 }
 
 func cloneEnvironment(source map[string]string) map[string]string {
-	clone := make(map[string]string, len(source))
-	for name, value := range source {
-		clone[name] = value
+	return cloneMap(source)
+}
+
+func cloneMap[K comparable, V any](source map[K]V) map[K]V {
+	cloned := maps.Clone(source)
+	if cloned == nil {
+		cloned = make(map[K]V)
 	}
-	return clone
+	return cloned
 }
 
 func validateArchiveMetadata(archives map[string]Archive) error {

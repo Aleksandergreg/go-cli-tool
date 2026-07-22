@@ -20,28 +20,13 @@ func (s *Sandbox) cmdHistory(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdDU(args []string) (string, error) {
-	all, summary, human := false, false, false
-	paths := make([]string, 0)
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") && arg != "-" {
-			for _, option := range strings.TrimPrefix(arg, "-") {
-				switch option {
-				case 'a':
-					all = true
-				case 's':
-					summary = true
-				case 'h':
-					human = true
-				case 'b':
-					// The virtual filesystem reports bytes by default.
-				default:
-					return "", fmt.Errorf("unknown option -%c", option)
-				}
-			}
-		} else {
-			paths = append(paths, arg)
-		}
+	options, paths, err := parseShortOptions(args, "ashb", true)
+	if err != nil {
+		return "", err
 	}
+	all := strings.ContainsRune(options, 'a')
+	summary := strings.ContainsRune(options, 's')
+	human := strings.ContainsRune(options, 'h')
 	if all && summary {
 		return "", fmt.Errorf("-a and -s cannot be used together")
 	}
@@ -60,7 +45,7 @@ func (s *Sandbox) cmdDU(args []string) (string, error) {
 			return "", fmt.Errorf("%s: no such file or directory", displayRoot)
 		}
 		if entry.Kind == Regular {
-			items = append(items, usage{path: displayRoot, size: len([]byte(entry.Content))})
+			items = append(items, usage{path: displayRoot, size: len(entry.Content)})
 			continue
 		}
 		descendants, _ := s.FS.Descendants(resolved, false)
@@ -68,14 +53,11 @@ func (s *Sandbox) cmdDU(args []string) (string, error) {
 			for _, candidate := range descendants {
 				candidateEntry, _ := s.FS.Entry(candidate)
 				if candidateEntry.Kind == Regular {
-					items = append(items, usage{path: displayDescendant(displayRoot, resolved, candidate), size: len([]byte(candidateEntry.Content))})
+					items = append(items, usage{path: displayFindPath(displayRoot, resolved, candidate), size: len(candidateEntry.Content)})
 				}
 			}
 		}
 		items = append(items, usage{path: displayRoot, size: s.diskUsage(resolved)})
-	}
-	if summary {
-		// The default output is already one summary per requested path.
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].path < items[j].path })
 	var output commandOutputBuffer
@@ -95,27 +77,21 @@ func (s *Sandbox) diskUsage(root string) int {
 	for _, candidate := range paths {
 		entry, _ := s.FS.Entry(candidate)
 		if entry.Kind == Regular {
-			total += len([]byte(entry.Content))
+			total += len(entry.Content)
 		}
 	}
 	return total
 }
 
-func displayDescendant(root, rootAbs, candidate string) string {
-	if strings.HasPrefix(root, "/") {
-		return candidate
-	}
-	return strings.TrimSuffix(root, "/") + strings.TrimPrefix(candidate, rootAbs)
-}
-
 func humanSize(size int) string {
-	if size < 1024 {
+	switch {
+	case size < 1024:
 		return fmt.Sprintf("%dB", size)
-	}
-	if size < 1024*1024 {
+	case size < 1024*1024:
 		return fmt.Sprintf("%.1fK", float64(size)/1024)
+	default:
+		return fmt.Sprintf("%.1fM", float64(size)/(1024*1024))
 	}
-	return fmt.Sprintf("%.1fM", float64(size)/(1024*1024))
 }
 
 func (s *Sandbox) cmdStat(args []string) (string, error) {
@@ -129,7 +105,7 @@ func (s *Sandbox) cmdStat(args []string) (string, error) {
 		if !exists {
 			return "", fmt.Errorf("%s: no such file or directory", name)
 		}
-		kind, prefix, size := "regular file", '-', len([]byte(entry.Content))
+		kind, prefix, size := "regular file", '-', len(entry.Content)
 		if entry.Kind == Directory {
 			kind, prefix, size = "directory", 'd', 0
 		}
@@ -143,7 +119,11 @@ func (s *Sandbox) cmdStat(args []string) (string, error) {
 
 func cmdPathPart(command string, args []string) (string, error) {
 	if len(args) == 0 || len(args) > 2 || command == "dirname" && len(args) != 1 {
-		return "", fmt.Errorf("usage: %s PATH%s", command, map[bool]string{true: " [SUFFIX]"}[command == "basename"])
+		suffix := ""
+		if command == "basename" {
+			suffix = " [SUFFIX]"
+		}
+		return "", fmt.Errorf("usage: %s PATH%s", command, suffix)
 	}
 	if command == "dirname" {
 		return path.Dir(path.Clean(args[0])) + "\n", nil

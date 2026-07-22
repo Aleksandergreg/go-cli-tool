@@ -249,9 +249,6 @@ func (f *FileSystem) AppendFile(name, content string) error {
 		if existing.Kind != Regular {
 			return fmt.Errorf("%s: is a directory", name)
 		}
-		if len(content) > maxVirtualFileBytes-len(existing.Content) {
-			return fmt.Errorf("%s: file exceeds the %d KiB virtual file limit", name, maxVirtualFileBytes/1024)
-		}
 		newBytes := len(existing.Content) + len(content)
 		if err := f.checkContentBudget(name, len(existing.Content), newBytes); err != nil {
 			return err
@@ -343,12 +340,7 @@ func (f *FileSystem) Remove(name string, recursive, force bool) error {
 }
 
 func (f *FileSystem) Copy(source, destination string, recursive bool) error {
-	var err error
-	source, err = cleanVirtualMutationPath(source)
-	if err != nil {
-		return err
-	}
-	destination, err = cleanVirtualMutationPath(destination)
+	source, destination, err := cleanVirtualMutationPaths(source, destination)
 	if err != nil {
 		return err
 	}
@@ -428,12 +420,7 @@ func (f *FileSystem) Copy(source, destination string, recursive bool) error {
 }
 
 func (f *FileSystem) Move(source, destination string) error {
-	var err error
-	source, err = cleanVirtualMutationPath(source)
-	if err != nil {
-		return err
-	}
-	destination, err = cleanVirtualMutationPath(destination)
+	source, destination, err := cleanVirtualMutationPaths(source, destination)
 	if err != nil {
 		return err
 	}
@@ -481,9 +468,9 @@ func (f *FileSystem) Move(source, destination string) error {
 }
 
 func (f *FileSystem) Chmod(name string, mode uint32) error {
-	entry, ok := f.entries[path.Clean(name)]
-	if !ok {
-		return fmt.Errorf("%s: no such file or directory", name)
+	entry, err := f.mutableEntry(name)
+	if err != nil {
+		return err
 	}
 	entry.Mode = mode
 	return nil
@@ -493,12 +480,29 @@ func (f *FileSystem) Chown(name, owner string) error {
 	if len(owner) > maxVirtualOwnerBytes {
 		return fmt.Errorf("owner exceeds the %d-byte limit", maxVirtualOwnerBytes)
 	}
-	entry, ok := f.entries[path.Clean(name)]
-	if !ok {
-		return fmt.Errorf("%s: no such file or directory", name)
+	entry, err := f.mutableEntry(name)
+	if err != nil {
+		return err
 	}
 	entry.Owner = owner
 	return nil
+}
+
+func (f *FileSystem) mutableEntry(name string) (*Entry, error) {
+	entry, ok := f.entries[path.Clean(name)]
+	if !ok {
+		return nil, fmt.Errorf("%s: no such file or directory", name)
+	}
+	return entry, nil
+}
+
+func cleanVirtualMutationPaths(source, destination string) (string, string, error) {
+	cleanSource, err := cleanVirtualMutationPath(source)
+	if err != nil {
+		return "", "", err
+	}
+	cleanDestination, err := cleanVirtualMutationPath(destination)
+	return cleanSource, cleanDestination, err
 }
 
 func (f *FileSystem) Glob(cwd, pattern string) []string {

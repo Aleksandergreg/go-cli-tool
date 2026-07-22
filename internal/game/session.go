@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -68,14 +69,8 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 	if s.ErrOut == nil {
 		s.ErrOut = io.Discard
 	}
-	ctx := s.Context
-	if ctx == nil {
-		ctx = context.Background()
-	}
-	factory := s.Factory
-	if factory == nil {
-		factory = SandboxFactory{}
-	}
+	ctx := defaultContext(s.Context)
+	factory := defaultFactory(s.Factory)
 	environment, err := createManagedEnvironment(ctx, factory, s.Mission)
 	if err != nil {
 		return SessionResult{}, fmt.Errorf("prepare mission: %w", err)
@@ -97,9 +92,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		reader = NewCommandLineReader(s.In, s.Out)
 	}
 	discovered := make([]string, 0)
-	discoveredSet := make(map[string]bool)
 	practiced := make([]string, 0)
-	practicedSet := make(map[string]bool)
 	lastOutput := ""
 	worldRoute := 0
 
@@ -325,20 +318,20 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		}
 		lastOutput = result.Output
 		for _, command := range result.PracticedCommands {
-			if !practicedSet[command] {
+			if !slices.Contains(practiced, command) {
 				practiced = append(practiced, command)
-				practicedSet[command] = true
 			}
-			if s.Player.Commands[command] == 0 && !discoveredSet[command] {
+			if s.Player.Commands[command] == 0 && !slices.Contains(discovered, command) {
 				discovered = append(discovered, command)
-				discoveredSet[command] = true
 			}
 		}
 		s.Player.RecordCommands(result.PracticedCommands)
 		unlocked := make([]profile.Achievement, 0)
 		achievementTime := s.Now()
 		if result.PipelineWidth >= 3 {
-			unlocked = unlock(s.Player, profile.AchievementPipeDream, achievementTime, unlocked)
+			if achievement, added := s.Player.UnlockAchievement(profile.AchievementPipeDream, achievementTime); added {
+				unlocked = append(unlocked, achievement)
+			}
 		}
 		unlocked = append(unlocked, ReconcileCommandAchievements(s.Player, achievementTime)...)
 		if err := s.Saver.Save(*s.Player); err != nil {
@@ -413,26 +406,30 @@ func displayTrackName(track string) string {
 }
 
 func printCompactMissionControls(out io.Writer, style ui.Style) {
-	fmt.Fprintf(out, "Controls: %s · %s · %s · %s · %s · %s for the full guide\n",
-		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"), style.Accent("?"))
-	fmt.Fprintf(out, "Navigate: %s · %s · %s · %s · %s\n",
-		style.Accent("map"), style.Accent("world N"), style.Accent("play STAGE/ID"), style.Accent("next"), style.Accent("previous"))
+	fmt.Fprintf(out, "Controls: %s for the full guide\n", accented(style, " · ", "hint", "objective", "status", "restart", "quit", "?"))
+	fmt.Fprintf(out, "Navigate: %s\n", accented(style, " · ", "map", "world N", "play STAGE/ID", "next", "previous"))
 	fmt.Fprintf(out, "Lab: %s lists commands · %s completes · arrows edit and recall history\n",
 		style.Accent("help"), style.Accent("Tab"))
 }
 
 func printMissionControls(out io.Writer, style ui.Style) {
 	fmt.Fprintln(out, style.Section("MISSION GUIDE"))
-	fmt.Fprintf(out, "  Controls: %s, %s, %s, %s, %s\n",
-		style.Accent("hint"), style.Accent("objective"), style.Accent("status"), style.Accent("restart"), style.Accent("quit"))
-	fmt.Fprintf(out, "  Navigate: %s, %s, %s, %s, %s\n",
-		style.Accent("map"), style.Accent("world N"), style.Accent("play STAGE/ID"), style.Accent("next"), style.Accent("previous"))
+	fmt.Fprintf(out, "  Controls: %s\n", accented(style, ", ", "hint", "objective", "status", "restart", "quit"))
+	fmt.Fprintf(out, "  Navigate: %s\n", accented(style, ", ", "map", "world N", "play STAGE/ID", "next", "previous"))
 	fmt.Fprintf(out, "  Lab commands: %s or %s. Valid solutions are judged by their result.\n", style.Accent("help"), style.Accent("help COMMAND"))
 	fmt.Fprintf(out, "  Line editing: arrows move and recall history; %s or %s jump across the line.\n",
 		style.Accent("Home/End"), style.Accent("Ctrl-A/E"))
 	fmt.Fprintf(out, "  %s move by word; %s completes; %s, %s, and %s remove text.\n",
 		style.Accent("Option/Ctrl-Left/Right"), style.Accent("Tab"), style.Accent("Backspace"), style.Accent("Delete"), style.Accent("Ctrl-W"))
 	fmt.Fprintln(out, "  Prefix navigation with opsquest if you prefer; both forms are equivalent inside a mission.")
+}
+
+func accented(style ui.Style, separator string, values ...string) string {
+	styled := make([]string, len(values))
+	for index, value := range values {
+		styled[index] = style.Accent(value)
+	}
+	return strings.Join(styled, separator)
 }
 
 func missionNavigationFields(line string) ([]string, bool, error) {
@@ -554,12 +551,7 @@ func printOutcomeStatus(out io.Writer, outcomes []outcomeResult, style ui.Style)
 // AdjustedReward returns the XP still available after hints while preserving
 // the mission's minimum quarter-reward floor.
 func AdjustedReward(item mission.Mission, hintsUsed int) int {
-	xp := item.Rewards.XP - hintsUsed*item.Rewards.HintPenalty
-	minimum := item.Rewards.XP / 4
-	if xp < minimum {
-		return minimum
-	}
-	return xp
+	return max(item.Rewards.XP-hintsUsed*item.Rewards.HintPenalty, item.Rewards.XP/4)
 }
 
 func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, practiced, discovered []string, unlocked []profile.Achievement, style ui.Style) {
@@ -580,13 +572,6 @@ func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, pr
 	}
 	printAchievements(out, unlocked, style)
 	fmt.Fprintf(out, "\n%s\n", item.Explanation)
-}
-
-func unlock(player *profile.Profile, id string, now time.Time, unlocked []profile.Achievement) []profile.Achievement {
-	if achievement, added := player.UnlockAchievement(id, now); added {
-		return append(unlocked, achievement)
-	}
-	return unlocked
 }
 
 func printAchievements(out io.Writer, unlocked []profile.Achievement, style ui.Style) {

@@ -7,6 +7,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,36 +57,31 @@ type Config struct {
 }
 
 func New(config Config) *App {
-	in := config.In
-	if in == nil {
-		in = strings.NewReader("")
+	if config.In == nil {
+		config.In = strings.NewReader("")
 	}
-	out := config.Out
-	if out == nil {
-		out = io.Discard
+	if config.Out == nil {
+		config.Out = io.Discard
 	}
-	errOut := config.ErrOut
-	if errOut == nil {
-		errOut = io.Discard
+	if config.ErrOut == nil {
+		config.ErrOut = io.Discard
 	}
-	ctx := config.Context
-	if ctx == nil {
-		ctx = context.Background()
+	if config.Context == nil {
+		config.Context = context.Background()
 	}
-	factory := config.Factory
-	if factory == nil {
-		factory = game.SandboxFactory{}
+	if config.Factory == nil {
+		config.Factory = game.SandboxFactory{}
 	}
 	return &App{
-		in:         in,
-		out:        out,
-		errOut:     errOut,
+		in:         config.In,
+		out:        config.Out,
+		errOut:     config.ErrOut,
 		catalog:    config.Catalog,
 		store:      config.Store,
-		ctx:        ctx,
-		factory:    factory,
-		style:      ui.Auto(out),
-		errorStyle: ui.Auto(errOut),
+		ctx:        config.Context,
+		factory:    config.Factory,
+		style:      ui.Auto(config.Out),
+		errorStyle: ui.Auto(config.ErrOut),
 	}
 }
 
@@ -100,6 +96,27 @@ func (a *App) loadPlayer() (profile.Profile, error) {
 		}
 	}
 	return player, nil
+}
+
+func (a *App) newFlagSet(name string, usage func()) *flag.FlagSet {
+	flags := flag.NewFlagSet(name, flag.ContinueOnError)
+	flags.SetOutput(a.errOut)
+	flags.Usage = usage
+	return flags
+}
+
+func parseFlags(flags *flag.FlagSet, args []string) (bool, error) {
+	err := flags.Parse(args)
+	if errors.Is(err, flag.ErrHelp) {
+		return true, nil
+	}
+	return false, err
+}
+
+func flagProvided(flags *flag.FlagSet, name string) bool {
+	provided := false
+	flags.Visit(func(item *flag.Flag) { provided = provided || item.Name == name })
+	return provided
 }
 
 func (a *App) Run(args []string) error {
@@ -140,31 +157,17 @@ func (a *App) Run(args []string) error {
 }
 
 func (a *App) runPlay(args []string) error {
-	flags := flag.NewFlagSet("play", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
+	flags := a.newFlagSet("play", func() { a.printPlayUsage(a.errOut) })
 	track := flags.String("track", mission.TrackLinux, "play the linux or docker track")
 	worldNumber := flags.Int("world", 0, "start the next incomplete stage in a world")
 	once := flags.Bool("once", false, "return after one completed mission")
-	flags.Usage = func() { a.printPlayUsage(a.errOut) }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 1 {
 		return fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [MISSION]")
 	}
-	trackProvided := false
-	worldProvided := false
-	flags.Visit(func(item *flag.Flag) {
-		switch item.Name {
-		case "track":
-			trackProvided = true
-		case "world":
-			worldProvided = true
-		}
-	})
+	trackProvided, worldProvided := flagProvided(flags, "track"), flagProvided(flags, "world")
 	selectedTrack := strings.ToLower(strings.TrimSpace(*track))
 	if selectedTrack != mission.TrackLinux && selectedTrack != mission.TrackDocker {
 		return fmt.Errorf("unknown track %q; use linux or docker", *track)
@@ -328,15 +331,7 @@ func (a *App) printRouteFinished(route playRoute, current mission.Mission, playe
 
 func (a *App) worldComplete(placement mission.Placement, player profile.Profile) bool {
 	world, found := a.catalog.World(placement.Track, placement.WorldNumber)
-	if !found {
-		return false
-	}
-	for _, stage := range world.Missions {
-		if !player.IsComplete(stage.ID) {
-			return false
-		}
-	}
-	return true
+	return found && completedMissions(world.Missions, player) == len(world.Missions)
 }
 
 func (a *App) printNextRecommendation(completed mission.Mission, player profile.Profile) {
@@ -360,18 +355,13 @@ func (a *App) runList(args []string) error {
 }
 
 func (a *App) listMissions(args []string, player profile.Profile, inMission bool) error {
-	flags := flag.NewFlagSet("list", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
+	flags := a.newFlagSet("list", func() { a.printListUsage(a.errOut) })
 	completedOnly := flags.Bool("completed", false, "show completed missions only")
 	remainingOnly := flags.Bool("remaining", false, "show incomplete missions only")
 	showIDs := flags.Bool("ids", false, "show stable mission IDs")
 	campaign := flags.String("campaign", "", "filter by campaign name")
 	track := flags.String("track", mission.TrackLinux, "filter by track: linux, docker, or all")
-	flags.Usage = func() { a.printListUsage(a.errOut) }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 0 {
@@ -380,12 +370,7 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 	if *completedOnly && *remainingOnly {
 		return fmt.Errorf("--completed and --remaining cannot be combined")
 	}
-	trackProvided := false
-	flags.Visit(func(item *flag.Flag) {
-		if item.Name == "track" {
-			trackProvided = true
-		}
-	})
+	trackProvided := flagProvided(flags, "track")
 	selectedTrack := strings.ToLower(strings.TrimSpace(*track))
 	if *campaign != "" && !trackProvided {
 		selectedTrack = "all"
@@ -432,12 +417,7 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 			if printedWorld {
 				fmt.Fprintln(a.out)
 			}
-			worldDone := 0
-			for _, item := range world.Missions {
-				if player.IsComplete(item.ID) {
-					worldDone++
-				}
-			}
+			worldDone := completedMissions(world.Missions, player)
 			prefix := fmt.Sprintf("WORLD %d/%d", world.Number, len(worlds))
 			if selectedTrack == "all" {
 				prefix = strings.ToUpper(trackDisplayName(currentTrack)) + " · " + prefix
@@ -467,17 +447,8 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 	if shown == 0 {
 		fmt.Fprintln(a.out, "  No missions match these filters.")
 	}
-	completed := 0
-	total := 0
-	for _, item := range a.catalog.All() {
-		if !matchesScope(item) {
-			continue
-		}
-		total++
-		if player.IsComplete(item.ID) {
-			completed++
-		}
-	}
+	scoped := slices.DeleteFunc(a.catalog.All(), func(item mission.Mission) bool { return !matchesScope(item) })
+	completed, total := completedMissions(scoped, player), len(scoped)
 	fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("%d/%d missions complete · Player total: %d XP", completed, total, player.XP)))
 	if shown > 0 {
 		if inMission {
@@ -521,25 +492,15 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 }
 
 func (a *App) runProfile(args []string) error {
-	flags := flag.NewFlagSet("profile", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
+	flags := a.newFlagSet("profile", func() { a.printProfileUsage(a.errOut) })
 	name := flags.String("name", "", "update the operator display name")
-	flags.Usage = func() { a.printProfileUsage(a.errOut) }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 0 {
 		return fmt.Errorf("profile does not accept positional arguments")
 	}
-	nameProvided := false
-	flags.Visit(func(item *flag.Flag) {
-		if item.Name == "name" {
-			nameProvided = true
-		}
-	})
+	nameProvided := flagProvided(flags, "name")
 	player, err := a.loadPlayer()
 	if err != nil {
 		return err
@@ -554,12 +515,7 @@ func (a *App) runProfile(args []string) error {
 		}
 		fmt.Fprintln(a.out, a.style.Success("Profile name updated."))
 	}
-	completed := 0
-	for _, item := range a.catalog.All() {
-		if player.IsComplete(item.ID) {
-			completed++
-		}
-	}
+	completed := completedMissions(a.catalog.All(), player)
 	type worldProgress struct {
 		name      string
 		track     string
@@ -570,27 +526,13 @@ func (a *App) runProfile(args []string) error {
 	progress := make([]worldProgress, 0)
 	for _, track := range []string{mission.TrackLinux, mission.TrackDocker} {
 		for _, world := range a.catalog.Worlds(track) {
-			item := worldProgress{name: world.Name, track: track, number: world.Number, total: len(world.Missions)}
-			for _, stage := range world.Missions {
-				if player.IsComplete(stage.ID) {
-					item.completed++
-				}
-			}
+			item := worldProgress{name: world.Name, track: track, number: world.Number, completed: completedMissions(world.Missions, player), total: len(world.Missions)}
 			progress = append(progress, item)
 		}
 	}
-	trackProgress := func(track string) (int, int) {
-		done, total := 0, 0
-		for _, world := range progress {
-			if world.track == track {
-				done += world.completed
-				total += world.total
-			}
-		}
-		return done, total
-	}
-	linuxCompleted, linuxTotal := trackProgress(mission.TrackLinux)
-	dockerCompleted, dockerTotal := trackProgress(mission.TrackDocker)
+	linuxMissions, dockerMissions := a.catalog.InTrack(mission.TrackLinux), a.catalog.InTrack(mission.TrackDocker)
+	linuxCompleted, linuxTotal := completedMissions(linuxMissions, player), len(linuxMissions)
+	dockerCompleted, dockerTotal := completedMissions(dockerMissions, player), len(dockerMissions)
 	fmt.Fprintln(a.out, a.style.Header("PROFILE"))
 	fmt.Fprintln(a.out)
 	fmt.Fprintf(a.out, "%s %s\n", a.style.Accent("Operator:"), player.Name)
@@ -603,27 +545,22 @@ func (a *App) runProfile(args []string) error {
 	labelWidth := 0
 	for _, world := range progress {
 		label := fmt.Sprintf("World %d · %s", world.number, world.name)
-		if len(label) > labelWidth {
-			labelWidth = len(label)
+		labelWidth = max(labelWidth, len(label))
+	}
+	printWorlds := func(track string) {
+		for _, world := range progress {
+			if world.track != track {
+				continue
+			}
+			label := fmt.Sprintf("World %d · %s", world.number, world.name)
+			fmt.Fprintf(a.out, "  %s %s %3d%%\n", a.style.World(fmt.Sprintf("%-*s", labelWidth, label)), styledProgressBar(a.style, world.completed, world.total, 10), percentage(world.completed, world.total))
 		}
 	}
 	fmt.Fprintf(a.out, "%s  %s %3d%%\n", a.style.Section("Linux"), styledProgressBar(a.style, linuxCompleted, linuxTotal, 20), percentage(linuxCompleted, linuxTotal))
-	for _, world := range progress {
-		if world.track != mission.TrackLinux {
-			continue
-		}
-		label := fmt.Sprintf("World %d · %s", world.number, world.name)
-		fmt.Fprintf(a.out, "  %s %s %3d%%\n", a.style.World(fmt.Sprintf("%-*s", labelWidth, label)), styledProgressBar(a.style, world.completed, world.total, 10), percentage(world.completed, world.total))
-	}
+	printWorlds(mission.TrackLinux)
 	dockerState := "readiness: run opsquest doctor"
 	fmt.Fprintf(a.out, "%s %s %3d%%  %s\n", a.style.Section("Docker"), styledProgressBar(a.style, dockerCompleted, dockerTotal, 20), percentage(dockerCompleted, dockerTotal), dockerState)
-	for _, world := range progress {
-		if world.track != mission.TrackDocker {
-			continue
-		}
-		label := fmt.Sprintf("World %d · %s", world.number, world.name)
-		fmt.Fprintf(a.out, "  %s %s %3d%%\n", a.style.World(fmt.Sprintf("%-*s", labelWidth, label)), styledProgressBar(a.style, world.completed, world.total, 10), percentage(world.completed, world.total))
-	}
+	printWorlds(mission.TrackDocker)
 	fmt.Fprintf(a.out, "%s\n\n", a.style.Muted(fmt.Sprintf("K8s    %s  locked", progressBar(0, 20, 20))))
 	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(player.Commands))
 	fmt.Fprintf(a.out, "Missions completed: %d\n", completed)
@@ -634,13 +571,8 @@ func (a *App) runProfile(args []string) error {
 }
 
 func (a *App) runCommands(args []string) error {
-	flags := flag.NewFlagSet("commands", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
-	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest commands") }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	flags := a.newFlagSet("commands", func() { fmt.Fprintln(a.errOut, "Usage: opsquest commands") })
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 0 {
@@ -664,13 +596,8 @@ func (a *App) runCommands(args []string) error {
 }
 
 func (a *App) runAchievements(args []string) error {
-	flags := flag.NewFlagSet("achievements", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
-	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest achievements") }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	flags := a.newFlagSet("achievements", func() { fmt.Fprintln(a.errOut, "Usage: opsquest achievements") })
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 0 {
@@ -680,8 +607,9 @@ func (a *App) runAchievements(args []string) error {
 	if err != nil {
 		return err
 	}
+	definitions := profile.AchievementDefinitions()
 	fmt.Fprintln(a.out, a.style.Header("ACHIEVEMENTS"))
-	for _, achievement := range profile.AchievementDefinitions() {
+	for _, achievement := range definitions {
 		unlockedAt, unlocked := player.Unlocked[achievement.ID]
 		if unlocked {
 			title := fmt.Sprintf("%-22s", achievement.Title)
@@ -690,18 +618,13 @@ func (a *App) runAchievements(args []string) error {
 			fmt.Fprintf(a.out, "  %s %-22s %s\n", a.style.Muted("☆"), achievement.Title, achievement.Description)
 		}
 	}
-	fmt.Fprintf(a.out, "\n%d/%d unlocked\n", player.AchievementCount(), len(profile.AchievementDefinitions()))
+	fmt.Fprintf(a.out, "\n%d/%d unlocked\n", player.AchievementCount(), len(definitions))
 	return nil
 }
 
 func (a *App) runShow(args []string) error {
-	flags := flag.NewFlagSet("show", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
-	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest show [MISSION]") }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	flags := a.newFlagSet("show", func() { fmt.Fprintln(a.errOut, "Usage: opsquest show [MISSION]") })
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 1 {
@@ -727,8 +650,9 @@ func (a *App) runShow(args []string) error {
 	if !found {
 		return fmt.Errorf("no missions are available")
 	}
+	completion, complete := player.Completed[item.ID]
 	status := "not completed"
-	if player.IsComplete(item.ID) {
+	if complete {
 		status = "completed"
 	}
 	hintsUsed := player.MissionHints(item.ID)
@@ -741,20 +665,17 @@ func (a *App) runShow(args []string) error {
 		fmt.Fprintf(a.out, "Track: %s · Campaign: %s\n", trackDisplayName(item.EffectiveTrack()), a.style.World(item.Campaign))
 	}
 	reward := a.style.Reward(fmt.Sprintf("%d XP", game.AdjustedReward(item, hintsUsed)))
-	if completion, complete := player.Completed[item.ID]; complete {
+	if complete {
 		reward = a.style.Accent(fmt.Sprintf("claimed · %d XP earned", completion.XP))
 	}
 	fmt.Fprintf(a.out, "Difficulty: %s · Reward: %s\n", a.style.Difficulty(item.Difficulty), reward)
 	styledStatus := a.style.Accent(status)
-	if status == "completed" {
+	if complete {
 		styledStatus = a.style.Success(status)
 	}
-	remainingHints := len(item.Hints) - hintsUsed
-	if remainingHints < 0 {
-		remainingHints = 0
-	}
+	remainingHints := max(len(item.Hints)-hintsUsed, 0)
 	hintStatus := fmt.Sprintf("%d used · %d remaining · %d total", hintsUsed, remainingHints, len(item.Hints))
-	if completion, complete := player.Completed[item.ID]; complete {
+	if complete {
 		hintStatus = fmt.Sprintf("%d used on first completion · replay hints do not change XP", completion.HintsUsed)
 	}
 	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints: %s\n\n", styledStatus, len(item.Validation.All), hintStatus)
@@ -774,13 +695,8 @@ func (a *App) runShow(args []string) error {
 }
 
 func (a *App) runDoctor(args []string) error {
-	flags := flag.NewFlagSet("doctor", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
-	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest doctor") }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	flags := a.newFlagSet("doctor", func() { fmt.Fprintln(a.errOut, "Usage: opsquest doctor") })
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 0 {
@@ -808,14 +724,9 @@ func (a *App) runDoctor(args []string) error {
 }
 
 func (a *App) runReset(args []string) error {
-	flags := flag.NewFlagSet("reset", flag.ContinueOnError)
-	flags.SetOutput(a.errOut)
+	flags := a.newFlagSet("reset", func() { fmt.Fprintln(a.errOut, "Usage: opsquest reset [--yes]") })
 	yes := flags.Bool("yes", false, "reset without confirmation")
-	flags.Usage = func() { fmt.Fprintln(a.errOut, "Usage: opsquest reset [--yes]") }
-	if err := flags.Parse(args); err != nil {
-		if errors.Is(err, flag.ErrHelp) {
-			return nil
-		}
+	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 0 {
@@ -931,13 +842,7 @@ func progressFilled(value, total, width int) int {
 	if total > 0 {
 		filled = value * width / total
 	}
-	if filled < 0 {
-		filled = 0
-	}
-	if filled > width {
-		filled = width
-	}
-	return filled
+	return min(max(filled, 0), width)
 }
 
 func percentage(value, total int) int {
@@ -961,6 +866,16 @@ func hasFlag(args []string, name string) bool {
 		}
 	}
 	return false
+}
+
+func completedMissions(items []mission.Mission, player profile.Profile) int {
+	completed := 0
+	for _, item := range items {
+		if player.IsComplete(item.ID) {
+			completed++
+		}
+	}
+	return completed
 }
 
 func trackDisplayName(track string) string {

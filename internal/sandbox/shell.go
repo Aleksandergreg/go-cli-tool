@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -81,12 +82,12 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 	if strings.TrimSpace(line) != "" {
 		s.History = append(s.History, line)
 		if len(s.History) > 100 {
-			s.History = append([]string(nil), s.History[len(s.History)-100:]...)
+			s.History = slices.Clone(s.History[len(s.History)-100:])
 		}
 	}
 	context := &executionContext{}
 	result, err := s.executeLine(line, context, true)
-	result.Commands = append([]string(nil), context.commands...)
+	result.Commands = slices.Clone(context.commands)
 	result.PipelineWidth = context.maxPipelineWidth
 	return result, err
 }
@@ -113,9 +114,7 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 		return Result{}, err
 	}
 	pipelineWidth := len(expanded.stages)
-	if pipelineWidth > context.maxPipelineWidth {
-		context.maxPipelineWidth = pipelineWidth
-	}
+	context.maxPipelineWidth = max(context.maxPipelineWidth, pipelineWidth)
 
 	// Interactive commands are preflighted before any pipeline stage runs. This
 	// prevents a rejected composition such as `touch changed | vi file` from
@@ -229,12 +228,11 @@ func parseCommandLine(tokens []token) (commandLine, error) {
 			return commandLine{}, fmt.Errorf("pipeline cannot end with a pipe")
 		}
 		return commandLine{}, fmt.Errorf("redirection requires a command")
-	} else {
-		if len(parsed.stages) == maxPipelineStages {
-			return commandLine{}, fmt.Errorf("pipeline stage limit of %d exceeded", maxPipelineStages)
-		}
-		parsed.stages = append(parsed.stages, stage)
 	}
+	if len(parsed.stages) == maxPipelineStages {
+		return commandLine{}, fmt.Errorf("pipeline stage limit of %d exceeded", maxPipelineStages)
+	}
+	parsed.stages = append(parsed.stages, stage)
 	return parsed, nil
 }
 
@@ -294,11 +292,17 @@ func lex(line string, env map[string]string) ([]token, error) {
 	runes := []rune(line)
 	expandedBytes := 0
 
-	writeString := func(value string) error {
-		if len(value) > maxExpandedTokenBytes-expandedBytes {
+	reserve := func(size int) error {
+		if size > maxExpandedTokenBytes-expandedBytes {
 			return fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
 		}
-		expandedBytes += len(value)
+		expandedBytes += size
+		return nil
+	}
+	writeString := func(value string) error {
+		if err := reserve(len(value)); err != nil {
+			return err
+		}
 		current.WriteString(value)
 		return nil
 	}
@@ -307,10 +311,9 @@ func lex(line string, env map[string]string) ([]token, error) {
 		if size < 0 {
 			size = utf8.RuneLen(utf8.RuneError)
 		}
-		if size > maxExpandedTokenBytes-expandedBytes {
-			return fmt.Errorf("expanded command exceeds the %d KiB token limit", maxExpandedTokenBytes/1024)
+		if err := reserve(size); err != nil {
+			return err
 		}
-		expandedBytes += size
 		current.WriteRune(value)
 		return nil
 	}
