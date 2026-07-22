@@ -6,7 +6,7 @@ status: implemented
 
 # Hosted documentation
 
-Status: the initial Zensical site, content split, strict build, and GitHub Pages workflow are implemented. Deployment runs from `main` after GitHub Pages is configured to use Actions.
+Status: the initial Zensical site, content split, strict build, and GitHub Pages workflow are implemented and live at [aleksandergreg.github.io/go-cli-tool](https://aleksandergreg.github.io/go-cli-tool/). Deployment runs from `main` through GitHub Actions.
 
 ## Recommendation
 
@@ -89,7 +89,7 @@ GitHub's [custom Pages workflow](https://docs.github.com/en/pages/getting-starte
 2. **Generator proof of concept — complete:** Zensical is pinned, navigation remains Material-compatible, local preview and strict build targets exist, and no custom theme code is required.
 3. **Player content pass — complete:** quick start, mission mechanics, controls, Linux worlds, and Docker Foundations have dedicated pages; the root README remains concise.
 4. **Technical content pass — complete:** mission content, profile compatibility, and contribution workflows have focused pages alongside architecture and safety.
-5. **Publish — implemented:** pull requests build in strict mode; `main` builds, uploads, and deploys the GitHub Pages artifact. Repository Pages settings and the first hosted run still need to be observed.
+5. **Publish — complete:** pull requests build in strict mode; `main` builds, uploads, and deploys the GitHub Pages artifact. The first deployment completed successfully on July 22, 2026, and the public HTTPS endpoint returned the expected OpsQuest site.
 6. **Reassess after use — future:** remain on Zensical if the pinned build is reliable; use the same content with Material if alpha churn is costly; consider Starlight only if custom interactive presentation becomes a product goal.
 
 This order keeps the information model independent from the rendering tool. The original documentation expansion would have been easier to manage if audience, authority, lifecycle, and navigation were defined before diagrams and delivery reports accumulated; the new folder structure makes those rules explicit before a site generator is selected.
