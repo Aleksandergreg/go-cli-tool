@@ -14,7 +14,7 @@ Worlds recommend an order without locking the player into it. Stable mission IDs
 - `play --track docker` selects the first incomplete Docker mission.
 - `play --world N` stays within one track-local world.
 - A top-level mission number or stable ID begins there and follows that track's order.
-- Inside a mission, `play STAGE` stays in the current world; a stable ID is the explicit cross-world route.
+- Inside a mission, `play STAGE` resolves within the current world and then follows the track's order; a stable ID can jump directly across worlds.
 - `--once` stops after one completion.
 - Completed missions remain directly replayable.
 

@@ -47,8 +47,7 @@ type SessionResult struct {
 	// SwitchMission contains a validated mission ID requested from inside the
 	// lab. The CLI starts that mission with a fresh environment.
 	SwitchMission string
-	// WorldRoute preserves a world-scoped route requested with `world N` or
-	// an in-mission numeric stage jump.
+	// WorldRoute preserves a world-scoped route requested with `world N`.
 	// It may accompany either a mission switch or completion of the current lab.
 	WorldRoute int
 }
@@ -179,11 +178,9 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				}
 				ref := fields[1]
 				target, found := mission.Mission{}, false
-				targetWorldRoute := 0
 				if stageNumber, err := strconv.Atoi(ref); err == nil {
 					placement, placed := s.Catalog.Placement(s.Mission.ID)
 					if placed {
-						targetWorldRoute = placement.WorldNumber
 						world, worldFound := s.Catalog.World(placement.Track, placement.WorldNumber)
 						if worldFound && stageNumber >= 1 && stageNumber <= len(world.Missions) {
 							target, found = world.Missions[stageNumber-1], true
@@ -203,15 +200,12 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 					continue
 				}
 				if target.ID == s.Mission.ID {
-					if targetWorldRoute > 0 {
-						worldRoute = targetWorldRoute
-					}
 					message := fmt.Sprintf("Already playing Mission %02d: %s.", target.Number, target.Title)
 					fmt.Fprintln(s.Out, s.Style.Accent(message))
 					continue
 				}
 				printMissionSwitch(s.Out, target, s.Style)
-				return SessionResult{SwitchMission: target.ID, WorldRoute: targetWorldRoute, HintsUsed: hintsUsed}, nil
+				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
 			case "next", "previous", "prev":
 				direction := 1
 				if fields[0] != "next" {

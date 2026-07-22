@@ -242,7 +242,7 @@ func TestSessionClosesEnvironmentOnEveryTerminalPath(t *testing.T) {
 		{name: "quit", item: first, reader: &seamReader{lines: []string{"quit"}}, wantQuit: true},
 		{name: "EOF", item: first, reader: &seamReader{}, wantQuit: true},
 		{name: "switch", item: first, reader: &seamReader{lines: []string{"next"}}, wantSwitch: "linux-config-crawl"},
-		{name: "stage switch", item: worldTwoFirst, reader: &seamReader{lines: []string{"play 3"}}, wantSwitch: "linux-runaway", wantWorld: 2},
+		{name: "stage switch", item: worldTwoFirst, reader: &seamReader{lines: []string{"play 3"}}, wantSwitch: "linux-runaway"},
 		{name: "world switch", item: first, reader: &seamReader{lines: []string{"world 2"}}, wantSwitch: "linux-permissions", wantWorld: 2},
 		{name: "read error", item: first, reader: &seamReader{endErr: readFailure}, wantErrIs: readFailure},
 		{

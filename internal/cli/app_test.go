@@ -569,6 +569,28 @@ func TestMissionPromptUsesWorldLocalStageNumbers(t *testing.T) {
 	}
 }
 
+func TestMissionPromptStageJumpContinuesIntoNextWorld(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	seedCompletedMissions(t, store, linuxMissionIDsThroughNine[:5]...)
+	input := "play 5\nmv /incoming/incident-104.txt /archive/2026/incident-104.txt\nquit\n"
+	app, out, errOut := testApp(t, input, store)
+	if err := app.Run([]string{"play", "3"}); err != nil {
+		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+	}
+
+	output := out.String()
+	for _, expected := range []string{
+		"Switching to Mission 05: The Release Shuffle",
+		"Replay complete",
+		"Continuing to Mission 06: Permission to Deploy",
+		"World 2/4: The Logpocalypse",
+	} {
+		if !strings.Contains(output, expected) {
+			t.Errorf("stage jump did not continue with %q:\n%s", expected, output)
+		}
+	}
+}
+
 func TestMissionPromptHandlesCurrentAndOutOfRangeWorldStages(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "play 1\nplay 6\nquit\n", store)
