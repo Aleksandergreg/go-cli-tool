@@ -3,6 +3,7 @@ package sandbox
 import (
 	"fmt"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -33,19 +34,11 @@ func (s *Sandbox) cmdCat(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	total := 0
-	for _, input := range inputs {
-		if len(input.text) > maxCommandOutputBytes-total {
-			return "", commandOutputLimitError()
-		}
-		total += len(input.text)
-	}
-	var output strings.Builder
-	output.Grow(total)
+	var output commandOutputBuffer
 	for _, input := range inputs {
 		output.WriteString(input.text)
 	}
-	return output.String(), nil
+	return output.Result()
 }
 
 func (s *Sandbox) cmdHeadTail(args []string, stdin string, head bool) (string, error) {
@@ -87,10 +80,7 @@ func (s *Sandbox) cmdHeadTail(args []string, stdin string, head bool) (string, e
 			output.WriteString("==> " + input.name + " <==\n")
 		}
 		lines := textLines(input.text)
-		limit := count
-		if limit > len(lines) {
-			limit = len(lines)
-		}
+		limit := min(count, len(lines))
 		if head {
 			lines = lines[:limit]
 		} else {
@@ -238,26 +228,13 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 }
 
 func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
-	reverse, unique, numeric := false, false, false
-	var files []string
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") {
-			for _, option := range strings.TrimPrefix(arg, "-") {
-				switch option {
-				case 'r':
-					reverse = true
-				case 'u':
-					unique = true
-				case 'n':
-					numeric = true
-				default:
-					return "", fmt.Errorf("unknown option -%c", option)
-				}
-			}
-		} else {
-			files = append(files, arg)
-		}
+	options, files, err := parseShortOptions(args, "run", false)
+	if err != nil {
+		return "", err
 	}
+	reverse := strings.ContainsRune(options, 'r')
+	unique := strings.ContainsRune(options, 'u')
+	numeric := strings.ContainsRune(options, 'n')
 	inputs, err := s.readInputs(files, stdin)
 	if err != nil {
 		return "", err
@@ -278,12 +255,10 @@ func (s *Sandbox) cmdSort(args []string, stdin string) (string, error) {
 		sort.Strings(lines)
 	}
 	if reverse {
-		for left, right := 0, len(lines)-1; left < right; left, right = left+1, right-1 {
-			lines[left], lines[right] = lines[right], lines[left]
-		}
+		slices.Reverse(lines)
 	}
 	if unique {
-		lines = uniqueLines(lines)
+		lines = slices.Compact(lines)
 	}
 	return joinOutputLines(lines), nil
 }
@@ -367,7 +342,7 @@ func (s *Sandbox) cmdWC(args []string, stdin string) (string, error) {
 		case "words":
 			count = len(strings.Fields(input.text))
 		case "bytes":
-			count = len([]byte(input.text))
+			count = len(input.text)
 		}
 		output.WriteString(strconv.Itoa(count))
 		if input.name != "" {
@@ -396,17 +371,7 @@ func (s *Sandbox) cmdAwk(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var output commandOutputBuffer
-	for _, input := range inputs {
-		for _, line := range textLines(input.text) {
-			fields := strings.Fields(line)
-			if field <= len(fields) {
-				output.WriteString(fields[field-1])
-			}
-			output.WriteByte('\n')
-		}
-	}
-	return output.Result()
+	return selectField(inputs, field, strings.Fields)
 }
 
 func (s *Sandbox) cmdCut(args []string, stdin string) (string, error) {
@@ -448,10 +413,14 @@ func (s *Sandbox) cmdCut(args []string, stdin string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return selectField(inputs, field, func(line string) []string { return strings.Split(line, delimiter) })
+}
+
+func selectField(inputs []namedText, field int, split func(string) []string) (string, error) {
 	var output commandOutputBuffer
 	for _, input := range inputs {
 		for _, line := range textLines(input.text) {
-			fields := strings.Split(line, delimiter)
+			fields := split(line)
 			if field <= len(fields) {
 				output.WriteString(fields[field-1])
 			}
@@ -516,17 +485,4 @@ func joinOutputLines(lines []string) string {
 		return ""
 	}
 	return strings.Join(lines, "\n") + "\n"
-}
-
-func uniqueLines(lines []string) []string {
-	if len(lines) == 0 {
-		return lines
-	}
-	result := []string{lines[0]}
-	for _, line := range lines[1:] {
-		if line != result[len(result)-1] {
-			result = append(result, line)
-		}
-	}
-	return result
 }

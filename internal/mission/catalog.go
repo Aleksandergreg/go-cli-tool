@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"path"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -411,6 +413,15 @@ var allowedConditionFields = map[ConditionType]conditionFields{
 	ConditionDockerContainerCountEqual: conditionCount,
 }
 
+var conditionFieldFlags = map[string]conditionFields{
+	"path":      conditionPath,
+	"value":     conditionValue,
+	"values":    conditionValues,
+	"pid":       conditionPID,
+	"container": conditionContainer,
+	"count":     conditionCount,
+}
+
 func validateCondition(condition Condition, environment string) error {
 	allowed, known := allowedConditionFields[condition.Type]
 	if !known {
@@ -436,12 +447,7 @@ func validateCondition(condition Condition, environment string) error {
 			return fmt.Errorf("type %q does not support %s", condition.Type, field.name)
 		}
 	}
-	pathTypes := map[ConditionType]bool{
-		ConditionFileExists: true, ConditionDirectoryExists: true, ConditionPathMissing: true,
-		ConditionFileContentEquals: true, ConditionFileContentContains: true,
-		ConditionFileLinesEqual: true, ConditionFileModeEquals: true, ConditionFileOwnerEquals: true,
-	}
-	if pathTypes[condition.Type] {
+	if allowed&conditionPath != 0 {
 		if environment != EnvironmentSimulated {
 			return fmt.Errorf("type %q requires a simulated environment", condition.Type)
 		}
@@ -450,9 +456,9 @@ func validateCondition(condition Condition, environment string) error {
 		}
 	}
 	switch condition.Type {
-	case ConditionOutputEquals:
+	case ConditionOutputEquals, ConditionFileExists, ConditionDirectoryExists, ConditionPathMissing, ConditionFileContentEquals:
 		return nil
-	case ConditionOutputContains, ConditionOutputNotContains:
+	case ConditionOutputContains, ConditionOutputNotContains, ConditionFileContentContains:
 		if condition.Value == "" {
 			return fmt.Errorf("value cannot be empty")
 		}
@@ -470,12 +476,6 @@ func validateCondition(condition Condition, environment string) error {
 			return fmt.Errorf("cwd_equals requires a simulated environment")
 		}
 		return validateAbsolutePath("cwd_equals", condition.Value, true)
-	case ConditionFileExists, ConditionDirectoryExists, ConditionPathMissing, ConditionFileContentEquals:
-		return nil
-	case ConditionFileContentContains:
-		if condition.Value == "" {
-			return fmt.Errorf("value cannot be empty")
-		}
 	case ConditionFileLinesEqual:
 		if len(condition.Values) == 0 {
 			return fmt.Errorf("values cannot be empty")
@@ -557,11 +557,7 @@ func validateArchiveEntry(value string) (string, error) {
 }
 
 func (c Catalog) All() []Mission {
-	items := make([]Mission, len(c.missions))
-	for index, item := range c.missions {
-		items[index] = cloneMission(item)
-	}
-	return items
+	return cloneMissions(c.missions)
 }
 
 func (c Catalog) Find(ref string) (Mission, bool) {
@@ -582,9 +578,7 @@ func (c Catalog) Find(ref string) (Mission, bool) {
 // learning track. An empty track selects the backwards-compatible Linux
 // default.
 func (c Catalog) InTrack(track string) []Mission {
-	if track == "" {
-		track = TrackLinux
-	}
+	track = defaultTrack(track)
 	items := make([]Mission, 0)
 	for _, item := range c.missions {
 		if item.EffectiveTrack() == track {
@@ -596,9 +590,7 @@ func (c Catalog) InTrack(track string) []Mission {
 
 // NextInTrack returns the first incomplete mission in one learning track.
 func (c Catalog) NextInTrack(track string, completed func(string) bool) (Mission, bool) {
-	if track == "" {
-		track = TrackLinux
-	}
+	track = defaultTrack(track)
 	for _, item := range c.missions {
 		if item.EffectiveTrack() == track && !completed(item.ID) {
 			return cloneMission(item), true
@@ -618,28 +610,12 @@ func (c Catalog) Next(completed func(string) bool) (Mission, bool) {
 
 // FirstInTrack returns the first mission in global catalog order for track.
 func (c Catalog) FirstInTrack(track string) (Mission, bool) {
-	if track == "" {
-		track = TrackLinux
-	}
-	for _, item := range c.missions {
-		if item.EffectiveTrack() == track {
-			return cloneMission(item), true
-		}
-	}
-	return Mission{}, false
+	return c.findInTrack(defaultTrack(track), 0, 1)
 }
 
 // LastInTrack returns the last mission in global catalog order for track.
 func (c Catalog) LastInTrack(track string) (Mission, bool) {
-	if track == "" {
-		track = TrackLinux
-	}
-	for index := len(c.missions) - 1; index >= 0; index-- {
-		if c.missions[index].EffectiveTrack() == track {
-			return cloneMission(c.missions[index]), true
-		}
-	}
-	return Mission{}, false
+	return c.findInTrack(defaultTrack(track), len(c.missions)-1, -1)
 }
 
 // AdjacentInTrack returns the previous or next mission in the current
@@ -653,12 +629,15 @@ func (c Catalog) AdjacentInTrack(currentID string, direction int) (Mission, bool
 	if !found {
 		return Mission{}, false
 	}
-	track := c.missions[currentIndex].EffectiveTrack()
 	step := 1
 	if direction < 0 {
 		step = -1
 	}
-	for index := currentIndex + step; index >= 0 && index < len(c.missions); index += step {
+	return c.findInTrack(c.missions[currentIndex].EffectiveTrack(), currentIndex+step, step)
+}
+
+func (c Catalog) findInTrack(track string, start, step int) (Mission, bool) {
+	for index := start; index >= 0 && index < len(c.missions); index += step {
 		if c.missions[index].EffectiveTrack() == track {
 			return cloneMission(c.missions[index]), true
 		}
@@ -668,36 +647,39 @@ func (c Catalog) AdjacentInTrack(currentID string, direction int) (Mission, bool
 
 func cloneMission(item Mission) Mission {
 	cloned := item
-	cloned.SuggestedCommands = append([]string(nil), item.SuggestedCommands...)
-	cloned.Hints = append([]string(nil), item.Hints...)
-	cloned.Setup.Directories = append([]DirectorySpec(nil), item.Setup.Directories...)
-	cloned.Setup.Files = append([]FileSpec(nil), item.Setup.Files...)
-	cloned.Setup.Processes = append([]ProcessSpec(nil), item.Setup.Processes...)
+	cloned.SuggestedCommands = slices.Clone(item.SuggestedCommands)
+	cloned.Hints = slices.Clone(item.Hints)
+	cloned.Setup.Directories = slices.Clone(item.Setup.Directories)
+	cloned.Setup.Files = slices.Clone(item.Setup.Files)
+	cloned.Setup.Processes = slices.Clone(item.Setup.Processes)
 	cloned.Setup.Archives = make([]ArchiveSpec, len(item.Setup.Archives))
 	for index, archive := range item.Setup.Archives {
 		cloned.Setup.Archives[index] = archive
-		cloned.Setup.Archives[index].Entries = append([]ArchiveEntry(nil), archive.Entries...)
+		cloned.Setup.Archives[index].Entries = slices.Clone(archive.Entries)
 	}
-	if item.Setup.Environment != nil {
-		cloned.Setup.Environment = make(map[string]string, len(item.Setup.Environment))
-		for name, value := range item.Setup.Environment {
-			cloned.Setup.Environment[name] = value
-		}
-	}
+	cloned.Setup.Environment = maps.Clone(item.Setup.Environment)
 	if item.Docker != nil {
 		dockerSetup := *item.Docker
-		dockerSetup.Images = append([]DockerImageSpec(nil), item.Docker.Images...)
-		dockerSetup.Containers = append([]DockerContainerSpec(nil), item.Docker.Containers...)
+		dockerSetup.Images = slices.Clone(item.Docker.Images)
+		dockerSetup.Containers = slices.Clone(item.Docker.Containers)
 		cloned.Docker = &dockerSetup
 	}
 	cloned.Validation.All = make([]Condition, len(item.Validation.All))
 	for index, condition := range item.Validation.All {
 		cloned.Validation.All[index] = condition
-		cloned.Validation.All[index].Values = append([]string(nil), condition.Values...)
+		cloned.Validation.All[index].Values = slices.Clone(condition.Values)
 		if condition.Count != nil {
 			count := *condition.Count
 			cloned.Validation.All[index].Count = &count
 		}
+	}
+	return cloned
+}
+
+func cloneMissions(items []Mission) []Mission {
+	cloned := make([]Mission, len(items))
+	for index, item := range items {
+		cloned[index] = cloneMission(item)
 	}
 	return cloned
 }

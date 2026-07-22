@@ -165,12 +165,16 @@ func (c *Condition) UnmarshalJSON(data []byte) error {
 	if err := json.Unmarshal(data, &fields); err != nil {
 		return err
 	}
+	present := conditionFields(0)
 	for name := range fields {
-		switch name {
-		case "type", "path", "value", "values", "pid", "container", "count":
-		default:
+		if name == "type" {
+			continue
+		}
+		flag, known := conditionFieldFlags[name]
+		if !known {
 			return fmt.Errorf("json: unknown field %q", name)
 		}
+		present |= flag
 	}
 	type wireCondition Condition
 	var decoded wireCondition
@@ -178,22 +182,7 @@ func (c *Condition) UnmarshalJSON(data []byte) error {
 		return err
 	}
 	*c = Condition(decoded)
-	for name := range fields {
-		switch name {
-		case "path":
-			c.present |= conditionPath
-		case "value":
-			c.present |= conditionValue
-		case "values":
-			c.present |= conditionValues
-		case "pid":
-			c.present |= conditionPID
-		case "container":
-			c.present |= conditionContainer
-		case "count":
-			c.present |= conditionCount
-		}
-	}
+	c.present = present
 	return nil
 }
 

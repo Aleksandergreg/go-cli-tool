@@ -212,7 +212,7 @@ func (e *viEditor) handleInsert(key viKey) {
 		e.column = len(e.lines[e.row])
 		e.preferredCol = e.column
 	case viBackspaceKey:
-		insertBackspace(e)
+		e.insertBackspace()
 	case viDeleteKey:
 		e.insertDelete()
 	case viEnterKey:
@@ -254,7 +254,7 @@ func (e *viEditor) handleInsert(key viKey) {
 	}
 }
 
-func insertBackspace(e *viEditor) {
+func (e *viEditor) insertBackspace() {
 	if e.column > 0 {
 		line := e.lines[e.row]
 		removed := line[e.column-1]
@@ -279,14 +279,7 @@ func insertBackspace(e *viEditor) {
 }
 
 func (e *viEditor) insertDelete() {
-	line := e.lines[e.row]
-	if e.column >= len(line) {
-		return
-	}
-	removed := line[e.column]
-	e.lines[e.row] = append(line[:e.column], line[e.column+1:]...)
-	e.byteSize -= utf8.RuneLen(removed)
-	e.dirty = true
+	e.removeRuneAtCursor()
 }
 
 func (e *viEditor) handleCommand(key viKey, save viSaveFunc) {
@@ -353,43 +346,23 @@ func (e *viEditor) write(save viSaveFunc) bool {
 }
 
 func (e *viEditor) moveHorizontal(delta int) {
-	limit := e.normalLineEnd()
-	e.column += delta
-	if e.column < 0 {
-		e.column = 0
-	}
-	if e.column > limit {
-		e.column = limit
-	}
+	e.column = min(max(e.column+delta, 0), e.normalLineEnd())
 	e.preferredCol = e.column
 }
 
 func (e *viEditor) moveVertical(delta int) {
-	row := e.row + delta
-	if row < 0 {
-		row = 0
-	}
-	if row >= len(e.lines) {
-		row = len(e.lines) - 1
-	}
-	e.row = row
-	e.column = e.preferredCol
+	e.moveRow(delta)
 	e.clampNormalColumn()
 }
 
 func (e *viEditor) moveInsertVertical(delta int) {
-	row := e.row + delta
-	if row < 0 {
-		row = 0
-	}
-	if row >= len(e.lines) {
-		row = len(e.lines) - 1
-	}
-	e.row = row
+	e.moveRow(delta)
+	e.column = min(e.column, len(e.lines[e.row]))
+}
+
+func (e *viEditor) moveRow(delta int) {
+	e.row = min(max(e.row+delta, 0), len(e.lines)-1)
 	e.column = e.preferredCol
-	if e.column > len(e.lines[e.row]) {
-		e.column = len(e.lines[e.row])
-	}
 }
 
 func (e *viEditor) normalLineEnd() int {
@@ -400,25 +373,27 @@ func (e *viEditor) normalLineEnd() int {
 }
 
 func (e *viEditor) clampNormalColumn() {
-	if e.column < 0 {
-		e.column = 0
-	}
-	if limit := e.normalLineEnd(); e.column > limit {
-		e.column = limit
-	}
+	e.column = min(max(e.column, 0), e.normalLineEnd())
 }
 
 func (e *viEditor) deleteAtCursor() {
-	line := e.lines[e.row]
-	if len(line) == 0 || e.column >= len(line) {
+	if !e.removeRuneAtCursor() {
 		return
+	}
+	e.clampNormalColumn()
+	e.preferredCol = e.column
+}
+
+func (e *viEditor) removeRuneAtCursor() bool {
+	line := e.lines[e.row]
+	if e.column >= len(line) {
+		return false
 	}
 	removed := line[e.column]
 	e.lines[e.row] = append(line[:e.column], line[e.column+1:]...)
 	e.byteSize -= utf8.RuneLen(removed)
-	e.clampNormalColumn()
-	e.preferredCol = e.column
 	e.dirty = true
+	return true
 }
 
 func (e *viEditor) deleteLine() {
@@ -616,38 +591,34 @@ func utf8SequenceLength(first byte) int {
 	}
 }
 
+var viSequenceKinds = map[string]viKeyKind{
+	bracketedPasteStart: viPasteStartKey,
+	bracketedPasteEnd:   viPasteEndKey,
+	"\x1b[A":            viUpKey,
+	"\x1bOA":            viUpKey,
+	"\x1b[B":            viDownKey,
+	"\x1bOB":            viDownKey,
+	"\x1b[C":            viRightKey,
+	"\x1bOC":            viRightKey,
+	"\x1b[D":            viLeftKey,
+	"\x1bOD":            viLeftKey,
+	"\x1b[H":            viHomeKey,
+	"\x1bOH":            viHomeKey,
+	"\x1b[F":            viEndKey,
+	"\x1bOF":            viEndKey,
+	"\x1b[3~":           viDeleteKey,
+}
+
 func decodeViSequence(sequence string) viKey {
-	switch sequence {
-	case bracketedPasteStart:
-		return viKey{kind: viPasteStartKey}
-	case bracketedPasteEnd:
-		return viKey{kind: viPasteEndKey}
-	case "\x1b[A", "\x1bOA":
-		return viKey{kind: viUpKey}
-	case "\x1b[B", "\x1bOB":
-		return viKey{kind: viDownKey}
-	case "\x1b[C", "\x1bOC":
-		return viKey{kind: viRightKey}
-	case "\x1b[D", "\x1bOD":
-		return viKey{kind: viLeftKey}
-	case "\x1b[H", "\x1bOH":
-		return viKey{kind: viHomeKey}
-	case "\x1b[F", "\x1bOF":
-		return viKey{kind: viEndKey}
-	case "\x1b[3~":
-		return viKey{kind: viDeleteKey}
-	default:
-		return viKey{kind: viUnknownKey, raw: sequence}
+	if kind, found := viSequenceKinds[sequence]; found {
+		return viKey{kind: kind}
 	}
+	return viKey{kind: viUnknownKey, raw: sequence}
 }
 
 func renderViEditor(output io.Writer, editor *viEditor, width, height int) error {
-	if width < 20 {
-		width = 20
-	}
-	if height < 6 {
-		height = 6
-	}
+	width = max(width, 20)
+	height = max(height, 6)
 	bodyRows := height - 2
 	top := 0
 	if editor.row >= bodyRows {
@@ -682,9 +653,7 @@ func renderViEditor(output io.Writer, editor *viEditor, width, height int) error
 	if editor.mode == viCommandMode {
 		cursorRow = bodyRows + 1
 		cursorColumn = len([]rune(":"+string(editor.command))) + 1
-		if cursorColumn > width {
-			cursorColumn = width
-		}
+		cursorColumn = min(cursorColumn, width)
 	}
 	fmt.Fprintf(&screen, "\x1b[%d;%dH\x1b[?25h", cursorRow, cursorColumn)
 	_, err := io.WriteString(output, screen.String())
@@ -710,9 +679,7 @@ func (e *viEditor) statusLine() string {
 }
 
 func displayViColumn(line []rune, column int) int {
-	if column > len(line) {
-		column = len(line)
-	}
+	column = min(column, len(line))
 	columns := 0
 	for _, char := range line[:column] {
 		columns += displayViRuneWidth(char, columns)
@@ -721,9 +688,7 @@ func displayViColumn(line []rune, column int) int {
 }
 
 func displayViWindow(line []rune, offset, width int) string {
-	if offset < 0 {
-		offset = 0
-	}
+	offset = max(offset, 0)
 	if width <= 0 {
 		return ""
 	}
@@ -801,8 +766,6 @@ func sanitizeViText(value string) string {
 
 func padViLine(value string, width int) string {
 	runes := []rune(value)
-	if len(runes) > width {
-		runes = runes[:width]
-	}
+	runes = runes[:min(len(runes), width)]
 	return string(runes) + strings.Repeat(" ", width-len(runes))
 }

@@ -15,40 +15,35 @@ type commandOutputBuffer struct {
 }
 
 func (b *commandOutputBuffer) WriteString(value string) (int, error) {
-	if b.err != nil {
-		return 0, b.err
-	}
-	if len(value) > maxCommandOutputBytes-b.builder.Len() {
-		b.err = commandOutputLimitError()
-		return 0, b.err
+	if err := b.reserve(len(value)); err != nil {
+		return 0, err
 	}
 	return b.builder.WriteString(value)
 }
 
 func (b *commandOutputBuffer) WriteByte(value byte) error {
-	if b.err != nil {
-		return b.err
-	}
-	if b.builder.Len() == maxCommandOutputBytes {
-		b.err = commandOutputLimitError()
-		return b.err
+	if err := b.reserve(1); err != nil {
+		return err
 	}
 	return b.builder.WriteByte(value)
 }
 
 func (b *commandOutputBuffer) WriteRune(value rune) (int, error) {
-	if b.err != nil {
-		return 0, b.err
-	}
 	size := utf8.RuneLen(value)
 	if size < 0 {
 		size = utf8.RuneLen(utf8.RuneError)
 	}
-	if size > maxCommandOutputBytes-b.builder.Len() {
-		b.err = commandOutputLimitError()
-		return 0, b.err
+	if err := b.reserve(size); err != nil {
+		return 0, err
 	}
 	return b.builder.WriteRune(value)
+}
+
+func (b *commandOutputBuffer) reserve(size int) error {
+	if b.err == nil && size > maxCommandOutputBytes-b.builder.Len() {
+		b.err = commandOutputLimitError()
+	}
+	return b.err
 }
 
 func (b *commandOutputBuffer) Result() (string, error) {

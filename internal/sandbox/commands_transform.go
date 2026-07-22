@@ -325,24 +325,11 @@ func isSedReplacementNameByte(value byte) bool {
 }
 
 func (s *Sandbox) cmdTr(args []string, stdin string) (string, error) {
-	deleteSet, squeeze := false, false
-	var operands []string
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") && arg != "-" {
-			for _, option := range strings.TrimPrefix(arg, "-") {
-				switch option {
-				case 'd':
-					deleteSet = true
-				case 's':
-					squeeze = true
-				default:
-					return "", fmt.Errorf("unknown option -%c", option)
-				}
-			}
-		} else {
-			operands = append(operands, arg)
-		}
+	options, operands, err := parseShortOptions(args, "ds", true)
+	if err != nil {
+		return "", err
 	}
+	deleteSet, squeeze := strings.ContainsRune(options, 'd'), strings.ContainsRune(options, 's')
 	if len(operands) == 0 || (!deleteSet && !squeeze && len(operands) < 2) || len(operands) > 2 {
 		return "", fmt.Errorf("usage: tr [-ds] SET1 [SET2]")
 	}
@@ -362,10 +349,7 @@ func (s *Sandbox) cmdTr(args []string, stdin string) (string, error) {
 	for index, char := range set1 {
 		deleteMap[char] = true
 		if !deleteSet && len(set2) > 0 {
-			targetIndex := index
-			if targetIndex >= len(set2) {
-				targetIndex = len(set2) - 1
-			}
+			targetIndex := min(index, len(set2)-1)
 			translations[char] = set2[targetIndex]
 		}
 	}

@@ -43,61 +43,39 @@ func Auto(out io.Writer) Style {
 }
 
 // Enabled reports whether the Style emits ANSI escape sequences.
-func (s Style) Enabled() bool {
-	return s.enabled
-}
+func (s Style) Enabled() bool { return s.enabled }
 
 // Header styles prominent OpsQuest headings.
-func (s Style) Header(text string) string {
-	return s.paint(ansiBoldCyan, text)
-}
+func (s Style) Header(text string) string { return s.paint(ansiBoldCyan, text) }
 
 // Section styles a heading within one screen without competing with the page
 // header's color. It is useful for labels such as Objective and Progress.
-func (s Style) Section(text string) string {
-	return s.paint(ansiBold, text)
-}
+func (s Style) Section(text string) string { return s.paint(ansiBold, text) }
 
 // World styles campaign and narrative-world labels. Regular magenta keeps the
 // role distinct from bold-magenta achievement announcements.
-func (s Style) World(text string) string {
-	return s.paint(ansiMagenta, text)
-}
+func (s Style) World(text string) string { return s.paint(ansiMagenta, text) }
 
 // Accent styles navigation and other secondary highlights.
-func (s Style) Accent(text string) string {
-	return s.paint(ansiCyan, text)
-}
+func (s Style) Accent(text string) string { return s.paint(ansiCyan, text) }
 
 // Success styles completed or healthy state.
-func (s Style) Success(text string) string {
-	return s.paint(ansiGreen, text)
-}
+func (s Style) Success(text string) string { return s.paint(ansiGreen, text) }
 
 // Warning styles hints, incomplete state, and other cautions.
-func (s Style) Warning(text string) string {
-	return s.paint(ansiYellow, text)
-}
+func (s Style) Warning(text string) string { return s.paint(ansiYellow, text) }
 
 // Failure styles errors and failed state.
-func (s Style) Failure(text string) string {
-	return s.paint(ansiRed, text)
-}
+func (s Style) Failure(text string) string { return s.paint(ansiRed, text) }
 
 // Reward styles XP and other earned rewards.
-func (s Style) Reward(text string) string {
-	return s.paint(ansiBoldYellow, text)
-}
+func (s Style) Reward(text string) string { return s.paint(ansiBoldYellow, text) }
 
 // Achievement styles achievement announcements and unlocked markers.
-func (s Style) Achievement(text string) string {
-	return s.paint(ansiBoldMagenta, text)
-}
+func (s Style) Achievement(text string) string { return s.paint(ansiBoldMagenta, text) }
 
 // Muted styles supporting instructions and unavailable state.
-func (s Style) Muted(text string) string {
-	return s.paint(ansiDim, text)
-}
+func (s Style) Muted(text string) string { return s.paint(ansiDim, text) }
 
 // Difficulty applies the teaching difficulty's semantic color. Unknown values
 // remain plain so a new schema value is not assigned a misleading meaning.

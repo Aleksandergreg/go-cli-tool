@@ -3,6 +3,7 @@ package sandbox
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -54,7 +55,7 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 			if index >= len(args) {
 				return "", fmt.Errorf("-exec must end with \\;")
 			}
-			execArgs = append([]string(nil), args[start:index]...)
+			execArgs = slices.Clone(args[start:index])
 			if len(execArgs) == 0 {
 				return "", fmt.Errorf("-exec requires a command")
 			}
@@ -100,12 +101,10 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 				}
 				continue
 			}
-			command := make([]string, len(execArgs))
-			for position, arg := range execArgs {
+			command := slices.Clone(execArgs)
+			for position, arg := range command {
 				if arg == "{}" {
 					command[position] = display
-				} else {
-					command[position] = arg
 				}
 			}
 			result, err := s.run(context, command, "")
@@ -204,13 +203,13 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 	}
 	archivePath := s.Resolve(options.archiveName)
 	destination := s.Resolve(options.destination)
+	archive, archiveExists := s.Archives[archivePath]
+	if options.operation != 'c' && !archiveExists {
+		return "", fmt.Errorf("%s: not a recognized archive", options.archiveName)
+	}
 
 	switch options.operation {
 	case 'x':
-		archive, exists := s.Archives[archivePath]
-		if !exists {
-			return "", fmt.Errorf("%s: not a recognized archive", options.archiveName)
-		}
 		if !s.FS.IsDir(destination) {
 			return "", fmt.Errorf("%s: extraction destination is not a directory", destination)
 		}
@@ -262,10 +261,6 @@ func (s *Sandbox) cmdTar(args []string) (string, error) {
 		s.Archives = archives
 		return verboseOutput, nil
 	case 't':
-		archive, exists := s.Archives[archivePath]
-		if !exists {
-			return "", fmt.Errorf("%s: not a recognized archive", options.archiveName)
-		}
 		var output commandOutputBuffer
 		for _, item := range archive.Entries {
 			output.WriteString(item.Path + "\n")

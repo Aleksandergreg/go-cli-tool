@@ -7,6 +7,7 @@ import (
 	"maps"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -90,24 +91,22 @@ func (p *Profile) Normalize() {
 	if p.Version < currentVersion {
 		p.Version = currentVersion
 	}
-	if p.Completed == nil {
-		p.Completed = make(map[string]Completion)
-	}
-	if p.Commands == nil {
-		p.Commands = make(map[string]int)
-	}
-	if p.Hints == nil {
-		p.Hints = make(map[string]int)
-	}
+	ensureMap(&p.Completed)
+	ensureMap(&p.Commands)
+	ensureMap(&p.Hints)
 	for missionID, count := range p.Hints {
 		if count < 0 || p.IsComplete(missionID) {
 			delete(p.Hints, missionID)
 		}
 	}
-	if p.Unlocked == nil {
-		p.Unlocked = make(map[string]time.Time)
-	}
+	ensureMap(&p.Unlocked)
 	p.Name = normalizeName(p.Name)
+}
+
+func ensureMap[K comparable, V any](target *map[K]V) {
+	if *target == nil {
+		*target = make(map[K]V)
+	}
 }
 
 func (p Profile) clone() Profile {
@@ -170,9 +169,7 @@ func (p Profile) IsComplete(missionID string) bool {
 }
 
 func (p *Profile) RecordCommands(commands []string) {
-	if p.Commands == nil {
-		p.Commands = make(map[string]int)
-	}
+	ensureMap(&p.Commands)
 	for _, command := range commands {
 		command = strings.TrimSpace(command)
 		if command != "" {
@@ -181,14 +178,10 @@ func (p *Profile) RecordCommands(commands []string) {
 	}
 }
 
-func (p Profile) MissionHints(missionID string) int {
-	return p.Hints[missionID]
-}
+func (p Profile) MissionHints(missionID string) int { return p.Hints[missionID] }
 
 func (p *Profile) RecordHint(missionID string) int {
-	if p.Hints == nil {
-		p.Hints = make(map[string]int)
-	}
+	ensureMap(&p.Hints)
 	p.Hints[missionID]++
 	return p.Hints[missionID]
 }
@@ -201,9 +194,7 @@ func (p *Profile) Complete(missionID string, xp, hints int, now time.Time) bool 
 		delete(p.Hints, missionID)
 		return false
 	}
-	if p.Completed == nil {
-		p.Completed = make(map[string]Completion)
-	}
+	ensureMap(&p.Completed)
 	p.Completed[missionID] = Completion{XP: xp, HintsUsed: hints, CompletedAt: now}
 	delete(p.Hints, missionID)
 	p.XP += xp
@@ -252,9 +243,7 @@ func (p *Profile) UnlockAchievement(id string, now time.Time) (Achievement, bool
 	if !exists {
 		return Achievement{}, false
 	}
-	if p.Unlocked == nil {
-		p.Unlocked = make(map[string]time.Time)
-	}
+	ensureMap(&p.Unlocked)
 	if _, unlocked := p.Unlocked[id]; unlocked {
 		return definition, false
 	}
@@ -278,9 +267,7 @@ func (p Profile) AchievementCount() int {
 }
 
 func AchievementDefinitions() []Achievement {
-	items := make([]Achievement, len(achievements))
-	copy(items, achievements)
-	return items
+	return slices.Clone(achievements)
 }
 
 func FindAchievement(id string) (Achievement, bool) {
@@ -292,9 +279,7 @@ func FindAchievement(id string) (Achievement, bool) {
 	return Achievement{}, false
 }
 
-func (p Profile) Level() int {
-	return p.XP/100 + 1
-}
+func (p Profile) Level() int { return p.XP/100 + 1 }
 
 func (p Profile) Rank() string {
 	for index := len(rankThresholds) - 1; index >= 0; index-- {
@@ -346,9 +331,7 @@ func NewStore(path, playerName string) Store {
 	return Store{path: path, name: func() string { return playerName }}
 }
 
-func (s Store) Path() string {
-	return s.path
-}
+func (s Store) Path() string { return s.path }
 
 func (s Store) Load() (Profile, error) {
 	data, err := os.ReadFile(s.path)

@@ -56,24 +56,11 @@ func (s *Sandbox) cmdCD(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdLS(args []string) (string, error) {
-	long, showAll := false, false
-	var names []string
-	for _, arg := range args {
-		if strings.HasPrefix(arg, "-") && arg != "-" {
-			for _, option := range strings.TrimPrefix(arg, "-") {
-				switch option {
-				case 'l':
-					long = true
-				case 'a':
-					showAll = true
-				default:
-					return "", fmt.Errorf("unknown option -%c", option)
-				}
-			}
-		} else {
-			names = append(names, arg)
-		}
+	options, names, err := parseShortOptions(args, "la", true)
+	if err != nil {
+		return "", err
 	}
+	long, showAll := strings.ContainsRune(options, 'l'), strings.ContainsRune(options, 'a')
 	if len(names) == 0 {
 		names = []string{"."}
 	}
@@ -163,10 +150,7 @@ func (s *Sandbox) cmdTouch(args []string) (string, error) {
 	}
 	for _, name := range args {
 		resolved := s.Resolve(name)
-		if entry, exists := s.FS.Entry(resolved); exists {
-			if entry.Kind == Directory {
-				continue
-			}
+		if _, exists := s.FS.Entry(resolved); exists {
 			continue
 		}
 		if err := s.FS.WriteFile(resolved, "", 0o644); err != nil {
@@ -316,4 +300,24 @@ func sortedKeys[V any](items map[string]V) []string {
 	}
 	sort.Strings(keys)
 	return keys
+}
+
+// parseShortOptions handles the shared, deliberately small combined-short-flag
+// syntax used by teaching commands such as ls, du, sort, and tr.
+func parseShortOptions(args []string, valid string, dashIsOperand bool) (string, []string, error) {
+	var options strings.Builder
+	operands := make([]string, 0, len(args))
+	for _, arg := range args {
+		if !strings.HasPrefix(arg, "-") || dashIsOperand && arg == "-" {
+			operands = append(operands, arg)
+			continue
+		}
+		for _, option := range strings.TrimPrefix(arg, "-") {
+			if !strings.ContainsRune(valid, option) {
+				return "", nil, fmt.Errorf("unknown option -%c", option)
+			}
+			options.WriteRune(option)
+		}
+	}
+	return options.String(), operands, nil
 }

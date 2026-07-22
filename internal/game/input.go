@@ -165,9 +165,7 @@ func (r *terminalKeyReader) readSequence() ([]byte, error) {
 	return sequence, nil
 }
 
-func (r *terminalKeyReader) buffered() int {
-	return len(r.pending) + r.source.Buffered()
-}
+func (r *terminalKeyReader) buffered() int { return len(r.pending) + r.source.Buffered() }
 
 func (r *terminalKeyReader) unread(data []byte) {
 	pending := make([]byte, 0, len(data)+len(r.pending))
@@ -195,13 +193,9 @@ func (r *terminalKeyReader) normalize(sequence []byte) []byte {
 	return sequence
 }
 
-func (rw terminalReadWriter) Read(buffer []byte) (int, error) {
-	return rw.reader.Read(buffer)
-}
+func (rw terminalReadWriter) Read(buffer []byte) (int, error) { return rw.reader.Read(buffer) }
 
-func (rw terminalReadWriter) Write(buffer []byte) (int, error) {
-	return rw.writer.Write(buffer)
-}
+func (rw terminalReadWriter) Write(buffer []byte) (int, error) { return rw.writer.Write(buffer) }
 
 type terminalLineReader struct {
 	editor   *term.Terminal
@@ -311,7 +305,7 @@ func terminalCompleter(completions CompletionSource) func(string, int, rune) (st
 }
 
 func deleteRuneAtCursor(line string, position int) (string, int, bool) {
-	if position < 0 || position > len(line) || !utf8.ValidString(line) || position < len(line) && !utf8.RuneStart(line[position]) {
+	if invalidCursorPosition(line, position) {
 		return line, position, true
 	}
 	if position == len(line) {
@@ -322,7 +316,7 @@ func deleteRuneAtCursor(line string, position int) (string, int, bool) {
 }
 
 func completeLine(line string, position int, completions CompletionSource) (string, int, bool) {
-	if position < 0 || position > len(line) || !utf8.ValidString(line) || position < len(line) && !utf8.RuneStart(line[position]) {
+	if invalidCursorPosition(line, position) {
 		return line, position, true
 	}
 
@@ -361,15 +355,19 @@ func completeLine(line string, position int, completions CompletionSource) (stri
 	return completed, start + len(replacement), true
 }
 
+func invalidCursorPosition(line string, position int) bool {
+	return position < 0 || position > len(line) || !utf8.ValidString(line) || position < len(line) && !utf8.RuneStart(line[position])
+}
+
 func scriptPathCompletion(value string) bool {
 	return strings.Contains(value, "/") || strings.HasPrefix(value, ".") || strings.HasPrefix(value, "~")
 }
 
 func completionTokenRange(line string, position int) (int, int) {
-	start := 0
+	start, end := 0, len(line)
 	var quote byte
 	escaped := false
-	for index := 0; index < position; index++ {
+	for index := 0; index < len(line); index++ {
 		char := line[index]
 		if escaped {
 			escaped = false
@@ -390,45 +388,19 @@ func completionTokenRange(line string, position int) (int, int) {
 			continue
 		}
 		if completionBoundary(char) {
-			start = index + 1
-		}
-	}
-
-	end := position
-	for end < len(line) {
-		char := line[end]
-		if escaped {
-			escaped = false
-			end++
-			continue
-		}
-		if char == '\\' && quote != '\'' {
-			escaped = true
-			end++
-			continue
-		}
-		if quote != 0 {
-			if char == quote {
-				quote = 0
+			if index < position {
+				start = index + 1
+				continue
 			}
-			end++
-			continue
-		}
-		if char == '\'' || char == '"' {
-			quote = char
-			end++
-			continue
-		}
-		if completionBoundary(char) {
+			end = index
 			break
 		}
-		end++
 	}
 	return start, end
 }
 
 func completionBoundary(char byte) bool {
-	return char == ' ' || char == '\t' || char == '\r' || char == '\n' || char == '|' || char == '<' || char == '>'
+	return strings.ContainsRune(" \t\r\n|<>", rune(char))
 }
 
 func completionToken(raw string) (string, byte, bool) {
@@ -533,5 +505,5 @@ func formatCompletion(value string, quote byte, closeQuote bool) string {
 }
 
 func completionNeedsSpace(afterToken string) bool {
-	return afterToken == "" || afterToken[0] == '|' || afterToken[0] == '<' || afterToken[0] == '>'
+	return afterToken == "" || strings.ContainsRune("|<>", rune(afterToken[0]))
 }
