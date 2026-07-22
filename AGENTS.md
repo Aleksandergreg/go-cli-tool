@@ -50,7 +50,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Embedded mission integrity: `make validate-missions`.
 - Agent harness structure: `make check-agent-docs`.
 - Deterministic CLI path: `make smoke-test`.
-- Real Docker lifecycle (for Docker changes when prerequisites are available): `make docker-integration`.
+- Real Docker lifecycle (for Docker changes when prerequisites are available): `make docker-integration`; use `make orbstack-integration` to force OrbStack's Docker context.
 - GoReleaser configuration and local packages (for release automation changes): `make release-check` and `make release-snapshot`.
 - Hosted documentation: install `requirements-docs.txt`, then run `make docs-check`.
 - Normal local gate: `make check`.

@@ -72,7 +72,7 @@ The complete player guide covers [installation and first play](docs/play/quick-s
 
 ## Optional Docker Foundations
 
-Linux gameplay never requires Docker. To prepare the first Docker mission, start Docker and explicitly fetch its pinned fixture:
+Linux gameplay never requires a container engine. Docker Foundations works with Docker Engine, Docker Desktop, or OrbStack through the Docker CLI. Start your chosen engine and explicitly fetch the pinned fixture:
 
 ```console
 $ docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
@@ -80,7 +80,15 @@ $ opsquest doctor
 $ opsquest play 17
 ```
 
-OpsQuest never pulls the image automatically. See [Docker Foundations](docs/play/docker-foundations.md) for the teaching subset and isolation boundary.
+On macOS, you can direct both setup and gameplay to OrbStack without changing your global Docker context:
+
+```console
+$ DOCKER_CONTEXT=orbstack docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+$ DOCKER_CONTEXT=orbstack opsquest doctor
+$ DOCKER_CONTEXT=orbstack opsquest play 17
+```
+
+OpsQuest never pulls the image automatically. The OrbStack context uses the same constrained Docker integration and cleanup path as every other compatible engine. See [Docker Foundations](docs/play/docker-foundations.md) for setup details, the teaching subset, and the isolation boundary.
 
 ## Safety model
 
@@ -123,6 +131,7 @@ The repository [agent guide](AGENTS.md) defines safety invariants, package bound
 $ make check             # tests, mission validation, vet, build, and smoke test
 $ make check-all         # normal gate plus race detection
 $ make docker-integration
+$ make orbstack-integration
 $ make docs-check        # strict Zensical build and link validation
 $ make tofu-check        # GitHub governance formatting and schema validation
 $ make release-check

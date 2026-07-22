@@ -33,10 +33,11 @@ Use `$add-mission`, `$extend-sandbox-command`, or `$prepare-iteration` when the 
 | Ordinary repository gate | `make check` |
 | Comprehensive gate with race detection | `make check-all` |
 | Real Docker lifecycle | `make docker-integration` |
+| Real OrbStack lifecycle | `make orbstack-integration` |
 | Hosted documentation | `make docs-check` |
 | GitHub repository governance | `make tofu-check` |
 
-Run `make check-all` for release-sized, persistence, parser, sandbox, or concurrency-sensitive work. Docker adapter changes also run the real integration target when prerequisites are available.
+Run `make check-all` for release-sized, persistence, parser, sandbox, or concurrency-sensitive work. Docker adapter changes also run the real integration target when prerequisites are available. `make docker-integration` uses the active Docker context; `make orbstack-integration` explicitly selects OrbStack's `orbstack` context.
 
 ## Work on this site
 

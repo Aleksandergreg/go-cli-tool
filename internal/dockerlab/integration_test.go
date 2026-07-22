@@ -3,6 +3,7 @@ package dockerlab
 import (
 	"context"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
@@ -25,6 +26,9 @@ func TestIntegrationRealDockerContainerCensus(t *testing.T) {
 	availability := factory.Availability(context.Background(), item)
 	if !availability.Available {
 		t.Fatalf("Docker integration prerequisite unavailable: %s", availability.Detail)
+	}
+	if os.Getenv("DOCKER_CONTEXT") == orbStackContext && !strings.Contains(availability.Detail, "OrbStack") {
+		t.Fatalf("OrbStack context was not identified: %s", availability.Detail)
 	}
 	created, err := factory.Create(context.Background(), item)
 	if err != nil {

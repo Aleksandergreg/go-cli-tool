@@ -2,7 +2,7 @@ GORELEASER ?= goreleaser
 TOFU ?= tofu
 ZENSICAL ?= zensical
 
-.PHONY: build test race vet check-agent-docs validate-missions smoke-test docker-integration docs-build docs-check docs-serve tofu-check release-check release-snapshot check check-all run clean
+.PHONY: build test race vet check-agent-docs validate-missions smoke-test docker-integration orbstack-integration docs-build docs-check docs-serve tofu-check release-check release-snapshot check check-all run clean
 
 build:
 	mkdir -p bin
@@ -27,6 +27,9 @@ smoke-test:
 
 docker-integration:
 	OPSQUEST_DOCKER_TEST=1 go test ./internal/dockerlab -run Integration -count=1
+
+orbstack-integration:
+	DOCKER_CONTEXT=orbstack OPSQUEST_DOCKER_TEST=1 go test ./internal/dockerlab -run Integration -count=1
 
 docs-build:
 	@command -v $(ZENSICAL) >/dev/null 2>&1 || { echo "error: Zensical is required; install requirements-docs.txt in a Python 3.10+ virtual environment" >&2; exit 1; }

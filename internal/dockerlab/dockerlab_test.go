@@ -29,6 +29,8 @@ type fakeDockerRunner struct {
 	calls             [][]string
 	containers        map[string]*fakeContainer
 	containerOrder    []string
+	contextName       string
+	contextErr        error
 	daemonErr         error
 	imageAvailable    bool
 	failCreateAt      int
@@ -43,6 +45,7 @@ type fakeDockerRunner struct {
 func newFakeDockerRunner() *fakeDockerRunner {
 	return &fakeDockerRunner{
 		containers:      make(map[string]*fakeContainer),
+		contextName:     "default",
 		imageAvailable:  true,
 		failNextInspect: make(map[string]error),
 		hideNextInspect: make(map[string]bool),
@@ -59,6 +62,11 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 	r.calls = append(r.calls, append([]string(nil), args...))
 
 	switch {
+	case hasPrefix(args, "context", "show"):
+		if r.contextErr != nil {
+			return runResult{stderr: r.contextErr.Error()}, r.contextErr
+		}
+		return runResult{stdout: r.contextName + "\n"}, nil
 	case hasPrefix(args, "version", "--format"):
 		if r.daemonErr != nil {
 			return runResult{stderr: r.daemonErr.Error()}, r.daemonErr
@@ -289,7 +297,7 @@ func TestAvailabilityDistinguishesOptionalDockerFailures(t *testing.T) {
 	t.Run("CLI missing", func(t *testing.T) {
 		factory := newFactory(game.SandboxFactory{}, nil, execNotFoundError{}, nil)
 		availability := factory.Availability(context.Background(), item)
-		if availability.Available || !strings.Contains(availability.Detail, "executable not found") || !strings.Contains(availability.Detail, "Linux missions remain available") {
+		if availability.Available || !strings.Contains(availability.Detail, "executable not found") || !strings.Contains(availability.Detail, "OrbStack") || !strings.Contains(availability.Detail, "Linux missions remain available") {
 			t.Fatalf("availability = %#v", availability)
 		}
 	})
@@ -298,7 +306,17 @@ func TestAvailabilityDistinguishesOptionalDockerFailures(t *testing.T) {
 		commandRunner := newFakeDockerRunner()
 		commandRunner.daemonErr = errors.New("Cannot connect to the Docker daemon")
 		availability := testFactory(commandRunner).Availability(context.Background(), item)
-		if availability.Available || !strings.Contains(availability.Detail, "daemon could not be reached") {
+		if availability.Available || !strings.Contains(availability.Detail, "Docker-compatible engine could not be reached") || !strings.Contains(availability.Detail, "start Docker or OrbStack") {
+			t.Fatalf("availability = %#v", availability)
+		}
+	})
+
+	t.Run("OrbStack unavailable", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.contextName = "orbstack"
+		commandRunner.daemonErr = errors.New("Cannot connect to the Docker daemon")
+		availability := testFactory(commandRunner).Availability(context.Background(), item)
+		if availability.Available || !strings.Contains(availability.Detail, "start OrbStack") || !strings.Contains(availability.Detail, "'orbstack' Docker context") {
 			t.Fatalf("availability = %#v", availability)
 		}
 	})
@@ -317,9 +335,37 @@ func TestAvailabilityDistinguishesOptionalDockerFailures(t *testing.T) {
 		}
 	})
 
+	t.Run("OrbStack image missing", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.contextName = "orbstack"
+		commandRunner.imageAvailable = false
+		availability := testFactory(commandRunner).Availability(context.Background(), item)
+		if availability.Available || !strings.Contains(availability.Detail, "DOCKER_CONTEXT=orbstack docker pull "+testImageReference) {
+			t.Fatalf("availability = %#v", availability)
+		}
+	})
+
 	t.Run("ready", func(t *testing.T) {
 		availability := testFactory(newFakeDockerRunner()).Availability(context.Background(), item)
-		if !availability.Available {
+		if !availability.Available || availability.Detail != "Docker is ready for this mission." {
+			t.Fatalf("availability = %#v", availability)
+		}
+	})
+
+	t.Run("OrbStack ready", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.contextName = "orbstack"
+		availability := testFactory(commandRunner).Availability(context.Background(), item)
+		if !availability.Available || !strings.Contains(availability.Detail, "OrbStack is ready") || !strings.Contains(availability.Detail, "'orbstack' Docker context") {
+			t.Fatalf("availability = %#v", availability)
+		}
+	})
+
+	t.Run("context detection failure is advisory", func(t *testing.T) {
+		commandRunner := newFakeDockerRunner()
+		commandRunner.contextErr = errors.New("context metadata unavailable")
+		availability := testFactory(commandRunner).Availability(context.Background(), item)
+		if !availability.Available || availability.Detail != "Docker is ready for this mission." {
 			t.Fatalf("availability = %#v", availability)
 		}
 	})
@@ -333,7 +379,7 @@ func TestCreateUsesExactLabelsAndResourceLimits(t *testing.T) {
 	commandRunner := newFakeDockerRunner()
 	environment := createTestEnvironment(t, commandRunner)
 	calls := commandRunner.snapshotCalls()
-	if len(calls) < 5 {
+	if len(calls) < 6 {
 		t.Fatalf("setup calls = %q", calls)
 	}
 	wantCreate := []string{
@@ -362,12 +408,12 @@ func TestCreateUsesExactLabelsAndResourceLimits(t *testing.T) {
 		testImageReference,
 		"86400",
 	}
-	if !reflect.DeepEqual(calls[2], wantCreate) {
-		t.Fatalf("first create args:\n got: %q\nwant: %q", calls[2], wantCreate)
+	if !reflect.DeepEqual(calls[3], wantCreate) {
+		t.Fatalf("first create args:\n got: %q\nwant: %q", calls[3], wantCreate)
 	}
 	metricsID := environment.byAlias["metrics"].id
-	if !reflect.DeepEqual(calls[4], []string{"container", "start", metricsID}) {
-		t.Fatalf("running fixture start = %q", calls[4])
+	if !reflect.DeepEqual(calls[5], []string{"container", "start", metricsID}) {
+		t.Fatalf("running fixture start = %q", calls[5])
 	}
 	for _, call := range calls {
 		joined := strings.Join(call, " ")

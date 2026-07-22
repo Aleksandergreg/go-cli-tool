@@ -15,13 +15,13 @@ The first milestone adds the environment boundary and one Docker mission end-to-
 1. Introduce small execution and observation interfaces plus an environment factory.
 2. Wrap the existing in-memory sandbox without changing Linux gameplay.
 3. Add an environment type to missions, defaulting existing content to `simulated`.
-4. Detect the Docker CLI, daemon, and pinned fixture image through `opsquest doctor`.
+4. Detect the Docker CLI, active Docker-compatible engine, and pinned fixture image through `opsquest doctor`, including provider-specific readiness for OrbStack's official context.
 5. Implement Mission 17, **Container Census**, with disposable, attempt-owned containers and reliable teardown.
 6. Validate the container’s observable state, independent of the exact commands used.
 
 Container Census includes three progressive teaching hints: understand image/container lifecycle, discover stopped containers with `docker ps -a`, then start the existing container with `docker start api`. Hints remain optional and reduce the XP reward.
 
-The portable test gate uses a fake Docker runner. `make docker-integration` is the explicit real-engine lifecycle check and requires Docker plus the pinned fixture image documented in the README.
+The portable test gate uses a fake Docker runner. `make docker-integration` checks the active Docker context, while `make orbstack-integration` explicitly checks OrbStack's `orbstack` context. Both real-engine targets require the pinned fixture image documented in the README.
 
 ## Next campaign increments: “It Works on My Machine”
 

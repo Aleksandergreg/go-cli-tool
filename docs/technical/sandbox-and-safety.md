@@ -9,7 +9,7 @@ status: current
 OpsQuest has two execution models with different trust boundaries:
 
 - Linux missions use a teaching shell implemented entirely in Go over in-memory state.
-- Optional Docker missions parse a deliberately small command language and translate typed actions into fixed Docker CLI arguments for attempt-owned resources.
+- Optional Docker missions parse a deliberately small command language and translate typed actions into fixed Docker CLI arguments for attempt-owned resources on the active Docker-compatible engine.
 
 Neither model passes a raw player line to a host shell.
 
@@ -96,7 +96,7 @@ Scripts are interpreted line by line through the same lexer, parser, expander, a
 Docker missions are opt-in and follow a narrower path:
 
 1. The mission catalog accepts only pinned image references and bounded logical fixtures.
-2. Availability checks the Docker executable, daemon, and exact local image without creating resources or pulling images.
+2. Availability checks the Docker executable, active Docker-compatible engine, and exact local image without creating resources or pulling images. An active `orbstack` context is identified for provider-specific guidance only.
 3. The factory generates a random session ID and creates containers with generated names and five ownership labels.
 4. Player text is parsed into `list`, `start`, `restart`, `inspect`, or `help`; flags and aliases must match the small grammar.
 5. The adapter resolves a validated logical alias to a tracked exact container ID.
@@ -117,7 +117,7 @@ Docker-specific ceilings include:
 | Normal Docker operation | 10 seconds |
 | Cleanup attempt | 10 seconds |
 
-The Docker daemon remains a powerful external dependency; OpsQuest reduces exposure by constraining syntax, setup, runtime options, identity, and cleanup scope. It does not claim to turn an untrusted Docker daemon into a security boundary.
+The Docker-compatible engine remains a powerful external dependency; OpsQuest reduces exposure by constraining syntax, setup, runtime options, identity, and cleanup scope. It does not claim to turn an untrusted engine into a security boundary.
 
 ## Threat-to-control map
 
@@ -142,6 +142,6 @@ Changes that affect parsing, paths, recursion, redirection, scripts, archives, q
 - Failure paths preserve existing state where an operation promises preflight or atomic publication.
 - Success, boundary, and rejection behavior have focused tests.
 - Mission validators continue to test observable results rather than a command transcript.
-- `make check-all` passes; Docker adapter changes also run `make docker-integration` when prerequisites are available.
+- `make check-all` passes; Docker adapter changes also run `make docker-integration`, or `make orbstack-integration` for that provider, when prerequisites are available.
 
 The authoritative implementation is the code and tests. This guide explains their intended security properties; if a diagram and a tested invariant disagree, treat the mismatch as a documentation defect.
