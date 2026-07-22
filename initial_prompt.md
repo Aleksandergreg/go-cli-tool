@@ -2,7 +2,7 @@
 
 OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. Its Linux curriculum runs through short, story-driven operations missions in deterministic, in-memory environments; the current release also includes one optional Docker Foundations lab backed by isolated, attempt-owned containers.
 
-The current executable reports version **0.5.0**. <!-- x-release-please-version --> Kubernetes remains a later expansion and is not implemented.
+The current executable reports version **0.6.0**. <!-- x-release-please-version --> Kubernetes remains a later expansion and is not implemented.
 
 ## Product today
 
