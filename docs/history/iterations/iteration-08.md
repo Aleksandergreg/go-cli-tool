@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 8.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 8
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
@@ -16,7 +24,7 @@ Key additions:
 - Linux Completionist and existing profile version remain compatible.
 - Signal-aware cleanup, ambiguous-create recovery, and an optional real-engine integration target.
 
-Primary implementation: [environment.go](../../../internal/game/environment.go#L49), [Docker environment](../../../internal/dockerlab/environment.go#L206), [Mission 17](../../../internal/mission/data/17-container-census.json#L6), and [current implementation brief](../../../initial_prompt.md#L168).
+Primary implementation: [environment.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/environment.go#L49), [Docker environment](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/dockerlab/environment.go#L206), [Mission 17](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/mission/data/17-container-census.json#L6), and [current implementation brief](https://github.com/Aleksandergreg/go-cli-tool/blob/main/initial_prompt.md#L168).
 
 Validation passed:
 

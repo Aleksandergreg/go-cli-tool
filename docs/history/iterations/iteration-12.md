@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 12.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 12
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
@@ -6,18 +14,18 @@ Implemented Release Please, GoReleaser, and CodeQL without changing gameplay, mi
 
 ### What changed
 
-- [release.yml](../../../.github/workflows/release.yml) maintains release PRs and attaches GoReleaser artifacts after release creation.
-- [release-please-config.json](../../../release-please-config.json) bootstraps from version 0.3.0 and excludes older history.
-- [.release-please-manifest.json](../../../.release-please-manifest.json) records the current release baseline.
-- [CHANGELOG.md](../../../CHANGELOG.md) is now Release Please-managed.
-- [.goreleaser.yml](../../../.goreleaser.yml) builds:
+- [release.yml](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.github/workflows/release.yml) maintains release PRs and attaches GoReleaser artifacts after release creation.
+- [release-please-config.json](https://github.com/Aleksandergreg/go-cli-tool/blob/main/release-please-config.json) bootstraps from version 0.3.0 and excludes older history.
+- [.release-please-manifest.json](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.release-please-manifest.json) records the current release baseline.
+- [CHANGELOG.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/CHANGELOG.md) is now Release Please-managed.
+- [.goreleaser.yml](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.goreleaser.yml) builds:
   - macOS amd64/arm64
   - Linux amd64/arm64
   - Windows amd64
   - SHA-256 checksums and archives containing README, changelog, Beer-Ware license, and third-party notices
-- [codeql.yml](../../../.github/workflows/codeql.yml) runs manual Go analysis through `make build` on PRs, `main`, weekly, and manually.
-- [version.go](../../../internal/buildinfo/version.go) is now the authoritative executable version source.
-- [Makefile](../../../Makefile) adds `release-check` and `release-snapshot`.
+- [codeql.yml](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.github/workflows/codeql.yml) runs manual Go analysis through `make build` on PRs, `main`, weekly, and manually.
+- [version.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/buildinfo/version.go) is now the authoritative executable version source.
+- [Makefile](https://github.com/Aleksandergreg/go-cli-tool/blob/main/Makefile) adds `release-check` and `release-snapshot`.
 - Existing Actions were upgraded to `checkout@v6` and `setup-go@v6`.
 - README, agent guidance, `initial_prompt.md`, the CI/CD roadmap, and [iteration 11](iteration-11.md) document the new process.
 

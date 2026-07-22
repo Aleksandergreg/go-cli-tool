@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 10.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 10
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
@@ -6,7 +14,7 @@ Implemented a repository-wide architecture, safety, correctness, and performance
 
 Key improvements:
 
-- Made [main.go](../../../cmd/opsquest/main.go) the composition root and removed Docker/profile construction from the CLI package.
+- Made [main.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/cmd/opsquest/main.go) the composition root and removed Docker/profile construction from the CLI package.
 - Added immutable, indexed mission catalog lookups and stricter presence-aware schema validation.
 - Centralized progression, achievements, rank thresholds, environment lifecycle, and Docker setup validation.
 - Fixed replay hints, legacy profile normalization, mission navigation, campaign totals, and duplicate Docker availability checks.
@@ -14,7 +22,7 @@ Key improvements:
 - Made archive extraction transactional and tightened `tar -C` semantics.
 - Hardened Docker cleanup for partial, ambiguous, and delayed container creation while retaining ownership-label verification.
 - Reduced long-line vi redraws to 44 allocations per operation.
-- Updated [README.md](../../../README.md), [initial_prompt.md](../../../initial_prompt.md), [AGENTS.md](../../../AGENTS.md), skill guidance, smoke testing, and [iteration 9](iteration-09.md).
+- Updated [README.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/README.md), [initial_prompt.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/initial_prompt.md), [AGENTS.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/AGENTS.md), skill guidance, smoke testing, and [iteration 9](iteration-09.md).
 
 Validation observed:
 

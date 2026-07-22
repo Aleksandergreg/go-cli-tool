@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 2.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 2
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
@@ -15,7 +23,7 @@ Highlights:
 - Fixed quoted globbing, pipeline redirection, archive traversal, stale archive metadata, unsafe copies/moves, nested command mastery, `wc -l`, `tar` parsing, and CLI help behavior
 - Strict mission schema and setup validation
 
-Documentation is updated in [README.md](../../../README.md).
+Documentation is updated in [README.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/README.md).
 
 Verification completed:
 

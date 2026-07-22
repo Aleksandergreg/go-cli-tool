@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 3.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 3
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
@@ -15,19 +23,19 @@ Implemented the complete Codex development harness. The final local quality gate
 
 ## File-by-file summary
 
-- [AGENTS.md](../../../AGENTS.md) — project scope, package boundaries, invariants, workflow, validation, and definition of done.
-- [add-mission/SKILL.md](../../../.agents/skills/add-mission/SKILL.md) — complete mission-authoring workflow.
-- [mission-checklist.md](../../../.agents/skills/add-mission/references/mission-checklist.md) — actual JSON schema, validators, coverage, and count-sensitive locations.
-- [extend-sandbox-command/SKILL.md](../../../.agents/skills/extend-sandbox-command/SKILL.md) — safe command/parser extension workflow.
-- [shell-semantics.md](../../../.agents/skills/extend-sandbox-command/references/shell-semantics.md) — current quoting, globbing, pipeline, redirection, path, and isolation semantics.
-- [prepare-iteration/SKILL.md](../../../.agents/skills/prepare-iteration/SKILL.md) — milestone review, compatibility audit, release validation, and reporting workflow.
-- [iteration-template.md](../../../.agents/skills/prepare-iteration/references/iteration-template.md) — evidence-based `iteration-NN.md` template.
-- [check-agent-docs.sh](../../../scripts/check-agent-docs.sh) — dependency-free structural and frontmatter validation.
-- [validate-missions.sh](../../../scripts/validate-missions.sh) — stable mission-integrity entry point backed by existing Go tests.
-- [smoke-test.sh](../../../scripts/smoke-test.sh) — isolated help/list/show/profile/doctor and scripted mission test.
-- [Makefile](../../../Makefile) — new harness targets, normal and comprehensive gates, and reliable build-directory creation.
-- [ci.yml](../../../.github/workflows/ci.yml) — least-privilege GitHub Actions quality gate running `make check-all`.
-- [README.md](../../../README.md) — concise harness, skill discovery, Make target, and CI documentation.
+- [AGENTS.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/AGENTS.md) — project scope, package boundaries, invariants, workflow, validation, and definition of done.
+- [add-mission/SKILL.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.agents/skills/add-mission/SKILL.md) — complete mission-authoring workflow.
+- [mission-checklist.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.agents/skills/add-mission/references/mission-checklist.md) — actual JSON schema, validators, coverage, and count-sensitive locations.
+- [extend-sandbox-command/SKILL.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.agents/skills/extend-sandbox-command/SKILL.md) — safe command/parser extension workflow.
+- [shell-semantics.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.agents/skills/extend-sandbox-command/references/shell-semantics.md) — current quoting, globbing, pipeline, redirection, path, and isolation semantics.
+- [prepare-iteration/SKILL.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.agents/skills/prepare-iteration/SKILL.md) — milestone review, compatibility audit, release validation, and reporting workflow.
+- [iteration-template.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.agents/skills/prepare-iteration/references/iteration-template.md) — evidence-based `iteration-NN.md` template.
+- [check-agent-docs.sh](https://github.com/Aleksandergreg/go-cli-tool/blob/main/scripts/check-agent-docs.sh) — dependency-free structural and frontmatter validation.
+- [validate-missions.sh](https://github.com/Aleksandergreg/go-cli-tool/blob/main/scripts/validate-missions.sh) — stable mission-integrity entry point backed by existing Go tests.
+- [smoke-test.sh](https://github.com/Aleksandergreg/go-cli-tool/blob/main/scripts/smoke-test.sh) — isolated help/list/show/profile/doctor and scripted mission test.
+- [Makefile](https://github.com/Aleksandergreg/go-cli-tool/blob/main/Makefile) — new harness targets, normal and comprehensive gates, and reliable build-directory creation.
+- [ci.yml](https://github.com/Aleksandergreg/go-cli-tool/blob/main/.github/workflows/ci.yml) — least-privilege GitHub Actions quality gate running `make check-all`.
+- [README.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/README.md) — concise harness, skill discovery, Make target, and CI documentation.
 
 ## Validation observed
 

@@ -1,3 +1,9 @@
+---
+description: Delivered Docker Foundations boundary and proposed follow-up missions for the optional track.
+audience: players and contributors
+status: partially delivered
+---
+
 # Docker Foundations roadmap
 
 Status: the first v0.3 vertical slice described below is implemented. This document now records the delivered boundary and the next campaign increments.

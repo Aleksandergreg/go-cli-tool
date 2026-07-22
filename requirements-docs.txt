@@ -1,0 +1,2 @@
+# Zensical is pre-1.0, so documentation builds use one reviewed release.
+zensical==0.0.51

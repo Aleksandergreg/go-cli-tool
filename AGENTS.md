@@ -18,6 +18,7 @@ OpsQuest is a Go 1.22 CLI game with 19 in-memory Linux missions and an optional 
 - `docs/technical`: current architecture, safety, and implementation diagrams.
 - `docs/roadmap`: explicitly labeled proposals and unfinished improvements.
 - `docs/history/iterations`: observed delivery reports for completed product iterations.
+- `mkdocs.yml` and `.github/workflows/docs.yml`: pinned Zensical navigation, strict site validation, and GitHub Pages delivery.
 
 ## Working workflow
 
@@ -51,6 +52,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Deterministic CLI path: `make smoke-test`.
 - Real Docker lifecycle (for Docker changes when prerequisites are available): `make docker-integration`.
 - GoReleaser configuration and local packages (for release automation changes): `make release-check` and `make release-snapshot`.
+- Hosted documentation: install `requirements-docs.txt`, then run `make docs-check`.
 - Normal local gate: `make check`.
 - Comprehensive gate, including race detection: `make check-all`.
 

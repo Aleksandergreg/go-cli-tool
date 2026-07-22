@@ -1,6 +1,8 @@
 /opsquest
 /bin/
 /dist/
+/site/
+/.venv/
 *.test
 *.out
 .DS_Store

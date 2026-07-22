@@ -1,32 +1,48 @@
+---
+description: Learn Linux and container operations through safe, story-driven terminal missions.
+audience: players and contributors
+status: current
+---
+
 # OpsQuest documentation
 
-This is the repository-level map for OpsQuest documentation. The root [README](../README.md) remains the player-facing introduction and command reference; material here explains the game design, implementation, future direction, and delivery history in progressively more detail.
+OpsQuest is **Duolingo meets a terminal sandbox**: a command-line game where you learn Linux and container operations by resolving fictional production incidents.
 
-## Choose a section
+```console
+$ go run ./cmd/opsquest play
+```
 
-| Section | Use it for | Authority |
-| --- | --- | --- |
-| [Game and learning](game/README.md) | The learning loop, worlds, missions, progression, and curriculum decisions | Current product documentation |
-| [Technical](technical/README.md) | Architecture, runtime behavior, sandbox isolation, Docker boundaries, and implementation diagrams | Current technical documentation; code and tests win if they disagree |
-| [Roadmap](roadmap/README.md) | Proposed work, unfinished campaign increments, and improvement options | Forward-looking; each page must state its status |
-| [Delivery history](history/README.md) | What a completed iteration delivered and which checks were observed at that time | Historical evidence, not current behavior |
+The game describes an observable objective, gives you a disposable environment, and accepts any supported command sequence that produces the right result. Linux commands operate only on in-memory state; optional Docker missions use a deliberately small, attempt-scoped command subset.
 
-For a first technical pass, read [Architecture](technical/architecture.md), then [Sandbox and safety](technical/sandbox-and-safety.md). For the product and learning model, start with the [Curriculum](game/curriculum.md).
+## Choose your route
 
-## Placement rules
+| I want to… | Start here |
+| --- | --- |
+| Install the game and begin a mission | [Quick start](play/quick-start.md) |
+| Understand objectives, hints, and navigation | [How missions work](play/how-missions-work.md) |
+| Look up terminal controls and supported commands | [Controls and commands](play/controls-and-commands.md) |
+| See what every world and mission teaches | [Curriculum and mission map](game/curriculum.md) |
+| Understand the implementation | [Technical architecture](technical/architecture.md) |
+| Review the isolation guarantees | [Sandbox and safety](technical/sandbox-and-safety.md) |
+| Explore planned improvements | [Roadmap](roadmap/README.md) |
 
-Use the document's purpose—not its file type or creation date—to decide where it belongs:
+## Current scope
 
-1. Put player experience, teaching strategy, mission sequencing, and game-system explanations in `game/`.
-2. Put descriptions of implemented code, runtime flows, contracts, and safety properties in `technical/`.
-3. Put proposals and unfinished work in `roadmap/`, with an explicit status near the top.
-4. Put point-in-time delivery reports in `history/iterations/`; use zero-padded filenames so they sort chronologically.
-5. Keep editable diagram sources and their rendered SVGs beside the section that owns them, under that section's `diagrams/` directory.
+- 19 Linux missions across four ordered learning worlds
+- One optional Docker Foundations mission
+- Outcome-based validation rather than one required command transcript
+- An in-memory filesystem, process table, environment, archives, editor, and shell scripts
+- Persistent XP, ranks, command practice, hints, completions, and achievements
+- Interactive completion, editing, history, and mission navigation
 
-Current guides should describe what OpsQuest does now. A delivered proposal should be folded into the appropriate current guide; its roadmap page may remain as rationale, but must be marked delivered. Historical reports should not be rewritten into the source of truth.
+## The safety promise
 
-## Diagram convention
+Player-entered Linux commands are parsed and executed by OpsQuest's Go teaching shell. They never reach a host shell or host path. Docker gameplay is opt-in, accepts only typed teaching actions, and operates on exact disposable resources labeled for the current attempt.
 
-Mermaid (`.mmd`) is used for exact component, sequence, and execution flows that should change alongside code. Excalidraw (`.excalidraw`) is used for conceptual maps where spatial grouping helps. Each editable source has a repository-viewable SVG export with the same basename; update and review the pair together.
+Read [Sandbox and safety](technical/sandbox-and-safety.md) for the complete trust model and limits.
 
-The [hosted documentation proposal](roadmap/hosted-documentation.md) applies this same information architecture to a possible public site.
+## About these docs
+
+This site is built from the same Markdown and diagram sources reviewed with the code. Current behavior lives under `play/`, `game/`, and `technical/`; proposals live under `roadmap/`; point-in-time delivery evidence lives under `history/`.
+
+Contributors should start with [Contributing and quality gates](technical/contributing.md).

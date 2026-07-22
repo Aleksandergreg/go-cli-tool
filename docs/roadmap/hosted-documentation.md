@@ -1,10 +1,16 @@
-# Hosted documentation proposal
+---
+description: Decision record and operating plan for the OpsQuest Zensical site on GitHub Pages.
+audience: contributors and maintainers
+status: implemented
+---
 
-Status: proposal. The repository documentation has been reorganized, but no site generator, hosted site, domain, or deployment workflow has been added.
+# Hosted documentation
+
+Status: the initial Zensical site, content split, strict build, and GitHub Pages workflow are implemented. Deployment runs from `main` after GitHub Pages is configured to use Actions.
 
 ## Recommendation
 
-Build one documentation site with clear audience routes, not separate player and engineering sites. Pilot **Zensical on GitHub Pages**, use a deliberately small Material-compatible `mkdocs.yml`, and pin the generator version. This keeps the existing Markdown hierarchy as the content source, gives the site local search and structured navigation, and preserves Material for MkDocs as a practical fallback while Zensical matures.
+OpsQuest uses one documentation site with clear audience routes, not separate player and engineering sites. The first deployment uses **Zensical on GitHub Pages**, a deliberately small Material-compatible `mkdocs.yml`, and a pinned generator version. This keeps the Markdown hierarchy as the content source, gives the site local search and structured navigation, and preserves Material for MkDocs as a practical fallback while Zensical matures.
 
 Zensical is the forward-looking choice from the Material for MkDocs team and already supports the features OpsQuest needs: the MkDocs file layout, `README.md` index pages, navigation, strict link validation, Mermaid, built-in client-side search, and static output. The important caveat is that it is still alpha software with an evolving module API. The pilot should therefore avoid generator-specific customization, prove the exact build in CI, and make reverting to Material a configuration change rather than a content migration.
 
@@ -48,7 +54,7 @@ Keep the root README concise and useful on package/repository pages: pitch, inst
 
 | Option | Fit for OpsQuest | Main compromise | Verdict |
 | --- | --- | --- | --- |
-| [Zensical](https://zensical.org/docs/create-your-site/) | Uses the existing `docs/` Markdown layout, builds a static site, includes search, and supports MkDocs configuration | Still [alpha](https://zensical.org/about/roadmap/) and not yet at complete Material/plugin parity | Best pilot, with a pinned version and compatibility fallback |
+| [Zensical](https://zensical.org/docs/create-your-site/) | Uses the existing `docs/` Markdown layout, builds a static site, includes search, and supports MkDocs configuration | Still [alpha](https://zensical.org/about/roadmap/) and not yet at complete Material/plugin parity | Selected, with a pinned version and compatibility fallback |
 | [Material for MkDocs](https://squidfunk.github.io/mkdocs-material/) | Mature, excellent navigation/search, very small authoring burden, native Mermaid support | Python toolchain in a Go repository and a platform now transitioning toward Zensical | Conservative fallback and migration safety net |
 | [Astro Starlight](https://starlight.astro.build/) | Accessible modern UI, built-in Pagefind search and i18n, Markdown/MDX, strong custom-page story | Adds Node/Astro structure and typically relocates content under `src/content/docs/` | Best alternative for a more branded or interactive site |
 | [VitePress](https://vitepress.dev/guide/what-is-vitepress) | Fast, polished technical docs with Vue-enhanced Markdown | Vue/Node stack offers more programmability than this site currently needs | Good, but no decisive advantage over Starlight here |
@@ -77,13 +83,13 @@ GitHub's [custom Pages workflow](https://docs.github.com/en/pages/getting-starte
 - Give every page one clear owner section. Cross-link rather than copy shared explanations.
 - Review site claims in the same pull request as the behavior they describe.
 
-## Suggested rollout
+## Rollout status
 
-1. **Content foundation — complete:** organize repository docs by game, technical, roadmap, and history; add section landing pages and placement rules.
-2. **Generator proof of concept:** add a pinned Zensical build, Material-compatible navigation, a local preview command, strict link validation, and no custom theme code.
-3. **Player content pass:** extract a focused quick start, mission mechanics, controls, and world overview from the root README into site pages while leaving concise links behind.
-4. **Technical content pass:** add focused mission-schema, persistence, and contributor pages only where the architecture and safety guides are too broad.
-5. **Publish:** add pull-request build checks and a main-branch GitHub Pages deployment; verify mobile navigation, keyboard use, search relevance, and every SVG.
-6. **Reassess after use:** remain on Zensical if the pinned build is reliable; use the same content with Material if alpha churn is costly; consider Starlight only if custom interactive presentation becomes a product goal.
+1. **Content foundation — complete:** repository docs are organized by play, game, technical, roadmap, and history, with explicit lifecycle rules.
+2. **Generator proof of concept — complete:** Zensical is pinned, navigation remains Material-compatible, local preview and strict build targets exist, and no custom theme code is required.
+3. **Player content pass — complete:** quick start, mission mechanics, controls, Linux worlds, and Docker Foundations have dedicated pages; the root README remains concise.
+4. **Technical content pass — complete:** mission content, profile compatibility, and contribution workflows have focused pages alongside architecture and safety.
+5. **Publish — implemented:** pull requests build in strict mode; `main` builds, uploads, and deploys the GitHub Pages artifact. Repository Pages settings and the first hosted run still need to be observed.
+6. **Reassess after use — future:** remain on Zensical if the pinned build is reliable; use the same content with Material if alpha churn is costly; consider Starlight only if custom interactive presentation becomes a product goal.
 
 This order keeps the information model independent from the rendering tool. The original documentation expansion would have been easier to manage if audience, authority, lifecycle, and navigation were defined before diagrams and delivery reports accumulated; the new folder structure makes those rules explicit before a site generator is selected.

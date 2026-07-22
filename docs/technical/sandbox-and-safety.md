@@ -1,3 +1,9 @@
+---
+description: OpsQuest command isolation, virtual state, quotas, Docker boundaries, and threat controls.
+audience: players, contributors, and security reviewers
+status: current
+---
+
 # OpsQuest sandbox and safety
 
 OpsQuest has two execution models with different trust boundaries:
@@ -24,7 +30,7 @@ The player controls command text and navigation choices. Trusted OpsQuest code d
 
 Editable source: [`command-execution-pipeline.mmd`](diagrams/command-execution-pipeline.mmd)
 
-[`Sandbox.Execute`](../../internal/sandbox/shell.go) processes a line in explicit stages:
+[`Sandbox.Execute`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/shell.go) processes a line in explicit stages:
 
 1. **Bound input:** reject a command line over 64 KiB before adding it to the attempt's 100-entry history.
 2. **Lex:** recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Expansion reads only the sandbox environment.

@@ -1,3 +1,9 @@
+---
+description: Index of point-in-time OpsQuest iteration reports and their observed delivery evidence.
+audience: contributors and maintainers
+status: historical
+---
+
 # OpsQuest delivery history
 
 Iteration reports preserve point-in-time delivery claims and observed validation. They are useful for understanding why the project evolved, but the [game](../game/README.md) and [technical](../technical/README.md) sections describe the current system.
@@ -17,5 +23,6 @@ Iteration reports preserve point-in-time delivery claims and observed validation
 | [11](iterations/iteration-11.md) | Release and security automation |
 | [12](iterations/iteration-12.md) | Release automation delivery follow-up |
 | [13](iterations/iteration-13.md) | Onboarding and world-aware progression |
+| [14](iterations/iteration-14.md) | Hosted Zensical documentation and GitHub Pages delivery |
 
 New reports use the supplied iteration template and a zero-padded `iteration-NN.md` filename.
