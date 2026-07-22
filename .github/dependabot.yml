@@ -1,0 +1,41 @@
+version: 2
+
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "05:00"
+      timezone: "Europe/Copenhagen"
+    open-pull-requests-limit: 3
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "tuesday"
+      time: "05:00"
+      timezone: "Europe/Copenhagen"
+    open-pull-requests-limit: 3
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "opentofu"
+    directory: "/infra/github"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+      time: "05:00"
+      timezone: "Europe/Copenhagen"
+    open-pull-requests-limit: 2
+    groups:
+      opentofu-providers:
+        patterns:
+          - "*"

@@ -1,7 +1,8 @@
 GORELEASER ?= goreleaser
+TOFU ?= tofu
 ZENSICAL ?= zensical
 
-.PHONY: build test race vet check-agent-docs validate-missions smoke-test docker-integration docs-build docs-check docs-serve release-check release-snapshot check check-all run clean
+.PHONY: build test race vet check-agent-docs validate-missions smoke-test docker-integration docs-build docs-check docs-serve tofu-check release-check release-snapshot check check-all run clean
 
 build:
 	mkdir -p bin
@@ -38,6 +39,12 @@ docs-check:
 docs-serve:
 	@command -v $(ZENSICAL) >/dev/null 2>&1 || { echo "error: Zensical is required; install requirements-docs.txt in a Python 3.10+ virtual environment" >&2; exit 1; }
 	$(ZENSICAL) serve
+
+tofu-check:
+	@command -v $(TOFU) >/dev/null 2>&1 || { echo "error: OpenTofu 1.12 is required; see infra/github/README.md" >&2; exit 1; }
+	$(TOFU) -chdir=infra/github fmt -check -diff -recursive
+	$(TOFU) -chdir=infra/github init -backend=false -input=false -lockfile=readonly -no-color
+	$(TOFU) -chdir=infra/github validate -no-color
 
 release-check:
 	@command -v $(GORELEASER) >/dev/null 2>&1 || { echo "error: GoReleaser v2 is required; see https://goreleaser.com/install/" >&2; exit 1; }

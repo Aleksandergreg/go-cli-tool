@@ -62,6 +62,7 @@ nav:
       - Mission content model: technical/mission-content.md
       - Profiles and compatibility: technical/profiles-and-compatibility.md
       - Contributing and quality gates: technical/contributing.md
+      - Repository governance: technical/repository-governance.md
   - Project:
       - Roadmap: roadmap/README.md
       - Hosted documentation: roadmap/hosted-documentation.md

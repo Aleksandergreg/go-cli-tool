@@ -15,5 +15,6 @@ OpsQuest separates product flow, declarative mission content, isolated execution
 3. [Mission content model](mission-content.md) explains embedded JSON, catalog integrity, validators, and world derivation.
 4. [Profiles and compatibility](profiles-and-compatibility.md) covers durable progress, atomic storage, and sensitive identifiers.
 5. [Contributing and quality gates](contributing.md) maps common changes to repository workflows and validation.
+6. [Repository governance](repository-governance.md) documents GitHub rulesets, action policy, credentials, state, and the reviewed OpenTofu apply path.
 
 Editable Mermaid and Excalidraw sources plus rendered SVGs live in [`diagrams/`](diagrams/). Each guide links to the diagrams it owns so visual material retains its implementation context.

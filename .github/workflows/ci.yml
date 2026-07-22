@@ -20,11 +20,22 @@ jobs:
     name: Local quality gate
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    env:
+      TF_IN_AUTOMATION: "true"
     steps:
       - name: Check out repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - name: Set up OpenTofu
+        uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2
+        with:
+          tofu_version: "1.12.1"
+          tofu_wrapper: false
+      - name: Validate repository governance
+        run: make tofu-check
       - name: Set up Go
-        uses: actions/setup-go@v6
+        uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
           cache: true

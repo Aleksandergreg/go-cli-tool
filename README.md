@@ -124,6 +124,7 @@ $ make check             # tests, mission validation, vet, build, and smoke test
 $ make check-all         # normal gate plus race detection
 $ make docker-integration
 $ make docs-check        # strict Zensical build and link validation
+$ make tofu-check        # GitHub governance formatting and schema validation
 $ make release-check
 $ make release-snapshot
 ```
@@ -134,7 +135,7 @@ Task-specific Codex workflows live in [`.agents/skills`](.agents/skills): `$add-
 
 ## Releases and security
 
-Release Please maintains semantic-version release pull requests from Conventional Commits. Merging a release pull request creates the tag and GitHub release; GoReleaser attaches checksummed macOS, Linux, and Windows archives. Repository-managed CodeQL analyzes the real Go build path.
+Release Please maintains semantic-version release pull requests from Conventional Commits. Merging a release pull request creates the tag and GitHub release; GoReleaser attaches checksummed macOS, Linux, and Windows archives. Repository-managed CodeQL analyzes the real Go build path. GitHub settings and rulesets are declared under [`infra/github`](infra/github); the [governance runbook](docs/technical/repository-governance.md) defines the credential, state, and reviewed-apply boundaries.
 
 See [CHANGELOG.md](CHANGELOG.md), [GitHub Releases](https://github.com/Aleksandergreg/go-cli-tool/releases), and the [CI/CD roadmap](docs/roadmap/ci-cd.md). Third-party module licenses are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
