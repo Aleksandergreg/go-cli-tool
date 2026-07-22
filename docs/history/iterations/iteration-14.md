@@ -46,15 +46,16 @@ OpsQuest now has a Zensical documentation site organized around player, game-des
 | `/tmp/opsquest-doc-venv/bin/python -c 'import yaml; ...'` | PASS; `mkdocs.yml` and the Pages workflow parsed as YAML. |
 | `make check-all` | PASS after granting the managed environment access to Go's normal caches; agent docs, mission/all-package tests, vet, build, smoke test, and race detection passed. |
 | `git diff --check` | PASS; no whitespace errors were reported. |
+| `gh run watch 29906838299 --exit-status --interval 5` | PASS; the `main` workflow built the strict Zensical site, configured Pages, uploaded the artifact, and completed the Pages deployment. |
+| `curl -L --fail --silent --show-error --head https://aleksandergreg.github.io/go-cli-tool/` | PASS; the public HTTPS endpoint returned HTTP 200 with the deployed OpsQuest page. |
 
-The first sandboxed `make check-all` attempt could not update Go's module/stat cache and therefore could not compile the race packages; rerunning the same gate with normal Go cache access passed. The real-Docker integration target was not run because runtime and Docker behavior were unchanged. GoReleaser checks were not run because release configuration and packaging were unchanged.
+The first sandboxed `make check-all` attempt could not update Go's module/stat cache and therefore could not compile the race packages; rerunning the same gate with normal Go cache access passed. The first post-merge Pages run built the site but exposed a missing `pages: read` permission on the build job; the least-privilege follow-up passed `actionlint`, the normal repository gate, the pull-request documentation build, and the replacement deployment. The real-Docker integration target was not run because runtime and Docker behavior were unchanged. GoReleaser checks were not run because release configuration and packaging were unchanged.
 
 ## Remaining work
 
-- Enable GitHub Pages with GitHub Actions as its source, merge the delivery branch, and observe the first deployment at the repository Pages URL.
 - Reassess the pinned Zensical version after real maintenance use; retain Material for MkDocs as the low-migration fallback while Zensical is alpha.
 - Consider a custom domain, analytics, or a more branded interactive front end only after there is a concrete product need.
 
 ## Final repository state
 
-The `agent/hosted-documentation` branch began clean and contains only the intentional documentation configuration, delivery workflow, content organization, source-link corrections, repository guidance, and this iteration report. Generated `site/` and `bin/` output is ignored, and no unrelated working-tree change was discarded.
+The rollout merged through [PR #14](https://github.com/Aleksandergreg/go-cli-tool/pull/14), with the build-token permission correction merged through [PR #15](https://github.com/Aleksandergreg/go-cli-tool/pull/15). Generated `site/` and `bin/` output remains ignored, and no unrelated working-tree change was discarded.
