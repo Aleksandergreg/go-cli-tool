@@ -1,3 +1,9 @@
+---
+description: Complete map of current OpsQuest tracks, worlds, missions, suggested tools, and observable outcomes.
+audience: players, educators, and mission authors
+status: current
+---
+
 # OpsQuest curriculum
 
 OpsQuest teaches operational problem-solving through incidents rather than isolated command drills. Missions provide a disposable environment, describe an observable goal, and accept any supported command sequence that produces the required outcome.
@@ -15,18 +21,7 @@ The curriculum has two independent tracks:
 
 Mission numbers are stable and global across both tracks, which is why the Docker mission is number 17 while Linux World 4 resumes at number 18. World and stage positions are derived separately inside each track.
 
-## Learning loop
-
-Every mission uses the same learning loop:
-
-1. **Incident:** supply a memorable operational context.
-2. **Objective:** describe the result, not a required command recipe.
-3. **Explore:** let the player inspect the environment and consult free command guidance.
-4. **Act:** execute one or more commands inside the isolated attempt.
-5. **Observe:** evaluate output and environment state after each successful command.
-6. **Reflect:** show progress, explanation, practiced commands, XP, and achievements.
-
-Suggested commands define the intended tool vocabulary but are not a whitelist for solving that mission. Progressive hints cost XP and persist for incomplete attempts; the command guide and `help COMMAND` do not. Validators check outcomes so equivalent solutions remain valid.
+The [learning philosophy](learning-philosophy.md) explains the incident loop and feedback model. [Outcome-based mission design](mission-design.md) describes how validators preserve equivalent solutions.
 
 ## Current mission map
 
@@ -77,29 +72,10 @@ The final Linux world moves from one-off commands to reusable automation. It int
 
 Docker Foundations begins with the smallest useful lifecycle: discover the attempt's containers and start the intended stopped service. Logical aliases hide real container names and IDs, keeping the lesson focused on observable container state.
 
-## Progression mechanics
+## Curriculum evolution
 
-Worlds guide rather than lock the player:
+The current map makes deliberate expansion opportunities visible: there is no dedicated early file-reading stage, the first substantial pipeline appears in an advanced boss, and Docker currently has only its opening lifecycle mission. Those are curriculum decisions to address with new declarative missions rather than by weakening existing validators.
 
-- Bare `play` selects the first incomplete Linux mission.
-- `play --track docker` selects the first incomplete Docker mission.
-- `play --world N` remains inside one track-local world.
-- At the top level, a direct global mission number or stable ID begins there and continues sequentially in that track.
-- Inside a mission, `play STAGE` selects a stage in the current world and retains the world-scoped route; `play ID` is the unambiguous cross-world form.
-- `--once` stops after one completed mission.
-- Completed missions remain replayable and never award duplicate XP.
+Read [Progression and rewards](progression.md) for route and persistence behavior, and [Outcome-based mission design](mission-design.md) for the authoring checklist.
 
-The profile records completion by stable mission ID rather than displayed world position. Rebalancing campaign placement can therefore preserve existing completion data, but changing IDs or global numbers is compatibility-sensitive.
-
-## How to evaluate curriculum changes
-
-A curriculum change should answer four questions:
-
-1. **Prerequisite:** What prior observation or command behavior does this mission assume?
-2. **New concept:** What is introduced here rather than merely practiced?
-3. **Evidence:** Which observable outcomes prove the concept without requiring one exact command?
-4. **Reinforcement:** Where will the player use the concept again with greater complexity?
-
-The current map also makes deliberate expansion opportunities visible: there is no dedicated early file-reading stage, the first substantial pipeline appears in an advanced boss, and Docker currently has only its opening lifecycle mission. Those are curriculum decisions to address with new declarative missions rather than by weakening existing validators.
-
-Mission content and its canonical success/incomplete coverage live in [`internal/mission/data`](../../internal/mission/data) and [`internal/game/missions_test.go`](../../internal/game/missions_test.go). Use the repository's `$add-mission` skill when changing that content.
+Mission content and its canonical success/incomplete coverage live in [`internal/mission/data`](https://github.com/Aleksandergreg/go-cli-tool/tree/main/internal/mission/data) and [`internal/game/missions_test.go`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/missions_test.go). Use the repository's `$add-mission` skill when changing that content.

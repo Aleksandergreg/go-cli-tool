@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 7.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 7
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
@@ -11,7 +19,7 @@ Implemented all five improvements.
 - Linux Completionist now checks every current catalog mission, ignoring stale completion IDs.
 - Added bounded output construction and `sed` amplification preflight.
 
-Key files include [filesystem.go](../../../internal/sandbox/filesystem.go#L115), [output.go](../../../internal/sandbox/output.go#L12), [commands_system.go](../../../internal/sandbox/commands_system.go#L188), [commands_transform.go](../../../internal/sandbox/commands_transform.go#L184), and [progression.go](../../../internal/game/progression.go#L10). Documentation was updated in [README.md](../../../README.md#L151) and `initial_prompt.md`.
+Key files include [filesystem.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/filesystem.go#L115), [output.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/output.go#L12), [commands_system.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/commands_system.go#L188), [commands_transform.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/commands_transform.go#L184), and [progression.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/progression.go#L10). Documentation was updated in [README.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/README.md#L151) and `initial_prompt.md`.
 
 Validation passed:
 

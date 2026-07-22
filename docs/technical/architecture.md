@@ -1,6 +1,12 @@
+---
+description: OpsQuest package architecture, startup, mission runtime, environment contract, and change ownership.
+audience: contributors and maintainers
+status: current
+---
+
 # OpsQuest architecture
 
-OpsQuest separates product flow, declarative mission content, isolated execution, and durable player progress. The central seam is [`game.Environment`](../../internal/game/environment.go): a mission session can execute commands and observe outcomes without knowing whether the attempt uses the in-memory Linux simulator or the optional Docker adapter.
+OpsQuest separates product flow, declarative mission content, isolated execution, and durable player progress. The central seam is [`game.Environment`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/environment.go): a mission session can execute commands and observe outcomes without knowing whether the attempt uses the in-memory Linux simulator or the optional Docker adapter.
 
 ## System landscape
 
@@ -40,7 +46,7 @@ Dependencies point toward contracts and data. In particular, `dockerlab` impleme
 
 ## Process startup
 
-[`cmd/opsquest/main.go`](../../cmd/opsquest/main.go) performs a deliberately small composition sequence:
+[`cmd/opsquest/main.go`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/cmd/opsquest/main.go) performs a deliberately small composition sequence:
 
 1. Create an interrupt-aware context.
 2. Load and validate every embedded mission with `mission.LoadCatalog`.
@@ -131,4 +137,4 @@ Changing one of these requires explicit compatibility reasoning even when the Go
 | Change colors or terminal presentation | `internal/ui` | CLI/session rendering tests and non-terminal output |
 | Change durable progress | `internal/profile` | Migration/compatibility tests and atomic-write behavior |
 
-The repository's [agent guide](../../AGENTS.md) defines the safety invariants and quality gates for each category.
+The repository's [agent guide](https://github.com/Aleksandergreg/go-cli-tool/blob/main/AGENTS.md) defines the safety invariants and quality gates for each category.

@@ -1,3 +1,9 @@
+---
+description: Delivered OpsQuest release, security, and documentation automation plus possible follow-up improvements.
+audience: contributors and maintainers
+status: partially delivered
+---
+
 # CI/CD improvements
 
 Status: the release and security foundation is implemented; the second section tracks possible follow-up work.
@@ -8,6 +14,7 @@ Status: the release and security foundation is implemented; the second section t
 - Release Please maintains a version/changelog pull request from Conventional Commits, then creates `vX.Y.Z` tags and GitHub releases. The 0.3.0 bootstrap deliberately excludes older repository history.
 - GoReleaser attaches macOS, Linux, and Windows archives plus SHA-256 checksums to the Release Please release. It packages `LICENSE` and `THIRD_PARTY_NOTICES.md`, and has non-publishing local validation targets.
 - Repository-managed CodeQL advanced setup analyzes the same `make build` path on pull requests, `main`, a weekly schedule, and manual dispatch.
+- A dedicated documentation workflow strictly builds Zensical content on pull requests and deploys the static artifact to GitHub Pages after relevant merges to `main`.
 
 The release flow deliberately keeps Release Please and GoReleaser in one workflow. GitHub does not start a second workflow from a tag or release created with the default `GITHUB_TOKEN`, so a separate GoReleaser workflow would silently miss normal releases.
 

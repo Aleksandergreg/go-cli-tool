@@ -1,3 +1,11 @@
+---
+description: Historical delivery record for OpsQuest iteration 4.
+audience: contributors and maintainers
+status: historical
+search:
+  exclude: true
+---
+
 # OpsQuest iteration 4
 
 > Historical delivery record. See the [documentation map](../../README.md) for current behavior.
