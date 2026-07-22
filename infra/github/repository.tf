@@ -2,6 +2,11 @@ resource "github_repository" "opsquest" {
   name       = local.repository_name
   visibility = "private"
 
+  has_discussions truee
+  has_issues      = true
+  has_projects    = true
+  has_wiki        = true
+
   allow_auto_merge            = true
   allow_merge_commit          = false
   allow_rebase_merge          = false
