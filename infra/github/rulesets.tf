@@ -4,12 +4,12 @@ resource "github_repository_ruleset" "main" {
   target      = "branch"
   enforcement = "active"
 
-  # Repository admins retain a reviewed, auditable recovery path without
-  # regaining direct-push access to the protected branch.
+  # RepositoryRole 5 is the repository-admin role. Admins may deliberately
+  # bypass the ruleset; every non-admin remains subject to every rule below.
   bypass_actors {
     actor_id    = 5
     actor_type  = "RepositoryRole"
-    bypass_mode = "pull_request"
+    bypass_mode = "always"
   }
 
   conditions {

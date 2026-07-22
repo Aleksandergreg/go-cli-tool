@@ -20,7 +20,8 @@ The configuration owns the following settings:
   automatic deletion of merged head branches;
 - a default-branch ruleset that blocks deletion and force pushes, requires a
   pull request, requires linear history and resolved conversations, and
-  requires the GitHub Actions `Local quality gate` from the GitHub Actions app;
+  requires the GitHub Actions `Local quality gate` from the GitHub Actions app
+  for non-admins; repository admins retain a full break-glass bypass;
 - an immutable-after-creation `v*` release-tag policy that remains compatible
   with Release Please creating new tags;
 - read-only default workflow-token permissions, an explicit allowlist for
@@ -139,17 +140,20 @@ apply. A correct first plan must show an import, not repository replacement or
 visibility change. Stop if it proposes deletion, repository recreation, or an
 unrelated feature change.
 
-After applying, open a test pull request and confirm that direct pushes and
-force pushes to `main` fail, `Local quality gate` and `Secret leak scan` are
-required, squash merge is the only merge method, and the merged head branch is
-deleted.
+After applying, open a test pull request and confirm that `Local quality gate`
+and `Secret leak scan` are required, squash merge is the only merge method, and
+the merged head branch is deleted. Confirm that non-admins cannot push directly
+or force push to `main`, while a repository admin can deliberately bypass the
+ruleset.
 
 ## Recovery and release automation
 
-Repository administrators have a pull-request-only bypass. It preserves a PR
-and audit trail while providing recovery when a required workflow cannot run;
-it does not permit a direct push to `main`. Treat bypass as break-glass and
-record why it was used.
+Repository administrators have an always-available bypass for this solo
+repository. It permits direct pushes, force pushes, and other updates that the
+default-branch ruleset would otherwise reject; all non-admins remain subject to
+the full ruleset. Prefer the normal pull-request path, treat bypass as
+break-glass, record why it was used, and use `--force-with-lease` instead of
+`--force` when rewriting remote history.
 
 Release Please uses the built-in repository token. GitHub may place workflows
 triggered by its release pull request in an approval-required state. Approve
