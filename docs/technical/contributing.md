@@ -34,6 +34,7 @@ Use `$add-mission`, `$extend-sandbox-command`, or `$prepare-iteration` when the 
 | Comprehensive gate with race detection | `make check-all` |
 | Real Docker lifecycle | `make docker-integration` |
 | Hosted documentation | `make docs-check` |
+| GitHub repository governance | `make tofu-check` |
 
 Run `make check-all` for release-sized, persistence, parser, sandbox, or concurrency-sensitive work. Docker adapter changes also run the real integration target when prerequisites are available.
 

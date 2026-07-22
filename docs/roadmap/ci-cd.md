@@ -15,16 +15,18 @@ Status: the release and security foundation is implemented; the second section t
 - GoReleaser attaches macOS, Linux, and Windows archives plus SHA-256 checksums to the Release Please release. It packages `LICENSE` and `THIRD_PARTY_NOTICES.md`, and has non-publishing local validation targets.
 - Repository-managed CodeQL advanced setup analyzes the same `make build` path on pull requests, `main`, a weekly schedule, and manual dispatch.
 - A dedicated documentation workflow strictly builds Zensical content on pull requests and deploys the static artifact to GitHub Pages after relevant merges to `main`.
+- Repository settings, Actions permissions, security controls, and branch/tag rulesets are declared in pinned OpenTofu configuration with an explicit credential, state, review, and break-glass model. Remote activation remains a reviewed operator apply rather than a pull-request side effect.
+- Dependabot groups weekly Go module, GitHub Actions, and OpenTofu updates with bounded pull-request volume and no automatic merging.
+- Every workflow action is pinned to an immutable commit; Dependabot maintains those references, and the declared Actions policy requires SHA pins.
+- An independent required job scans full Git history for committed credentials with a checksum-verified Gitleaks binary, fully redacted findings, and no report artifacts or scanner API token.
 
 The release flow deliberately keeps Release Please and GoReleaser in one workflow. GitHub does not start a second workflow from a tag or release created with the default `GITHUB_TOKEN`, so a separate GoReleaser workflow would silently miss normal releases.
 
 ## Sensible next steps
 
-1. Add low-noise Dependabot groups for `gomod` and `github-actions`, with a small open-pull-request limit and no automatic merging.
-2. Add a scheduled and manually dispatched `govulncheck ./...` job. Keep it advisory until the repository has established how toolchain and database updates affect reliability.
-3. Pin third-party actions to full commit SHAs and let Dependabot maintain those pins, reducing exposure to mutable major-version tags.
-4. Add GitHub artifact attestations for released archives once the release workflow has completed at least one real release.
-5. Add opt-in scheduled Docker lifecycle testing only when the pinned fixture image and daemon behavior are reliable enough for hosted CI; keep it outside the portable required gate.
-6. Evaluate signed checksums, macOS signing/notarization, and a Homebrew tap after there is evidence of external binary distribution. These add credentials and maintenance cost, so they should follow actual demand.
+1. Add a scheduled and manually dispatched `govulncheck ./...` job. Keep it advisory until the repository has established how toolchain and database updates affect reliability.
+2. Add GitHub artifact attestations for released archives once the release workflow has completed at least one real release.
+3. Add opt-in scheduled Docker lifecycle testing only when the pinned fixture image and daemon behavior are reliable enough for hosted CI; keep it outside the portable required gate.
+4. Evaluate signed checksums, macOS signing/notarization, and a Homebrew tap after there is evidence of external binary distribution. These add credentials and maintenance cost, so they should follow actual demand.
 
 Do not enable CodeQL default setup while `.github/workflows/codeql.yml` is active. It is an advanced configuration, and simultaneous setup can block or duplicate analysis uploads.

@@ -3,6 +3,9 @@
 /dist/
 /site/
 /.venv/
+.env
+.env.*
+!.env.example
 *.test
 *.out
 .DS_Store
