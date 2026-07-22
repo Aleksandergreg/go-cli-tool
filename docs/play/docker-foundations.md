@@ -6,17 +6,29 @@ status: current
 
 # Docker Foundations
 
-Docker Foundations is an optional track. Linux gameplay never requires Docker, and OpsQuest never pulls an image automatically.
+Docker Foundations is an optional track. Linux gameplay never requires a container engine, and OpsQuest never pulls an image automatically. The track works with Docker Engine, Docker Desktop, or OrbStack through the Docker CLI.
 
 ## Prepare the first lab
 
-Install and start Docker, then explicitly fetch the pinned fixture image:
+Install and start your chosen Docker-compatible engine, then explicitly fetch the pinned fixture image:
 
 ```console
 $ docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
 $ opsquest doctor
 $ opsquest play 17
 ```
+
+### Use OrbStack on macOS
+
+OrbStack exposes its engine through the standard Docker CLI and the `orbstack` Docker context. Select that context for both the image pull and OpsQuest so they use the same image store:
+
+```console
+$ DOCKER_CONTEXT=orbstack docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
+$ DOCKER_CONTEXT=orbstack opsquest doctor
+$ DOCKER_CONTEXT=orbstack opsquest play 17
+```
+
+These one-command environment settings leave your global Docker context unchanged. Alternatively, run `docker context use orbstack` once and then use the ordinary commands above. `opsquest doctor` identifies OrbStack when its official context is active.
 
 You can also discover the track explicitly:
 
@@ -33,6 +45,6 @@ $ opsquest play --track docker
 
 OpsQuest generates unique names and ownership labels, maps player-visible aliases to exact container IDs, applies resource restrictions, and removes only resources verified as belonging to the current attempt. Labs do not use privileged mode, host bind mounts, host networking, devices, or a mounted Docker socket.
 
-The Docker daemon remains a powerful external dependency. OpsQuest constrains the lesson and cleanup scope; it does not present the daemon itself as an untrusted-code security boundary.
+The selected Docker-compatible engine remains a powerful external dependency. OpsQuest constrains the lesson and cleanup scope; it does not present the engine itself as an untrusted-code security boundary.
 
 See [Sandbox and safety](../technical/sandbox-and-safety.md#docker-teaching-boundary) for the full lifecycle and [Docker Foundations roadmap](../roadmap/docker-foundations.md) for possible later lessons.

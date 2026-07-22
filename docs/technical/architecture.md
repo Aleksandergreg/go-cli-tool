@@ -37,12 +37,14 @@ Editable source: [`component-architecture.mmd`](diagrams/component-architecture.
 | `internal/game` | Attempt orchestration, terminal input/editor integration, progression, and outcome evaluation | Depends on the `Environment` and `Factory` contracts, not on Docker details |
 | `internal/mission` | Strict schema, embedded catalog, tracks, worlds, and defensive copies | Content stays declarative; rejects invalid catalogs before play starts |
 | `internal/sandbox` | Teaching-shell lexer, parser, dispatcher, virtual filesystem/processes/archives | Never invokes a host shell or accesses host paths |
-| `internal/dockerlab` | Optional Docker availability, typed teaching actions, fixtures, observations, and cleanup | Only this adapter may launch the Docker CLI, using constructed arguments and tracked resource IDs |
+| `internal/dockerlab` | Optional Docker-compatible engine availability, typed teaching actions, fixtures, observations, and cleanup | Only this adapter may launch the Docker CLI, using constructed arguments and tracked resource IDs |
 | `internal/profile` | Versioned progress model and atomic JSON storage | The only normal durable state written by the application |
 | `internal/ui` | Terminal capability detection and semantic ANSI roles | Styling stays out of execution results and validators |
 | `internal/buildinfo` | Release-managed executable version | Updated by release automation |
 
 Dependencies point toward contracts and data. In particular, `dockerlab` implements interfaces declared by `game`, while `game` does not import `dockerlab`. The composition root selects `dockerlab.NewFactory(game.SandboxFactory{})`, making the simulated environment the safe default and Docker an optional branch.
+
+OrbStack does not introduce a second execution backend. On macOS it is selected through its official `orbstack` Docker context, while availability checks, fixed Docker CLI arguments, ownership verification, resource limits, and cleanup all remain on the same adapter path. Context inspection changes only provider-specific readiness guidance; a failed context inspection does not reject an otherwise reachable engine.
 
 ## Process startup
 
