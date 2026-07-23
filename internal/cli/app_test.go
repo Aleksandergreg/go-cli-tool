@@ -19,14 +19,16 @@ import (
 
 var sgrPattern = regexp.MustCompile(`\x1b\[[0-9;]*m`)
 
-var linuxMissionIDsThroughNine = []string{
+var linuxMissionIDsThroughArchive = []string{
 	"linux-orientation",
 	"linux-config-crawl",
+	"linux-read-handoff",
 	"linux-workspace",
 	"linux-find-logs",
 	"linux-release-shuffle",
 	"linux-permissions",
 	"linux-environment",
+	"linux-log-preview",
 	"linux-runaway",
 	"linux-archive-rescue",
 }
@@ -191,7 +193,7 @@ func TestBarePlayContinuesThroughIncompleteMissions(t *testing.T) {
 	for _, expected := range []string{
 		"✓ Mission complete!",
 		"Continuing to Mission 02: Configuration Crawl",
-		"Continuing to Mission 03: A Place for Everything",
+		"Continuing to Mission 03: Read the Handoff",
 		"Mission paused",
 	} {
 		if !strings.Contains(output, expected) {
@@ -205,7 +207,7 @@ func TestBarePlayContinuesThroughIncompleteMissions(t *testing.T) {
 	if !player.IsComplete("linux-orientation") || !player.IsComplete("linux-config-crawl") {
 		t.Fatalf("completed missions = %#v", player.Completed)
 	}
-	if player.IsComplete("linux-workspace") || player.XP != 85 {
+	if player.IsComplete("linux-read-handoff") || player.XP != 85 {
 		t.Fatalf("player after continuous play = %#v", player)
 	}
 }
@@ -228,7 +230,7 @@ func TestSelectedMissionContinuesAfterCompletion(t *testing.T) {
 
 func TestSelectedMissionReplayContinuesWithoutRepeatingWorldCompletion(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	seedCompletedMissions(t, store, linuxMissionIDsThroughNine...)
+	seedCompletedMissions(t, store, linuxMissionIDsThroughArchive...)
 
 	app, out, errOut := testApp(t, "pwd\nquit\n", store)
 	if err := app.Run([]string{"play", "1"}); err != nil {
@@ -242,14 +244,14 @@ func TestSelectedMissionReplayContinuesWithoutRepeatingWorldCompletion(t *testin
 	if strings.Contains(out.String(), "World 1 complete") {
 		t.Fatalf("replay repeated an already-earned world completion:\n%s", out.String())
 	}
-	if strings.Contains(out.String(), "Continuing to Mission 10") {
+	if strings.Contains(out.String(), "Continuing to Mission 12") {
 		t.Fatalf("selected replay snapped back to global progress:\n%s", out.String())
 	}
 }
 
 func TestInMissionIDJumpFollowsTheSelectedSequence(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	seedCompletedMissions(t, store, linuxMissionIDsThroughNine...)
+	seedCompletedMissions(t, store, linuxMissionIDsThroughArchive...)
 
 	app, out, errOut := testApp(t, "play linux-orientation\npwd\nquit\n", store)
 	if err := app.Run([]string{"play", "10"}); err != nil {
@@ -266,7 +268,7 @@ func TestInMissionIDJumpFollowsTheSelectedSequence(t *testing.T) {
 			t.Fatalf("selected sequence missing %q:\n%s", expected, afterJump)
 		}
 	}
-	if strings.Contains(afterJump, "Continuing to Mission 10") {
+	if strings.Contains(afterJump, "Continuing to Mission 12") {
 		t.Fatalf("in-mission jump snapped back to global progress:\n%s", afterJump)
 	}
 }
@@ -354,7 +356,7 @@ func TestMapShowsTrackLocalWorldsAndStages(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"WORLD 1/4 · First Day",
-		"Stage 5/5 · #05",
+		"Stage 6/6 · #06",
 		"WORLD 2/4 · The Logpocalypse",
 		"WORLD 4/4 · The Automation Shift",
 		"Jump: opsquest play --world N",
@@ -374,13 +376,14 @@ func TestPlayCanJumpToAndCompleteOneWorld(t *testing.T) {
 	if err := app.Run([]string{"play", "--world", "2"}); err != nil {
 		t.Fatalf("world jump error = %v; stderr = %s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), "MISSION 06: Permission to Deploy") || !strings.Contains(out.String(), "World 2/4") {
+	if !strings.Contains(out.String(), "MISSION 07: Permission to Deploy") || !strings.Contains(out.String(), "World 2/4") {
 		t.Fatalf("world jump started the wrong stage:\n%s", out.String())
 	}
 
 	commands := strings.Join([]string{
 		"pwd",
 		"cd /srv/web/config/live",
+		"cat handoff.txt",
 		"mkdir -p reports/daily",
 		"touch reports/daily/summary.txt",
 		`find . -name "*.log" -exec grep -l "ERROR" {} \;`,
@@ -390,12 +393,12 @@ func TestPlayCanJumpToAndCompleteOneWorld(t *testing.T) {
 	if err := app.Run([]string{"play", "--world", "1"}); err != nil {
 		t.Fatalf("world play error = %v; stderr = %s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), "World 1 complete: First Day!") || strings.Contains(out.String(), "MISSION 06") {
+	if !strings.Contains(out.String(), "World 1 complete: First Day!") || strings.Contains(out.String(), "MISSION 07") {
 		t.Fatalf("world play did not stop at its boundary:\n%s", out.String())
 	}
 
 	replayStore := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	seedCompletedMissions(t, replayStore, linuxMissionIDsThroughNine[:5]...)
+	seedCompletedMissions(t, replayStore, linuxMissionIDsThroughArchive[:6]...)
 	app, out, errOut = testApp(t, commands, replayStore)
 	if err := app.Run([]string{"play", "--world", "1"}); err != nil {
 		t.Fatalf("completed world replay error = %v; stderr = %s", err, errOut.String())
@@ -403,16 +406,17 @@ func TestPlayCanJumpToAndCompleteOneWorld(t *testing.T) {
 	for _, expected := range []string{
 		"World 1 is complete; replaying Stage 1",
 		"MISSION 02: Configuration Crawl",
-		"MISSION 03: A Place for Everything",
-		"MISSION 04: The Missing Log File",
-		"MISSION 05: The Release Shuffle",
+		"MISSION 03: Read the Handoff",
+		"MISSION 04: A Place for Everything",
+		"MISSION 05: The Missing Log File",
+		"MISSION 06: The Release Shuffle",
 		"World 1 complete: First Day!",
 	} {
 		if !strings.Contains(out.String(), expected) {
 			t.Fatalf("completed world replay missing %q:\n%s", expected, out.String())
 		}
 	}
-	if strings.Contains(out.String(), "MISSION 06") {
+	if strings.Contains(out.String(), "MISSION 07") {
 		t.Fatalf("completed world replay crossed its boundary:\n%s", out.String())
 	}
 
@@ -443,8 +447,8 @@ func TestMissionPromptCanShowMapAndJumpWorlds(t *testing.T) {
 	}
 	for _, expected := range []string{
 		"WORLD 4/4 · The Automation Shift",
-		"Switching to Mission 18: Modal First Aid",
-		"MISSION 18: Modal First Aid",
+		"Switching to Mission 26: Run the Runbook",
+		"MISSION 26: Run the Runbook",
 		"Navigate here: world N",
 	} {
 		if !strings.Contains(out.String(), expected) {
@@ -458,7 +462,7 @@ func TestMissionPromptCanShowMapAndJumpWorlds(t *testing.T) {
 
 func TestMissionPromptCanScopeTheCurrentStageToItsWorld(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	seedCompletedMissions(t, store, linuxMissionIDsThroughNine[:4]...)
+	seedCompletedMissions(t, store, linuxMissionIDsThroughArchive[:5]...)
 
 	app, out, errOut := testApp(t, "world 1\nmv incident-104.txt /archive/2026/incident-104.txt\n", store)
 	if err := app.Run([]string{"play"}); err != nil {
@@ -469,7 +473,7 @@ func TestMissionPromptCanScopeTheCurrentStageToItsWorld(t *testing.T) {
 			t.Fatalf("same-stage world selection missing %q:\n%s", expected, out.String())
 		}
 	}
-	if strings.Contains(out.String(), "MISSION 06") {
+	if strings.Contains(out.String(), "MISSION 07") {
 		t.Fatalf("same-stage world route crossed its boundary:\n%s", out.String())
 	}
 }
@@ -492,7 +496,7 @@ func TestMissionPromptReportsInvalidWorldWithoutDispatchingIt(t *testing.T) {
 
 func TestMissionPromptExplainsCompletedWorldReplay(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	seedCompletedMissions(t, store, linuxMissionIDsThroughNine[:5]...)
+	seedCompletedMissions(t, store, linuxMissionIDsThroughArchive[:6]...)
 	app, out, errOut := testApp(t, "world 1\npwd\nquit\n", store)
 	if err := app.Run([]string{"play", "6"}); err != nil {
 		t.Fatalf("play error = %v; stderr = %s", err, errOut.String())
@@ -528,9 +532,9 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 	output := out.String()
 	for _, expected := range []string{
 		"LINUX CAMPAIGN",
-		"1/19 missions complete",
-		"Switching to Mission 03: A Place for Everything",
-		"MISSION 03: A Place for Everything",
+		"1/23 missions complete",
+		"Switching to Mission 04: A Place for Everything",
+		"MISSION 04: A Place for Everything",
 		"✓ Directory exists: /workspace/reports/daily",
 		"○ File exists: /workspace/reports/daily/summary.txt",
 	} {
@@ -545,24 +549,24 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 
 func TestMissionPromptUsesWorldLocalStageNumbers(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	app, out, errOut := testApp(t, "play 3\nquit\n", store)
-	if err := app.Run([]string{"play", "6"}); err != nil {
+	app, out, errOut := testApp(t, "play 4\nquit\n", store)
+	if err := app.Run([]string{"play", "7"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 
 	output := out.String()
 	for _, expected := range []string{
 		"Navigate: map · world N · play STAGE/ID",
-		"Switching to Mission 08: The Runaway Worker",
-		"MISSION 08: The Runaway Worker",
-		"World 2/4: The Logpocalypse · Stage 3/5",
+		"Switching to Mission 10: The Runaway Worker",
+		"MISSION 10: The Runaway Worker",
+		"World 2/4: The Logpocalypse · Stage 4/6",
 	} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("world-local stage navigation missing %q:\n%s", expected, output)
 		}
 	}
-	if strings.Contains(output, "MISSION 03: A Place for Everything") {
-		t.Fatalf("World 2 stage navigation fell back to the global Mission 03:\n%s", output)
+	if strings.Contains(output, "MISSION 04: A Place for Everything") {
+		t.Fatalf("World 2 stage navigation fell back to the global Mission 04:\n%s", output)
 	}
 	if errOut.Len() != 0 {
 		t.Fatalf("world-local stage navigation stderr = %s", errOut.String())
@@ -571,8 +575,8 @@ func TestMissionPromptUsesWorldLocalStageNumbers(t *testing.T) {
 
 func TestMissionPromptStageJumpContinuesIntoNextWorld(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	seedCompletedMissions(t, store, linuxMissionIDsThroughNine[:5]...)
-	input := "play 5\nmv /incoming/incident-104.txt /archive/2026/incident-104.txt\nquit\n"
+	seedCompletedMissions(t, store, linuxMissionIDsThroughArchive[:6]...)
+	input := "play 6\nmv /incoming/incident-104.txt /archive/2026/incident-104.txt\nquit\n"
 	app, out, errOut := testApp(t, input, store)
 	if err := app.Run([]string{"play", "3"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
@@ -580,9 +584,9 @@ func TestMissionPromptStageJumpContinuesIntoNextWorld(t *testing.T) {
 
 	output := out.String()
 	for _, expected := range []string{
-		"Switching to Mission 05: The Release Shuffle",
+		"Switching to Mission 06: The Release Shuffle",
 		"Replay complete",
-		"Continuing to Mission 06: Permission to Deploy",
+		"Continuing to Mission 07: Permission to Deploy",
 		"World 2/4: The Logpocalypse",
 	} {
 		if !strings.Contains(output, expected) {
@@ -593,18 +597,18 @@ func TestMissionPromptStageJumpContinuesIntoNextWorld(t *testing.T) {
 
 func TestMissionPromptHandlesCurrentAndOutOfRangeWorldStages(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
-	app, out, errOut := testApp(t, "play 1\nplay 6\nquit\n", store)
-	if err := app.Run([]string{"play", "6"}); err != nil {
+	app, out, errOut := testApp(t, "play 1\nplay 7\nquit\n", store)
+	if err := app.Run([]string{"play", "7"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 
-	if !strings.Contains(out.String(), "Already playing Mission 06: Permission to Deploy.") {
+	if !strings.Contains(out.String(), "Already playing Mission 07: Permission to Deploy.") {
 		t.Fatalf("same-stage navigation was not explained:\n%s", out.String())
 	}
 	if strings.Contains(out.String(), "Switching to Mission") {
 		t.Fatalf("same or invalid stage unexpectedly switched missions:\n%s", out.String())
 	}
-	wantError := `stage "6" does not exist in World 2; choose a stage from 1 to 5 or use map`
+	wantError := `stage "7" does not exist in World 2; choose a stage from 1 to 6 or use map`
 	if !strings.Contains(errOut.String(), wantError) {
 		t.Fatalf("out-of-range stage error missing %q: %s", wantError, errOut.String())
 	}
@@ -621,7 +625,7 @@ func TestMissionPromptParsesQuotedNavigationArguments(t *testing.T) {
 	if err := app.Run([]string{"play", "3"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), "Where Am I?") || !strings.Contains(out.String(), "0/5 missions complete") {
+	if !strings.Contains(out.String(), "Where Am I?") || !strings.Contains(out.String(), "0/6 missions complete") {
 		t.Fatalf("quoted campaign list output:\n%s", out.String())
 	}
 	if strings.Contains(out.String(), "Production Friday") || errOut.Len() != 0 {
@@ -650,8 +654,8 @@ func TestMissionPromptSupportsPreviousAndNext(t *testing.T) {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 	for _, expected := range []string{
-		"Switching to Mission 08: The Runaway Worker",
-		"Switching to Mission 09: Backup Archaeology",
+		"Switching to Mission 08: Wrong Planet",
+		"Switching to Mission 09: Opening Lines",
 	} {
 		if !strings.Contains(out.String(), expected) {
 			t.Errorf("arrow-style navigation output missing %q:\n%s", expected, out.String())
@@ -703,7 +707,7 @@ func TestHintPenaltySurvivesAPausedAttempt(t *testing.T) {
 func TestHintReportsTheActualFloorAdjustedCost(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "hint\nhint\nhint\nhint\nhint\nquit\n", store)
-	if err := app.Run([]string{"play", "10"}); err != nil {
+	if err := app.Run([]string{"play", "12"}); err != nil {
 		t.Fatalf("hinted play error = %v; stderr = %s", err, errOut.String())
 	}
 	if !strings.Contains(out.String(), "Hint 5/5 (-14 XP):") {
@@ -721,7 +725,7 @@ func TestReplayHintsAdvanceWithoutChangingProgress(t *testing.T) {
 	}
 
 	app, out, errOut := testApp(t, "hint\nhint\nhint\nhint\nquit\n", store)
-	if err := app.Run([]string{"play", "4"}); err != nil {
+	if err := app.Run([]string{"play", "5"}); err != nil {
 		t.Fatalf("replay hints error = %v; stderr = %s", err, errOut.String())
 	}
 	for _, expected := range []string{
@@ -754,7 +758,7 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	if err := app.Run([]string{"list"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "0/19 missions complete") {
+	if !strings.Contains(out.String(), "0/23 missions complete") {
 		t.Fatalf("list output = %s", out.String())
 	}
 
@@ -794,8 +798,9 @@ func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
 	for _, expected := range []string{
 		"DOCKER LABS",
 		"Container Census",
+		"Shift Handoff",
 		"docker-container-census",
-		"0/1 missions complete",
+		"0/6 missions complete",
 		"Continue: opsquest play --track docker",
 		"Jump: opsquest play --track docker --world N",
 		"IDs: opsquest map --track docker --ids",
@@ -822,11 +827,11 @@ func TestShowDockerMissionReportsReadinessAndToolHints(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "", store)
 	app.factory = &cliDockerFactory{available: true, detail: "test Docker engine ready"}
-	if err := app.Run([]string{"show", "17"}); err != nil {
+	if err := app.Run([]string{"show", "20"}); err != nil {
 		t.Fatalf("show Docker mission error = %v; stderr = %s", err, errOut.String())
 	}
 	for _, expected := range []string{
-		"MISSION 17: Container Census",
+		"MISSION 20: Container Census",
 		"Track: Docker",
 		"Outcome checks: 3",
 		"Hints: 0 used · 3 remaining · 3 total",
@@ -844,7 +849,7 @@ func TestFreshDockerPlayDoesNotShowLinuxOnboarding(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "quit\n", store)
 	app.factory = &cliDockerFactory{available: true, detail: "test Docker engine ready"}
-	if err := app.Run([]string{"play", "17"}); err != nil {
+	if err := app.Run([]string{"play", "--once", "20"}); err != nil {
 		t.Fatalf("Docker play error = %v; stderr = %s", err, errOut.String())
 	}
 	if strings.Contains(out.String(), "WELCOME TO OPSQUEST") || strings.Contains(out.String(), "Start with the suggested command under the objective") {
@@ -866,7 +871,7 @@ func TestUnavailableDockerMissionIsActionableAndDoesNotComplete(t *testing.T) {
 		available: false,
 		detail:    "Docker labs unavailable: install Docker and start the daemon",
 	}
-	err := app.Run([]string{"play", "17"})
+	err := app.Run([]string{"play", "20"})
 	if err == nil || !strings.Contains(err.Error(), "install Docker and start the daemon") {
 		t.Fatalf("unavailable Docker play error = %v", err)
 	}
@@ -894,7 +899,7 @@ func TestDockerMissionToolHintsAndOutcomeCompletionPersist(t *testing.T) {
 	app, out, errOut := testApp(t, input, store)
 	factory := &cliDockerFactory{available: true, detail: "test Docker engine ready"}
 	app.factory = factory
-	if err := app.Run([]string{"play", "17"}); err != nil {
+	if err := app.Run([]string{"play", "--once", "20"}); err != nil {
 		t.Fatalf("play Docker mission error = %v; stderr = %s", err, errOut.String())
 	}
 	for _, expected := range []string{
@@ -955,7 +960,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	}
 
 	app, out, _ = testApp(t, "", store)
-	if err := app.Run([]string{"show", "16"}); err != nil {
+	if err := app.Run([]string{"show", "19"}); err != nil {
 		t.Fatal(err)
 	}
 	if !strings.Contains(out.String(), "Production Friday") || !strings.Contains(out.String(), "Reward: 160 XP") ||
@@ -968,7 +973,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"doctor"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "20 missions (19 Linux, 1 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
+	if !strings.Contains(out.String(), "29 missions (23 Linux, 6 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
 		t.Fatalf("doctor output = %s", out.String())
 	}
 }
@@ -997,7 +1002,7 @@ func TestPipelineAndBossAchievementsUnlock(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	command := "grep ERROR incidents.log | awk '{print $3}' | sort | uniq > /reports/error-services.txt\n"
 	app, out, errOut := testApp(t, command, store)
-	if err := app.Run([]string{"play", "10"}); err != nil {
+	if err := app.Run([]string{"play", "12"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 	player, err := store.Load()
@@ -1043,10 +1048,10 @@ func TestListCampaignFilterUsesCampaignTotal(t *testing.T) {
 	if err := app.Run([]string{"list", "--campaign", "First Day"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), "0/5 missions complete") {
+	if !strings.Contains(out.String(), "0/6 missions complete") {
 		t.Fatalf("campaign-filtered total missing:\n%s", out.String())
 	}
-	if strings.Contains(out.String(), "0/20 missions complete") || strings.Contains(out.String(), "Production Friday") {
+	if strings.Contains(out.String(), "0/29 missions complete") || strings.Contains(out.String(), "Production Friday") {
 		t.Fatalf("campaign filter used catalog-wide scope:\n%s", out.String())
 	}
 }
@@ -1062,7 +1067,7 @@ func TestMissionStatusAndRestart(t *testing.T) {
 		"touch reports/daily/summary.txt",
 	}, "\n") + "\n"
 	app, out, errOut := testApp(t, input, store)
-	if err := app.Run([]string{"play", "3"}); err != nil {
+	if err := app.Run([]string{"play", "4"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 	if !strings.Contains(out.String(), "Outcome checks satisfied: 1/2") || !strings.Contains(out.String(), "Outcome checks satisfied: 0/2") {
@@ -1082,7 +1087,7 @@ func TestMissionStatusExplainsWrongPathWithoutRequiringCommandOrder(t *testing.T
 		"quit",
 	}, "\n") + "\n"
 	app, out, errOut := testApp(t, input, store)
-	if err := app.Run([]string{"play", "3"}); err != nil {
+	if err := app.Run([]string{"play", "4"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 	output := out.String()
@@ -1108,7 +1113,7 @@ func TestWorkspaceAcceptsChangingDirectoryBeforeCreatingFile(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	input := "mkdir -p reports/daily\ncd reports/daily\ntouch summary.txt\n"
 	app, out, errOut := testApp(t, input, store)
-	if err := app.Run([]string{"play", "3"}); err != nil {
+	if err := app.Run([]string{"play", "4"}); err != nil {
 		t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
 	}
 	if !strings.Contains(out.String(), "✓ Mission complete!") {

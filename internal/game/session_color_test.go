@@ -75,7 +75,7 @@ func TestSessionColorsChromeWithoutColoringSandboxOutput(t *testing.T) {
 	output := out.String()
 	for _, expected := range []string{
 		style.Header("MISSION 01: Where Am I?"),
-		style.World("Linux · World 1/4: First Day · Stage 1/5"),
+		style.World("Linux · World 1/4: First Day · Stage 1/6"),
 		style.Section("INCIDENT"),
 		style.Section("OBJECTIVE"),
 		style.Difficulty("beginner"),

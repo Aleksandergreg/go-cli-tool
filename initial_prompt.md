@@ -1,6 +1,6 @@
 # OpsQuest — current implementation brief
 
-OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. Its Linux curriculum runs through short, story-driven operations missions in deterministic, in-memory environments; the current release also includes one optional Docker Foundations lab backed by isolated, attempt-owned containers.
+OpsQuest is a Go CLI game described as **Duolingo meets a terminal sandbox**. Its Linux curriculum runs through short, story-driven operations missions in deterministic, in-memory environments; the current release also includes six optional Docker Foundations labs backed by isolated, attempt-owned containers.
 
 The current executable reports version **0.6.0**. <!-- x-release-please-version --> Kubernetes remains a later expansion and is not implemented.
 
@@ -8,8 +8,8 @@ The current executable reports version **0.6.0**. <!-- x-release-please-version 
 
 OpsQuest currently ships:
 
-- 19 hand-written Linux missions across four ordered learning worlds
-- One optional Docker mission in the **It Works on My Machine** world
+- 23 hand-written Linux missions across four ordered learning worlds
+- Six optional Docker missions in the **It Works on My Machine** world
 - Strict, embedded JSON mission definitions
 - Observable-outcome validation rather than prescribed command sequences
 - An in-memory filesystem, process table, environment, and virtual archive model
@@ -40,11 +40,11 @@ Each mission contains:
 For example:
 
 ```console
-$ opsquest play --once 4
+$ opsquest play --once 5
 
-MISSION 04: The Missing Log File
+MISSION 05: The Missing Log File
 ================================
-Linux · World 1/4: First Day · Stage 4/5
+Linux · World 1/4: First Day · Stage 5/6
 
 Find every file ending in .log inside /var/app that contains ERROR.
 
@@ -63,12 +63,12 @@ The validator judges the resulting output or environment. If `mv` and `cp` follo
 
 The current Linux curriculum is split into track-local worlds:
 
-1. **First Day** (Missions 1–5) — orientation, directories, files, search, and movement
-2. **The Logpocalypse** (Missions 6–10) — beginner permissions/environment, intermediate processes/archives, and an advanced pipeline boss
-3. **Production Friday** — aggregation, transformation, ownership, disk usage, and a multi-step boss incident
-4. **The Automation Shift** — modal editing, reusable scripts, executable modes, and child-shell scope
+1. **First Day** (Missions 1–6) — orientation, navigation, file reading, creation, search, and movement
+2. **The Logpocalypse** (Missions 7–12) — permissions, environment, log previews, processes, archives, and an advanced pipeline boss
+3. **Production Friday** (Missions 13–19) — log inspection, counting, aggregation, transformation, ownership, disk usage, and a multi-step boss incident
+4. **The Automation Shift** (Missions 26–29) — running supplied automation, modal editing, reusable scripts, executable modes, and child-shell scope
 
-Global mission numbers and IDs remain stable top-level references. The UI separately shows `World N/M` and `Stage N/M`, and `opsquest map` summarizes progress. Inside a mission, a numeric `play` reference selects a stage in the current world while a stable ID can jump across worlds. Worlds provide a recommended path rather than locks: players may jump directly to any world, mission, or stage and replay completed content.
+Mission IDs remain stable profile references, while global display numbers reflect the expanded ordered catalog. The UI separately shows `World N/M` and `Stage N/M`, and `opsquest map` summarizes progress. Inside a mission, a numeric `play` reference selects a stage in the current world while a stable ID can jump across worlds. Worlds provide a recommended path rather than locks: players may jump directly to any world, mission, or stage and replay completed content.
 
 XP, ranks, active and completed hint usage, completed missions, practiced commands, achievements, and the additive onboarding marker persist in a versioned JSON profile. A mission sandbox resets between attempts; profile progress does not. Display names are limited to 40 printable Unicode characters so persisted terminal controls cannot spoof CLI output.
 
@@ -178,25 +178,26 @@ Script output may feed a later pipeline stage or be redirected to a virtual file
 
 ## Automation Shift world
 
-Missions 18–20 turn the existing editor and runner into a short Linux curriculum:
+Missions 26–29 turn the existing editor and runner into a short Linux curriculum:
 
+- **Run the Runbook** introduces safe inspection and execution of a supplied script.
 - **Modal First Aid** introduces Normal mode, `dd`, and `:wq` by removing a bad line while preserving the rest of a configuration file.
 - **Report on Repeat** has the player repair a pipeline script, set its executable mode, and generate a sorted unique incident report.
 - **Boss Battle: Scope Creep** combines editing, direct script execution, pipelines, redirection, `cd`, and `export`. Its outcomes prove that file changes persist while the caller's directory and environment are restored.
 
 Every mission supplies progressive tool-oriented hints. Completion remains outcome-based: the canonical solutions exercise non-interactive test paths, while focused tests also prove valid `vi`, `sh FILE`, and direct-execution alternatives and reject incomplete or state-leaking attempts.
 
-## Docker Foundations vertical slice
+## Docker Foundations beginner campaign
 
-Mission 17, **Container Census**, begins the optional **It Works on My Machine** track. The player inspects two attempt-owned containers, identifies the stopped `api` container, and gets both original containers running while keeping the attempt at exactly two containers. Three progressive hints introduce the relevant inspection tool, the option that includes stopped containers, and finally the `docker start` syntax.
+Missions 20–25 form the optional **It Works on My Machine** track. The six beginner lessons cover listing and starting existing containers, reading bounded logs, interpreting sanitized exit status, stopping one exact target, restoring a two-container service pair, and completing a mixed start/stop handoff.
 
 Docker remains an optional capability. The Linux track, profile loading, normal quality gate, and bare `opsquest play` do not require a Docker CLI or daemon. `opsquest doctor` distinguishes an unavailable CLI/daemon from a missing pinned fixture image and gives an explicit preparation command. OpsQuest does not pull images automatically.
 
-The first supported teaching subset is deliberately narrow: `docker ps`, `docker container ls`, `start`, `restart`, and `inspect`, plus lab help. Player text is parsed into typed actions before OpsQuest constructs fixed Docker CLI arguments; the raw line is never given to a host shell or unrestricted Docker invocation.
+The supported teaching subset is deliberately narrow: `docker ps`, `docker container ls`, `start`, `restart`, `stop`, `inspect`, and `logs`, plus lab help. Player text is parsed into typed actions before OpsQuest constructs fixed Docker CLI arguments; the raw line is never given to a host shell or unrestricted Docker invocation.
 
 Each attempt maps stable logical aliases such as `api` to generated engine names and exact returned container IDs. A mission may declare at most 16 image aliases and 32 containers. Resources are labeled with the mission and a cryptographically random session identifier, run without a network as a non-root user with a read-only filesystem, dropped capabilities, `no-new-privileges`, and bounded CPU, memory, process, and file-descriptor limits. Cleanup verifies ownership labels before removing exact IDs and is idempotent across completion, quit, restart, switching, setup failure, Ctrl-C cancellation, and ordinary errors. Once cleanup begins, the lab rejects further commands; if inspection or removal fails, unresolved owned containers remain pending so a later close retries them, and the attempt is marked closed only after cleanup succeeds. Labs never request privileged mode, host bind mounts, host networking, host PID/IPC namespace sharing, devices, or a mounted Docker socket.
 
-Docker mission validation observes only resources labeled for the current attempt. Container Census requires both original tracked containers to be running and queries ownership labels to require exactly two attempt containers, so an additional attempt-owned replacement cannot satisfy the objective. Existing profile version 2 remains compatible: mission completion maps accept the stable IDs, while Linux percentages and new Linux Completionist unlocks now consider all 19 Linux missions. Achievements are monotonic, so a Completionist achievement earned before the curriculum expanded remains unlocked.
+Docker mission validation observes only resources labeled for the current attempt. Lifecycle missions preserve required healthy containers and query ownership labels so an additional attempt-owned replacement cannot satisfy the objective. Existing profile version 2 remains compatible because completion maps use stable IDs, while Linux percentages and Linux Completionist checks now consider all 23 Linux missions. Achievements are monotonic, so a Completionist achievement earned before the curriculum expanded remains unlocked.
 
 ## Mission format
 

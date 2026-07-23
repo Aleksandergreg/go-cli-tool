@@ -1,0 +1,32 @@
+{
+  "id": "linux-read-handoff",
+  "number": 3,
+  "title": "Read the Handoff",
+  "campaign": "First Day",
+  "difficulty": "beginner",
+  "story": "You reached the live configuration directory. The previous operator left one final handoff note, next to an older note that is no longer valid.",
+  "objective": "Print the contents of /srv/web/config/live/handoff.txt.",
+  "start_dir": "/srv/web/config/live",
+  "suggested_commands": ["ls", "cat", "less"],
+  "hints": [
+    "ls shows the files in your current directory.",
+    "cat prints a file's contents to the terminal.",
+    "Try: cat handoff.txt"
+  ],
+  "explanation": "cat is a quick way to read a short text file. Always check the filename and location so an obsolete or similarly named file does not mislead you.",
+  "setup": {
+    "directories": [
+      {"path": "/srv/web/config/live"}
+    ],
+    "files": [
+      {"path": "/srv/web/config/live/handoff.txt", "content": "deploy-window=14:30 UTC\n"},
+      {"path": "/srv/web/config/live/handoff.old", "content": "deploy-window=09:00 UTC\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_equals", "value": "deploy-window=14:30 UTC"}
+    ]
+  },
+  "rewards": {"xp": 45, "hint_penalty": 10}
+}

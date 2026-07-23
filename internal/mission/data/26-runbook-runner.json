@@ -1,0 +1,32 @@
+{
+  "id": "linux-runbook-runner",
+  "number": 26,
+  "title": "Run the Runbook",
+  "campaign": "The Automation Shift",
+  "difficulty": "beginner",
+  "story": "The day shift left a tiny health-report script. Reading it is wise, but the night dashboard will stay blank until someone actually runs it.",
+  "objective": "Run /workspace/publish-health.sh so it creates /reports/health.txt with the expected ready status.",
+  "start_dir": "/workspace",
+  "suggested_commands": ["cat", "less", "chmod", "sh"],
+  "hints": [
+    "Read publish-health.sh before running it so you know what it changes.",
+    "sh can execute a readable shell script even when it is not marked executable.",
+    "Try: sh publish-health.sh"
+  ],
+  "explanation": "Small scripts turn repeatable command sequences into reusable tools. Inspect unfamiliar scripts first, then run them with sh or grant a suitable executable mode and invoke them directly.",
+  "setup": {
+    "directories": [
+      {"path": "/workspace"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/workspace/publish-health.sh", "content": "#!/bin/sh\necho 'status=ready' > /reports/health.txt\n", "mode": "0640"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_content_equals", "path": "/reports/health.txt", "value": "status=ready"}
+    ]
+  },
+  "rewards": {"xp": 60, "hint_penalty": 10}
+}

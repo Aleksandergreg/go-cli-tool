@@ -1,0 +1,41 @@
+{
+  "id": "docker-last-broadcast",
+  "number": 21,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Last Broadcast",
+  "campaign": "It Works on My Machine",
+  "difficulty": "beginner",
+  "story": "The checkout job stopped before anyone reached the dashboard. Containers can leave useful output behind even after their process exits.",
+  "objective": "Read and print the recorded logs from the checkout container.",
+  "suggested_commands": ["docker"],
+  "hints": [
+    "docker ps -a includes containers whose process has exited.",
+    "docker logs reads output recorded for a container.",
+    "Try: docker logs checkout"
+  ],
+  "explanation": "Container logs remain available after a process exits. Reading them is often the fastest first diagnostic step and does not require restarting or replacing the container.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {
+        "name": "checkout",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "INFO checkout starting\nERROR missing DATABASE_URL\nINFO checkout stopped",
+        "exit_code": 78
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_equals", "value": "INFO checkout starting\nERROR missing DATABASE_URL\nINFO checkout stopped"}
+    ]
+  },
+  "rewards": {"xp": 55, "hint_penalty": 10}
+}

@@ -35,7 +35,7 @@
 
   <text x="735" y="358" class="zone" fill="#6d28d9">OPTIONAL DOCKER PATH</text>
   <path class="external" d="M820 310 C865 330 880 350 880 385"/>
-  <g filter="url(#shadow)"><rect x="730" y="385" width="300" height="115" rx="18" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/><text x="880" y="424" text-anchor="middle" class="head" fill="#4c1d95">Typed Docker parser</text><text x="880" y="451" text-anchor="middle" class="body" fill="#5b21b6">list · start · restart · inspect</text><text x="880" y="474" text-anchor="middle" class="body" fill="#5b21b6">validated logical alias only</text></g>
+  <g filter="url(#shadow)"><rect x="730" y="385" width="300" height="115" rx="18" fill="#ede9fe" stroke="#7c3aed" stroke-width="2"/><text x="880" y="424" text-anchor="middle" class="head" fill="#4c1d95">Typed Docker parser</text><text x="880" y="451" text-anchor="middle" class="body" fill="#5b21b6">list · logs · inspect · lifecycle</text><text x="880" y="474" text-anchor="middle" class="body" fill="#5b21b6">validated logical alias only</text></g>
   <path class="external" d="M880 500 V565"/>
   <g filter="url(#shadow)"><rect x="730" y="565" width="300" height="125" rx="18" fill="#f5f3ff" stroke="#7c3aed" stroke-width="2"/><text x="880" y="605" text-anchor="middle" class="head" fill="#4c1d95">Ownership adapter</text><text x="880" y="633" text-anchor="middle" class="body" fill="#5b21b6">logical alias → tracked exact ID</text><text x="880" y="656" text-anchor="middle" class="body" fill="#5b21b6">fixed argv · labels · cleanup</text></g>
   <rect x="745" y="715" width="270" height="50" rx="25" fill="#ede9fe"/><text x="880" y="746" text-anchor="middle" class="small" fill="#5b21b6">NO RAW COMMAND PASSTHROUGH</text>

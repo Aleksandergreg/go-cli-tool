@@ -14,7 +14,7 @@ func TestCatalogWorldsAreOrderedWithinEachTrack(t *testing.T) {
 
 	linux := catalog.Worlds("")
 	wantNames := []string{"First Day", "The Logpocalypse", "Production Friday", "The Automation Shift"}
-	wantStages := []int{5, 5, 6, 3}
+	wantStages := []int{6, 6, 7, 4}
 	if len(linux) != len(wantNames) {
 		t.Fatalf("len(Worlds(linux)) = %d, want %d", len(linux), len(wantNames))
 	}
@@ -23,12 +23,12 @@ func TestCatalogWorldsAreOrderedWithinEachTrack(t *testing.T) {
 			t.Errorf("Worlds(linux)[%d] = number %d, track %q, name %q, stages %d", index, world.Number, world.Track, world.Name, len(world.Missions))
 		}
 	}
-	if linux[1].Missions[0].ID != "linux-permissions" || linux[2].Missions[0].ID != "linux-tail-trouble" || linux[3].Missions[0].ID != "linux-vi-first-aid" {
+	if linux[1].Missions[0].ID != "linux-permissions" || linux[2].Missions[0].ID != "linux-tail-trouble" || linux[3].Missions[0].ID != "linux-runbook-runner" {
 		t.Fatalf("Linux world boundaries = %q, %q, then %q", linux[1].Missions[0].ID, linux[2].Missions[0].ID, linux[3].Missions[0].ID)
 	}
 
 	docker := catalog.Worlds(TrackDocker)
-	if len(docker) != 1 || docker[0].Number != 1 || docker[0].Name != "It Works on My Machine" || len(docker[0].Missions) != 1 || docker[0].Missions[0].ID != "docker-container-census" {
+	if len(docker) != 1 || docker[0].Number != 1 || docker[0].Name != "It Works on My Machine" || len(docker[0].Missions) != 6 || docker[0].Missions[0].ID != "docker-container-census" {
 		t.Fatalf("Worlds(docker) = %#v", docker)
 	}
 	if worlds := catalog.Worlds("missing"); worlds != nil {
@@ -43,7 +43,7 @@ func TestCatalogWorldLookupAndPlacement(t *testing.T) {
 	}
 
 	world, found := catalog.World(TrackLinux, 2)
-	if !found || world.Name != "The Logpocalypse" || len(world.Missions) != 5 {
+	if !found || world.Name != "The Logpocalypse" || len(world.Missions) != 6 {
 		t.Fatalf("World(linux, 2) = %#v, %v", world, found)
 	}
 	defaultWorld, found := catalog.World("", 1)
@@ -69,19 +69,19 @@ func TestCatalogWorldLookupAndPlacement(t *testing.T) {
 	}{
 		{
 			missionID: "linux-orientation",
-			want:      Placement{Track: TrackLinux, WorldNumber: 1, WorldTotal: 4, WorldName: "First Day", StageNumber: 1, StageTotal: 5},
+			want:      Placement{Track: TrackLinux, WorldNumber: 1, WorldTotal: 4, WorldName: "First Day", StageNumber: 1, StageTotal: 6},
 		},
 		{
 			missionID: "linux-pipeline-report",
-			want:      Placement{Track: TrackLinux, WorldNumber: 2, WorldTotal: 4, WorldName: "The Logpocalypse", StageNumber: 5, StageTotal: 5},
+			want:      Placement{Track: TrackLinux, WorldNumber: 2, WorldTotal: 4, WorldName: "The Logpocalypse", StageNumber: 6, StageTotal: 6},
 		},
 		{
 			missionID: "linux-vi-first-aid",
-			want:      Placement{Track: TrackLinux, WorldNumber: 4, WorldTotal: 4, WorldName: "The Automation Shift", StageNumber: 1, StageTotal: 3},
+			want:      Placement{Track: TrackLinux, WorldNumber: 4, WorldTotal: 4, WorldName: "The Automation Shift", StageNumber: 2, StageTotal: 4},
 		},
 		{
 			missionID: "docker-container-census",
-			want:      Placement{Track: TrackDocker, WorldNumber: 1, WorldTotal: 1, WorldName: "It Works on My Machine", StageNumber: 1, StageTotal: 1},
+			want:      Placement{Track: TrackDocker, WorldNumber: 1, WorldTotal: 1, WorldName: "It Works on My Machine", StageNumber: 1, StageTotal: 6},
 		},
 	}
 	for _, test := range tests {
@@ -104,6 +104,7 @@ func TestCatalogNextInWorldUsesCompletionAndReturnsClones(t *testing.T) {
 	completed := map[string]bool{
 		"linux-permissions": true,
 		"linux-environment": true,
+		"linux-log-preview": true,
 	}
 	next, found := catalog.NextInWorld("", 2, func(id string) bool { return completed[id] })
 	if !found || next.ID != "linux-runaway" {

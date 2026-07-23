@@ -17,7 +17,12 @@ const dockerHelp = `Docker lab commands:
   docker container start ALIAS      Start a mission container
   docker restart ALIAS              Restart a mission container
   docker container restart ALIAS    Restart a mission container
+  docker stop ALIAS                 Stop a mission container
+  docker container stop ALIAS       Stop a mission container
   docker inspect ALIAS              Inspect logical container state
+  docker container inspect ALIAS    Inspect logical container state
+  docker logs ALIAS                 Read a mission container's logs
+  docker container logs ALIAS       Read a mission container's logs
   help                              Show this help
 `
 
@@ -28,7 +33,9 @@ const (
 	actionList
 	actionStart
 	actionRestart
+	actionStop
 	actionInspect
+	actionLogs
 )
 
 type dockerAction struct {
@@ -58,13 +65,13 @@ func parseAction(line string) (dockerAction, error) {
 	}
 	fields = fields[1:]
 	if len(fields) == 0 {
-		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all] | docker start ALIAS | docker inspect ALIAS")
+		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all] | docker start ALIAS | docker stop ALIAS | docker inspect ALIAS | docker logs ALIAS")
 	}
 
 	if fields[0] == "container" {
 		fields = fields[1:]
 		if len(fields) == 0 {
-			return dockerAction{}, fmt.Errorf("usage: docker container ls [-a|--all] | docker container start ALIAS")
+			return dockerAction{}, fmt.Errorf("usage: docker container ls [-a|--all] | docker container start ALIAS | docker container stop ALIAS | docker container inspect ALIAS | docker container logs ALIAS")
 		}
 	}
 	switch fields[0] {
@@ -76,15 +83,19 @@ func parseAction(line string) (dockerAction, error) {
 			return dockerAction{kind: actionList, all: true}, nil
 		}
 		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all]")
-	case "start", "restart", "inspect":
+	case "start", "restart", "stop", "inspect", "logs":
 		if len(fields) != 2 || !mission.ValidDockerLogicalName(fields[1]) {
 			return dockerAction{}, fmt.Errorf("usage: docker %s ALIAS", fields[0])
 		}
 		kind := actionStart
 		if fields[0] == "restart" {
 			kind = actionRestart
+		} else if fields[0] == "stop" {
+			kind = actionStop
 		} else if fields[0] == "inspect" {
 			kind = actionInspect
+		} else if fields[0] == "logs" {
+			kind = actionLogs
 		}
 		return dockerAction{kind: kind, alias: fields[1]}, nil
 	default:

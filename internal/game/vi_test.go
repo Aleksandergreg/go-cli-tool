@@ -400,7 +400,7 @@ func TestNonTerminalViRefusalDoesNotConsumeTheNextCommand(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, _ := catalog.Find("13")
+	item, _ := catalog.Find("linux-config-surgery")
 	player := profile.New("tester")
 	out := &bytes.Buffer{}
 	errOut := &bytes.Buffer{}
@@ -447,7 +447,7 @@ func TestViSessionCompletesOutcomeAndRecordsMastery(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, _ := catalog.Find("13")
+	item, _ := catalog.Find("linux-config-surgery")
 	player := profile.New("tester")
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester")
 	reader := &fakeViReader{

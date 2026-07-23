@@ -3,11 +3,11 @@
 OpsQuest is **Duolingo meets a terminal sandbox**: a Go CLI game that teaches Linux and container operations through short, story-driven missions.
 
 ```console
-$ opsquest play --once 4
+$ opsquest play --once 5
 
-MISSION 04: The Missing Log File
+MISSION 05: The Missing Log File
 ================================
-Linux · World 1/4: First Day · Stage 4/5
+Linux · World 1/4: First Day · Stage 5/6
 Difficulty: beginner · Reward: 75 XP
 
 INCIDENT
@@ -29,8 +29,8 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 
 ## What is included
 
-- 19 Linux missions across four ordered learning worlds
-- One optional, disposable Docker Foundations mission
+- 23 Linux missions across four ordered learning worlds
+- Six optional, disposable Docker Foundations missions
 - An isolated in-memory filesystem, environment, process table, and archives
 - Quote-aware globs and variables, pipelines, redirection, and command history
 - A compact virtual `vi` and bounded virtual shell scripts
@@ -77,7 +77,7 @@ Linux gameplay never requires a container engine. Docker Foundations works with 
 ```console
 $ docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
 $ opsquest doctor
-$ opsquest play 17
+$ opsquest play 20
 ```
 
 On macOS, you can direct both setup and gameplay to OrbStack without changing your global Docker context:
@@ -85,7 +85,7 @@ On macOS, you can direct both setup and gameplay to OrbStack without changing yo
 ```console
 $ DOCKER_CONTEXT=orbstack docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
 $ DOCKER_CONTEXT=orbstack opsquest doctor
-$ DOCKER_CONTEXT=orbstack opsquest play 17
+$ DOCKER_CONTEXT=orbstack opsquest play 20
 ```
 
 OpsQuest never pulls the image automatically. The OrbStack context uses the same constrained Docker integration and cleanup path as every other compatible engine. See [Docker Foundations](docs/play/docker-foundations.md) for setup details, the teaching subset, and the isolation boundary.

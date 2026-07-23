@@ -1,0 +1,31 @@
+{
+  "id": "linux-error-headcount",
+  "number": 14,
+  "title": "Error Headcount",
+  "campaign": "Production Friday",
+  "difficulty": "beginner",
+  "story": "The release lead needs one number before deciding whether to roll back. The deployment log mixes routine messages, warnings, and actual errors.",
+  "objective": "Print the number of lines containing ERROR in /srv/deploy/deploy.log.",
+  "start_dir": "/srv/deploy",
+  "suggested_commands": ["grep", "wc"],
+  "hints": [
+    "grep ERROR deploy.log prints only matching lines.",
+    "wc -l counts input lines; grep also has a count option.",
+    "Try: grep ERROR deploy.log | wc -l"
+  ],
+  "explanation": "A pipeline can filter records with grep and count them with wc -l. For a single file, grep -c is a shorter route to the same observable result.",
+  "setup": {
+    "directories": [
+      {"path": "/srv/deploy"}
+    ],
+    "files": [
+      {"path": "/srv/deploy/deploy.log", "content": "INFO release started\nERROR image unavailable\nWARN using cached metadata\nERROR health check failed\nINFO retry started\nERROR rollback required\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_equals", "value": "3"}
+    ]
+  },
+  "rewards": {"xp": 65, "hint_penalty": 10}
+}

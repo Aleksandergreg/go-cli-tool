@@ -103,6 +103,8 @@ func describeCondition(condition mission.Condition) string {
 		return fmt.Sprintf("Environment contains %s", condition.Value)
 	case mission.ConditionDockerContainerRunning:
 		return fmt.Sprintf("Container %s is running", condition.Container)
+	case mission.ConditionDockerContainerStopped:
+		return fmt.Sprintf("Container %s is stopped", condition.Container)
 	case mission.ConditionDockerContainerCountEqual:
 		if condition.Count != nil {
 			return fmt.Sprintf("Exactly %d mission containers exist", *condition.Count)
