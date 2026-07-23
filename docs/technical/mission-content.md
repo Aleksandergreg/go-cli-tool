@@ -35,14 +35,14 @@ Linux remains the default track and `simulated` remains the default environment 
 - missing narrative, guidance, setup, validation, or reward data;
 - unsafe, conflicting, or inconsistent virtual paths and state;
 - validators with missing, extra, or incompatible fields;
-- unpinned Docker images, invalid aliases, or oversized Docker setup;
+- unpinned Docker images, invalid aliases, oversized Docker setup, or incomplete diagnostic fixtures;
 - a campaign that reappears as separate worlds in one track.
 
 Catalog access is indexed by ID and number. Returned missions and worlds are deep copies so adapters cannot mutate embedded content.
 
 ## Observable validation
 
-Conditions cover output, working directory, path existence, file content and logical lines, modes, owners, process state, environment values, and bounded Docker container state. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
+Conditions cover output, working directory, path existence, file content and logical lines, modes, owners, process state, environment values, and bounded Docker container state. Docker fixtures may additionally declare a bounded log and exit code together for a stopped one-shot diagnostic job; container conditions can require either running or stopped state. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
 
 Validators describe evidence, not the command that must produce it. See [Outcome-based mission design](../game/mission-design.md) for the product rule.
 

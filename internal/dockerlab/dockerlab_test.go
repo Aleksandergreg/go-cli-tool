@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"reflect"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -17,10 +18,13 @@ import (
 const testImageReference = "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
 
 type fakeContainer struct {
-	labels  map[string]string
-	name    string
-	running bool
-	status  string
+	labels   map[string]string
+	name     string
+	running  bool
+	status   string
+	log      string
+	exitCode int
+	oneShot  bool
 }
 
 type fakeDockerRunner struct {
@@ -96,7 +100,17 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 				}
 			}
 		}
-		r.containers[id] = &fakeContainer{labels: labels, name: name, status: "created"}
+		container := &fakeContainer{labels: labels, name: name, status: "created"}
+		if len(args) >= 3 && args[len(args)-3] == "opsquest-diagnostic" {
+			container.oneShot = true
+			container.log = args[len(args)-2] + "\n"
+			exitCode, err := strconv.Atoi(args[len(args)-1])
+			if err != nil {
+				return runResult{}, err
+			}
+			container.exitCode = exitCode
+		}
+		r.containers[id] = container
 		r.containerOrder = append(r.containerOrder, id)
 		if r.failAfterCreateAt == r.createAttempts {
 			return runResult{stderr: "connection lost after create"}, errors.New("exit status 1")
@@ -112,9 +126,38 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		if !exists {
 			return missingContainerResult(id)
 		}
-		container.running = true
-		container.status = "running"
+		if container.oneShot {
+			container.running = false
+			container.status = "exited"
+		} else {
+			container.running = true
+			container.status = "running"
+			container.exitCode = 0
+		}
 		return runResult{stdout: id + "\n"}, nil
+	case hasPrefix(args, "container", "stop"):
+		id := args[len(args)-1]
+		container, exists := r.containers[id]
+		if !exists {
+			return missingContainerResult(id)
+		}
+		container.running = false
+		container.status = "exited"
+		return runResult{stdout: id + "\n"}, nil
+	case hasPrefix(args, "container", "wait"):
+		id := args[len(args)-1]
+		container, exists := r.containers[id]
+		if !exists {
+			return missingContainerResult(id)
+		}
+		return runResult{stdout: strconv.Itoa(container.exitCode) + "\n"}, nil
+	case hasPrefix(args, "container", "logs"):
+		id := args[len(args)-1]
+		container, exists := r.containers[id]
+		if !exists {
+			return missingContainerResult(id)
+		}
+		return runResult{stdout: container.log}, nil
 	case hasPrefix(args, "container", "inspect", "--format"):
 		reference := args[len(args)-1]
 		if err := r.failNextInspect[reference]; err != nil {
@@ -134,6 +177,7 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		inspection.Config.Labels = cloneStrings(container.labels)
 		inspection.State.Running = container.running
 		inspection.State.Status = container.status
+		inspection.State.ExitCode = container.exitCode
 		encoded, err := json.Marshal(inspection)
 		if err != nil {
 			return runResult{}, err
@@ -270,6 +314,26 @@ func testDockerMission() mission.Mission {
 	}
 }
 
+func testDiagnosticDockerMission() mission.Mission {
+	exitCode := 23
+	return mission.Mission{
+		ID:          "docker-diagnostic",
+		Number:      21,
+		Track:       mission.TrackDocker,
+		Environment: mission.EnvironmentDocker,
+		Docker: &mission.DockerSetup{
+			Images: []mission.DockerImageSpec{{Alias: "fixture", Reference: testImageReference}},
+			Containers: []mission.DockerContainerSpec{{
+				Name:     "job",
+				Image:    "fixture",
+				State:    mission.DockerStateStopped,
+				Log:      "ERROR: literal $(touch /host); still data",
+				ExitCode: &exitCode,
+			}},
+		},
+	}
+}
+
 func testFactory(commandRunner runner) *Factory {
 	return newFactory(game.SandboxFactory{}, commandRunner, nil, func() (string, error) {
 		return strings.Repeat("a", 24), nil
@@ -279,6 +343,22 @@ func testFactory(commandRunner runner) *Factory {
 func createTestEnvironment(t *testing.T, commandRunner *fakeDockerRunner) *environment {
 	t.Helper()
 	created, err := testFactory(commandRunner).Create(context.Background(), testDockerMission())
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	environment, ok := created.(*environment)
+	if !ok {
+		t.Fatalf("Create() type = %T, want *environment", created)
+	}
+	t.Cleanup(func() {
+		_ = environment.Close()
+	})
+	return environment
+}
+
+func createEnvironmentForMission(t *testing.T, commandRunner *fakeDockerRunner, item mission.Mission) *environment {
+	t.Helper()
+	created, err := testFactory(commandRunner).Create(context.Background(), item)
 	if err != nil {
 		t.Fatalf("Create() error = %v", err)
 	}
@@ -425,6 +505,49 @@ func TestCreateUsesExactLabelsAndResourceLimits(t *testing.T) {
 	}
 }
 
+func TestDiagnosticFixtureUsesFixedCommandAndExposesSanitizedObservations(t *testing.T) {
+	commandRunner := newFakeDockerRunner()
+	environment := createEnvironmentForMission(t, commandRunner, testDiagnosticDockerMission())
+	calls := commandRunner.snapshotCalls()
+	if len(calls) < 6 {
+		t.Fatalf("setup calls = %q", calls)
+	}
+	logText := "ERROR: literal $(touch /host); still data"
+	wantTail := []string{
+		"--entrypoint", "/bin/sh",
+		testImageReference,
+		"-c", `printf '%s\n' "$1"; exit "$2"`,
+		"opsquest-diagnostic", logText, "23",
+	}
+	create := calls[3]
+	if len(create) < len(wantTail) || !reflect.DeepEqual(create[len(create)-len(wantTail):], wantTail) {
+		t.Fatalf("diagnostic create tail:\n got: %q\nwant: %q", create, wantTail)
+	}
+	if strings.Contains(create[len(create)-4], logText) {
+		t.Fatalf("diagnostic data was interpolated into shell program: %q", create[len(create)-4])
+	}
+	jobID := environment.byAlias["job"].id
+	if !reflect.DeepEqual(calls[4], []string{"container", "start", jobID}) || !reflect.DeepEqual(calls[5], []string{"container", "wait", jobID}) {
+		t.Fatalf("diagnostic lifecycle calls = %q", calls[4:6])
+	}
+
+	logged, err := environment.Execute(context.Background(), "docker container logs job")
+	if err != nil || logged.Output != logText+"\n" {
+		t.Fatalf("logs output = %q, error = %v", logged.Output, err)
+	}
+	inspected, err := environment.Execute(context.Background(), "docker container inspect job")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(inspected.Output, `"Name": "job"`) || !strings.Contains(inspected.Output, `"ExitCode": 23`) || strings.Contains(inspected.Output, jobID) || strings.Contains(inspected.Output, environment.byAlias["job"].actualName) {
+		t.Fatalf("sanitized diagnostic inspection:\n%s", inspected.Output)
+	}
+	stopped := mission.Condition{Type: mission.ConditionDockerContainerStopped, Container: "job"}
+	if got, err := environment.Observe(context.Background(), stopped); err != nil || !got {
+		t.Fatalf("diagnostic stopped outcome = %v, %v", got, err)
+	}
+}
+
 func TestPlayerInputIsParsedBeforeDockerTransport(t *testing.T) {
 	commandRunner := newFakeDockerRunner()
 	environment := createTestEnvironment(t, commandRunner)
@@ -441,6 +564,8 @@ func TestPlayerInputIsParsedBeforeDockerTransport(t *testing.T) {
 		"docker start " + api.actualName,
 		"sh -c docker ps",
 		"docker ps | docker start api",
+		"docker logs api --tail 20",
+		"docker stop api metrics",
 	}
 	for _, line := range unsafe {
 		if _, err := environment.Execute(context.Background(), line); err == nil {
@@ -464,6 +589,7 @@ func TestLogicalCommandsAndOutcomeObservation(t *testing.T) {
 	environment := createTestEnvironment(t, commandRunner)
 
 	apiRunning := mission.Condition{Type: "docker_container_running", Container: "api"}
+	apiStopped := mission.Condition{Type: "docker_container_stopped", Container: "api"}
 	metricsRunning := mission.Condition{Type: "docker_container_running", Container: "metrics"}
 	count := 2
 	containerCount := mission.Condition{Type: "docker_container_count_equals", Count: &count}
@@ -527,6 +653,12 @@ func TestLogicalCommandsAndOutcomeObservation(t *testing.T) {
 	if strings.Contains(inspected.Output, environment.byAlias["api"].id) || strings.Contains(inspected.Output, environment.byAlias["api"].actualName) {
 		t.Fatalf("logical inspect leaked engine identifiers:\n%s", inspected.Output)
 	}
+	if _, err := environment.Execute(context.Background(), "docker container stop api"); err != nil {
+		t.Fatal(err)
+	}
+	if got, err := environment.Observe(context.Background(), apiStopped); err != nil || !got {
+		t.Fatalf("api stopped outcome after stop = %v, %v", got, err)
+	}
 }
 
 func TestHelpAndCompletionExposeOnlyTeachingSubset(t *testing.T) {
@@ -538,7 +670,7 @@ func TestHelpAndCompletionExposeOnlyTeachingSubset(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, expected := range []string{"docker ps", "docker start ALIAS", "docker inspect ALIAS"} {
+	for _, expected := range []string{"docker ps", "docker start ALIAS", "docker stop ALIAS", "docker inspect ALIAS", "docker logs ALIAS"} {
 		if !strings.Contains(result.Output, expected) {
 			t.Errorf("help missing %q:\n%s", expected, result.Output)
 		}

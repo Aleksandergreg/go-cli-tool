@@ -1,0 +1,40 @@
+{
+  "id": "docker-shift-handoff",
+  "number": 25,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Shift Handoff",
+  "campaign": "It Works on My Machine",
+  "difficulty": "beginner",
+  "story": "Traffic is moving from a retiring worker to its standby replacement. Metrics must keep running throughout the handoff.",
+  "objective": "Start standby, stop retiring, keep metrics running, and leave exactly three mission containers.",
+  "suggested_commands": ["docker"],
+  "hints": [
+    "Use docker ps -a to compare every container's current state.",
+    "docker start standby activates the replacement; docker stop retiring quiets the old worker.",
+    "Inspect the final list and make sure metrics was not stopped."
+  ],
+  "explanation": "A safe handoff changes only the intended lifecycle states: bring the replacement up, retire the old process, and preserve supporting services and container identity.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {"name": "standby", "image": "fixture", "state": "stopped"},
+      {"name": "retiring", "image": "fixture", "state": "running"},
+      {"name": "metrics", "image": "fixture", "state": "running"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "docker_container_running", "container": "standby"},
+      {"type": "docker_container_stopped", "container": "retiring"},
+      {"type": "docker_container_running", "container": "metrics"},
+      {"type": "docker_container_count_equals", "count": 3}
+    ]
+  },
+  "rewards": {"xp": 70, "hint_penalty": 10}
+}

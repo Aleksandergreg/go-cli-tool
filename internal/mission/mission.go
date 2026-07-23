@@ -43,6 +43,7 @@ const (
 	ConditionProcessRunning            ConditionType = "process_running"
 	ConditionEnvironmentEquals         ConditionType = "env_equals"
 	ConditionDockerContainerRunning    ConditionType = "docker_container_running"
+	ConditionDockerContainerStopped    ConditionType = "docker_container_stopped"
 	ConditionDockerContainerCountEqual ConditionType = "docker_container_count_equals"
 )
 
@@ -137,9 +138,11 @@ type DockerImageSpec struct {
 }
 
 type DockerContainerSpec struct {
-	Name  string `json:"name"`
-	Image string `json:"image"`
-	State string `json:"state"`
+	Name     string `json:"name"`
+	Image    string `json:"image"`
+	State    string `json:"state"`
+	Log      string `json:"log,omitempty"`
+	ExitCode *int   `json:"exit_code,omitempty"`
 }
 
 type Validation struct {

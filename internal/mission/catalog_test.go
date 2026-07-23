@@ -12,8 +12,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 20 {
-		t.Fatalf("len(All()) = %d, want 20", len(items))
+	if len(items) != 29 {
+		t.Fatalf("len(All()) = %d, want 29", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {
@@ -22,12 +22,12 @@ func TestEmbeddedCatalog(t *testing.T) {
 	}
 
 	byID, found := catalog.Find("linux-find-logs")
-	if !found || byID.Number != 4 {
+	if !found || byID.Number != 5 {
 		t.Fatalf("Find(id) = %#v, %v", byID, found)
 	}
-	byNumber, found := catalog.Find("04")
+	byNumber, found := catalog.Find("05")
 	if !found || byNumber.ID != byID.ID {
-		t.Fatalf("Find(04) = %#v, %v", byNumber, found)
+		t.Fatalf("Find(05) = %#v, %v", byNumber, found)
 	}
 }
 
@@ -46,10 +46,10 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 
 	linux := catalog.InTrack("")
 	docker := catalog.InTrack(TrackDocker)
-	if len(linux) != 19 || len(docker) != 1 {
+	if len(linux) != 23 || len(docker) != 6 {
 		t.Fatalf("track sizes = linux %d, docker %d", len(linux), len(docker))
 	}
-	if docker[0].ID != "docker-container-census" || docker[0].Number != 17 {
+	if docker[0].ID != "docker-container-census" || docker[0].Number != 20 {
 		t.Fatalf("docker track = %#v", docker)
 	}
 
@@ -62,13 +62,13 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 	}
 	completedFirstCampaigns := make(map[string]bool)
 	for _, item := range linux {
-		if item.Number <= 16 {
+		if item.Number <= 19 {
 			completedFirstCampaigns[item.ID] = true
 		}
 	}
 	nextLinux, found := catalog.NextInTrack(TrackLinux, func(id string) bool { return completedFirstCampaigns[id] })
-	if !found || nextLinux.ID != "linux-vi-first-aid" || nextLinux.Number != 18 {
-		t.Fatalf("NextInTrack(linux) after Mission 16 = %#v, %v", nextLinux, found)
+	if !found || nextLinux.ID != "linux-runbook-runner" || nextLinux.Number != 26 {
+		t.Fatalf("NextInTrack(linux) after Mission 19 = %#v, %v", nextLinux, found)
 	}
 }
 
@@ -83,9 +83,10 @@ func TestAutomationShiftCurriculum(t *testing.T) {
 		difficulty string
 		hints      int
 	}{
-		{id: "linux-vi-first-aid", number: 18, difficulty: "beginner", hints: 3},
-		{id: "linux-report-on-repeat", number: 19, difficulty: "intermediate", hints: 4},
-		{id: "linux-scope-creep", number: 20, difficulty: "advanced", hints: 5},
+		{id: "linux-runbook-runner", number: 26, difficulty: "beginner", hints: 3},
+		{id: "linux-vi-first-aid", number: 27, difficulty: "beginner", hints: 3},
+		{id: "linux-report-on-repeat", number: 28, difficulty: "intermediate", hints: 4},
+		{id: "linux-scope-creep", number: 29, difficulty: "advanced", hints: 5},
 	}
 	for _, want := range wants {
 		item, found := catalog.Find(want.id)
@@ -132,10 +133,37 @@ func TestRebalancedLinuxCurriculumMetadata(t *testing.T) {
 	items := catalog.InTrack(TrackLinux)
 	for _, item := range items {
 		switch {
-		case item.Number >= 1 && item.Number <= 5 && item.Campaign != "First Day":
+		case item.Number >= 1 && item.Number <= 6 && item.Campaign != "First Day":
 			t.Errorf("World 1 mission %d campaign = %q, want First Day", item.Number, item.Campaign)
-		case item.Number >= 6 && item.Number <= 10 && item.Campaign != "The Logpocalypse":
+		case item.Number >= 7 && item.Number <= 12 && item.Campaign != "The Logpocalypse":
 			t.Errorf("World 2 mission %d campaign = %q, want The Logpocalypse", item.Number, item.Campaign)
+		}
+	}
+}
+
+func TestBeginnerLinuxExpansionMetadata(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := []struct {
+		id       string
+		number   int
+		campaign string
+	}{
+		{id: "linux-read-handoff", number: 3, campaign: "First Day"},
+		{id: "linux-log-preview", number: 9, campaign: "The Logpocalypse"},
+		{id: "linux-error-headcount", number: 14, campaign: "Production Friday"},
+		{id: "linux-runbook-runner", number: 26, campaign: "The Automation Shift"},
+	}
+	for _, want := range wants {
+		item, found := catalog.Find(want.id)
+		if !found {
+			t.Errorf("mission %q missing", want.id)
+			continue
+		}
+		if item.Number != want.number || item.Campaign != want.campaign || item.Difficulty != DifficultyBeginner || len(item.Hints) != 3 {
+			t.Errorf("mission %q metadata = number %d, campaign %q, difficulty %q, hints %d", item.ID, item.Number, item.Campaign, item.Difficulty, len(item.Hints))
 		}
 	}
 }
@@ -160,6 +188,35 @@ func TestContainerCensusUsesTypedDockerSetup(t *testing.T) {
 	}
 	if len(item.Validation.All) != 3 || item.Validation.All[2].Count == nil || *item.Validation.All[2].Count != 2 {
 		t.Fatalf("docker validation = %#v", item.Validation.All)
+	}
+}
+
+func TestExpandedDockerCurriculumMetadata(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := []string{
+		"docker-container-census",
+		"docker-last-broadcast",
+		"docker-exit-code-detective",
+		"docker-quiet-worker",
+		"docker-recovery-pair",
+		"docker-shift-handoff",
+	}
+	for index, id := range wants {
+		item, found := catalog.Find(id)
+		if !found {
+			t.Errorf("Docker mission %q missing", id)
+			continue
+		}
+		if item.Number != 20+index || item.Campaign != "It Works on My Machine" || item.Difficulty != DifficultyBeginner {
+			t.Errorf("Docker mission %q metadata = number %d, campaign %q, difficulty %q", id, item.Number, item.Campaign, item.Difficulty)
+		}
+	}
+	diagnostic, _ := catalog.Find("docker-last-broadcast")
+	if diagnostic.Docker == nil || len(diagnostic.Docker.Containers) != 1 || diagnostic.Docker.Containers[0].Log == "" || diagnostic.Docker.Containers[0].ExitCode == nil || *diagnostic.Docker.Containers[0].ExitCode != 78 {
+		t.Fatalf("diagnostic Docker setup = %#v", diagnostic.Docker)
 	}
 }
 
@@ -219,9 +276,76 @@ func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 			wantErr: "unknown state",
 		},
 		{
+			name: "diagnostic log without exit code",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[0].Log = "diagnostic"
+			},
+			wantErr: "requires both log and exit_code",
+		},
+		{
+			name: "diagnostic exit code without log",
+			mutate: func(item *Mission) {
+				exitCode := 1
+				item.Docker.Containers[0].ExitCode = &exitCode
+			},
+			wantErr: "requires both log and exit_code",
+		},
+		{
+			name: "diagnostic exit code outside range",
+			mutate: func(item *Mission) {
+				exitCode := 256
+				item.Docker.Containers[0].Log = "diagnostic"
+				item.Docker.Containers[0].ExitCode = &exitCode
+			},
+			wantErr: "between 0 and 255",
+		},
+		{
+			name: "diagnostic negative exit code",
+			mutate: func(item *Mission) {
+				exitCode := -1
+				item.Docker.Containers[0].Log = "diagnostic"
+				item.Docker.Containers[0].ExitCode = &exitCode
+			},
+			wantErr: "between 0 and 255",
+		},
+		{
+			name: "diagnostic log too large",
+			mutate: func(item *Mission) {
+				exitCode := 1
+				item.Docker.Containers[0].Log = strings.Repeat("x", maxDockerFixtureLogBytes+1)
+				item.Docker.Containers[0].ExitCode = &exitCode
+			},
+			wantErr: "log exceeds",
+		},
+		{
+			name: "diagnostic log contains NUL",
+			mutate: func(item *Mission) {
+				exitCode := 1
+				item.Docker.Containers[0].Log = "bad\x00log"
+				item.Docker.Containers[0].ExitCode = &exitCode
+			},
+			wantErr: "cannot contain NUL",
+		},
+		{
+			name: "diagnostic fixture declared running",
+			mutate: func(item *Mission) {
+				exitCode := 0
+				item.Docker.Containers[1].Log = "complete"
+				item.Docker.Containers[1].ExitCode = &exitCode
+			},
+			wantErr: "must use stopped state",
+		},
+		{
 			name: "unknown validation container",
 			mutate: func(item *Mission) {
 				item.Validation.All[0].Container = "missing"
+			},
+			wantErr: "unknown docker container",
+		},
+		{
+			name: "unknown stopped validation container",
+			mutate: func(item *Mission) {
+				item.Validation.All[0] = Condition{Type: ConditionDockerContainerStopped, Container: "missing"}
 			},
 			wantErr: "unknown docker container",
 		},
@@ -441,35 +565,42 @@ func TestCatalogResultsCannotMutateCatalogState(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	archive, _ := catalog.Find("9")
+	archive, _ := catalog.Find("linux-archive-rescue")
 	archive.SuggestedCommands[0] = "changed"
 	archive.Hints[0] = "changed"
 	archive.Setup.Archives[0].Entries[0].Content = "changed"
-	archiveAgain, _ := catalog.Find("9")
+	archiveAgain, _ := catalog.Find("linux-archive-rescue")
 	if archiveAgain.SuggestedCommands[0] == "changed" || archiveAgain.Hints[0] == "changed" || archiveAgain.Setup.Archives[0].Entries[0].Content == "changed" {
 		t.Fatal("Find returned catalog-owned teaching or archive storage")
 	}
 
-	lines, _ := catalog.Find("12")
+	lines, _ := catalog.Find("linux-alert-counts")
 	lines.Validation.All[0].Values[0] = "changed"
-	linesAgain, _ := catalog.Find("12")
+	linesAgain, _ := catalog.Find("linux-alert-counts")
 	if linesAgain.Validation.All[0].Values[0] == "changed" {
 		t.Fatal("Find returned catalog-owned validation values")
 	}
 
-	environment, _ := catalog.Find("7")
+	environment, _ := catalog.Find("linux-environment")
 	environment.Setup.Environment["DEPLOY_ENV"] = "changed"
-	environmentAgain, _ := catalog.Find("7")
+	environmentAgain, _ := catalog.Find("linux-environment")
 	if environmentAgain.Setup.Environment["DEPLOY_ENV"] == "changed" {
 		t.Fatal("Find returned catalog-owned environment storage")
 	}
 
-	docker, _ := catalog.Find("17")
+	docker, _ := catalog.Find("docker-container-census")
 	docker.Docker.Images[0].Alias = "changed"
 	*docker.Validation.All[2].Count = 99
-	dockerAgain, _ := catalog.Find("17")
+	dockerAgain, _ := catalog.Find("docker-container-census")
 	if dockerAgain.Docker.Images[0].Alias == "changed" || *dockerAgain.Validation.All[2].Count == 99 {
 		t.Fatal("Find returned catalog-owned Docker or count storage")
+	}
+
+	diagnostic, _ := catalog.Find("docker-last-broadcast")
+	*diagnostic.Docker.Containers[0].ExitCode = 1
+	diagnosticAgain, _ := catalog.Find("docker-last-broadcast")
+	if *diagnosticAgain.Docker.Containers[0].ExitCode != 78 {
+		t.Fatal("Find returned catalog-owned Docker exit-code storage")
 	}
 
 	items := catalog.All()
@@ -490,19 +621,20 @@ func TestCatalogTrackBoundariesAndAdjacency(t *testing.T) {
 		t.Fatalf("FirstInTrack(linux) = %#v, %v", first, found)
 	}
 	last, found := catalog.LastInTrack(TrackLinux)
-	if !found || last.Number != 20 {
+	if !found || last.Number != 29 {
 		t.Fatalf("LastInTrack(linux) = %#v, %v", last, found)
 	}
 	next, found := catalog.AdjacentInTrack("linux-production-friday", 1)
-	if !found || next.ID != "linux-vi-first-aid" {
-		t.Fatalf("AdjacentInTrack(after 16) = %#v, %v", next, found)
+	if !found || next.ID != "linux-runbook-runner" {
+		t.Fatalf("AdjacentInTrack(after 19) = %#v, %v", next, found)
 	}
-	previous, found := catalog.AdjacentInTrack("linux-vi-first-aid", -1)
+	previous, found := catalog.AdjacentInTrack("linux-runbook-runner", -1)
 	if !found || previous.ID != "linux-production-friday" {
-		t.Fatalf("AdjacentInTrack(before 18) = %#v, %v", previous, found)
+		t.Fatalf("AdjacentInTrack(before 26) = %#v, %v", previous, found)
 	}
-	if _, found := catalog.AdjacentInTrack("docker-container-census", 1); found {
-		t.Fatal("single-mission Docker track has a next mission")
+	nextDocker, found := catalog.AdjacentInTrack("docker-container-census", 1)
+	if !found || nextDocker.ID != "docker-last-broadcast" {
+		t.Fatalf("AdjacentInTrack(after Docker mission 20) = %#v, %v", nextDocker, found)
 	}
 	if _, found := catalog.AdjacentInTrack("missing", 1); found {
 		t.Fatal("unknown mission has an adjacent mission")
@@ -534,7 +666,7 @@ func TestMissionValidationRejectsUnsafeArchiveEntries(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	item, found := catalog.Find("9")
+	item, found := catalog.Find("linux-archive-rescue")
 	if !found {
 		t.Fatal("archive mission missing")
 	}

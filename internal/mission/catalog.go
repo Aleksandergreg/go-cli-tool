@@ -106,6 +106,7 @@ var (
 const (
 	maxDockerImagesPerMission     = 16
 	maxDockerContainersPerMission = 32
+	maxDockerFixtureLogBytes      = 8 * 1024
 )
 
 // ValidDockerLogicalName reports whether value is safe to use as a stable
@@ -211,7 +212,7 @@ func validateMission(item Mission) error {
 		if err := validateCondition(condition, environment); err != nil {
 			return fmt.Errorf("validation condition %d: %w", index+1, err)
 		}
-		if condition.Type == ConditionDockerContainerRunning && !dockerSetupHasContainer(item.Docker, condition.Container) {
+		if (condition.Type == ConditionDockerContainerRunning || condition.Type == ConditionDockerContainerStopped) && !dockerSetupHasContainer(item.Docker, condition.Container) {
 			return fmt.Errorf("validation condition %d: unknown docker container %q", index+1, condition.Container)
 		}
 	}
@@ -266,6 +267,24 @@ func ValidateDockerSetup(setup DockerSetup) error {
 		case DockerStateRunning, DockerStateStopped:
 		default:
 			return fmt.Errorf("docker container %q has unknown state %q", container.Name, container.State)
+		}
+		hasDiagnostic := container.Log != "" || container.ExitCode != nil
+		if hasDiagnostic {
+			if container.Log == "" || container.ExitCode == nil {
+				return fmt.Errorf("docker container %q diagnostic fixture requires both log and exit_code", container.Name)
+			}
+			if len(container.Log) > maxDockerFixtureLogBytes {
+				return fmt.Errorf("docker container %q log exceeds the %d-byte limit", container.Name, maxDockerFixtureLogBytes)
+			}
+			if strings.ContainsRune(container.Log, 0) {
+				return fmt.Errorf("docker container %q log cannot contain NUL", container.Name)
+			}
+			if *container.ExitCode < 0 || *container.ExitCode > 255 {
+				return fmt.Errorf("docker container %q exit_code must be between 0 and 255", container.Name)
+			}
+			if container.State != DockerStateStopped {
+				return fmt.Errorf("docker container %q diagnostic fixture must use stopped state", container.Name)
+			}
 		}
 		containers[container.Name] = true
 	}
@@ -410,6 +429,7 @@ var allowedConditionFields = map[ConditionType]conditionFields{
 	ConditionProcessRunning:            conditionPID,
 	ConditionEnvironmentEquals:         conditionValue,
 	ConditionDockerContainerRunning:    conditionContainer,
+	ConditionDockerContainerStopped:    conditionContainer,
 	ConditionDockerContainerCountEqual: conditionCount,
 }
 
@@ -506,9 +526,9 @@ func validateCondition(condition Condition, environment string) error {
 		if !found || !variablePattern.MatchString(name) {
 			return fmt.Errorf("value must be NAME=value")
 		}
-	case ConditionDockerContainerRunning:
+	case ConditionDockerContainerRunning, ConditionDockerContainerStopped:
 		if environment != EnvironmentDocker {
-			return fmt.Errorf("docker_container_running requires a docker environment")
+			return fmt.Errorf("%s requires a docker environment", condition.Type)
 		}
 		if !ValidDockerLogicalName(condition.Container) {
 			return fmt.Errorf("container %q must be a lowercase logical name", condition.Container)
@@ -662,6 +682,12 @@ func cloneMission(item Mission) Mission {
 		dockerSetup := *item.Docker
 		dockerSetup.Images = slices.Clone(item.Docker.Images)
 		dockerSetup.Containers = slices.Clone(item.Docker.Containers)
+		for index, container := range dockerSetup.Containers {
+			if container.ExitCode != nil {
+				exitCode := *container.ExitCode
+				dockerSetup.Containers[index].ExitCode = &exitCode
+			}
+		}
 		cloned.Docker = &dockerSetup
 	}
 	cloned.Validation.All = make([]Condition, len(item.Validation.All))

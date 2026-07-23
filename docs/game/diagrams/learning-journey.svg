@@ -1,7 +1,7 @@
 <!-- Rendered export; edit the matching Excalidraw source. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="860" viewBox="0 0 1500 860" role="img" aria-labelledby="title desc">
   <title id="title">OpsQuest learning journey</title>
-  <desc id="desc">Two-lane curriculum overview showing four Linux worlds with nineteen missions and one independent optional Docker Foundations world.</desc>
+  <desc id="desc">Two-lane curriculum overview showing four Linux worlds with twenty-three missions and one independent six-mission Docker Foundations world.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#2563eb"/></marker>
     <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#7c3aed"/></marker>
@@ -16,7 +16,7 @@
   <text x="55" y="88" class="subtitle">Top-level mission numbers stay global; in-lab numeric jumps use current-world stages.</text>
 
   <rect x="45" y="125" width="1410" height="405" rx="25" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
-  <text x="72" y="158" class="lane" fill="#1d4ed8">LINUX TRACK · 19 MISSIONS · DEFAULT</text>
+  <text x="72" y="158" class="lane" fill="#1d4ed8">LINUX TRACK · 23 MISSIONS · DEFAULT</text>
 
   <line x1="360" y1="310" x2="425" y2="310" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
   <text x="395" y="292" text-anchor="middle" class="step">modify</text>
@@ -30,7 +30,7 @@
     <rect x="85" y="195" width="275" height="54" rx="20" fill="#dbeafe"/><path d="M85 229 h275 v20 h-275z" fill="#dbeafe"/>
     <text x="110" y="229" class="world" fill="#172554">World 1</text>
     <text x="110" y="278" class="campaign" fill="#1e3a8a">First Day</text>
-    <text x="110" y="305" class="body" fill="#475569">Missions 1–5 · 5 beginner stages</text>
+    <text x="110" y="305" class="body" fill="#475569">Missions 1–6 · 6 beginner stages</text>
     <rect x="110" y="329" width="88" height="25" rx="12" fill="#dcfce7"/><text x="154" y="346" text-anchor="middle" class="tag" fill="#166534">ORIENT</text>
     <text x="110" y="384" class="body" fill="#334155">• location and navigation</text>
     <text x="110" y="410" class="body" fill="#334155">• directories and files</text>
@@ -41,7 +41,7 @@
     <rect x="415" y="195" width="275" height="54" rx="20" fill="#dbeafe"/><path d="M415 229 h275 v20 h-275z" fill="#dbeafe"/>
     <text x="440" y="229" class="world" fill="#172554">World 2</text>
     <text x="440" y="278" class="campaign" fill="#1e3a8a">The Logpocalypse</text>
-    <text x="440" y="305" class="body" fill="#475569">Missions 6–10 · beginner → advanced</text>
+    <text x="440" y="305" class="body" fill="#475569">Missions 7–12 · beginner → advanced</text>
     <rect x="440" y="329" width="88" height="25" rx="12" fill="#fef3c7"/><text x="484" y="346" text-anchor="middle" class="tag" fill="#92400e">CONTROL</text>
     <text x="440" y="384" class="body" fill="#334155">• permissions and environment</text>
     <text x="440" y="410" class="body" fill="#334155">• processes and archives</text>
@@ -52,7 +52,7 @@
     <rect x="745" y="195" width="275" height="54" rx="20" fill="#dbeafe"/><path d="M745 229 h275 v20 h-275z" fill="#dbeafe"/>
     <text x="770" y="229" class="world" fill="#172554">World 3</text>
     <text x="770" y="278" class="campaign" fill="#1e3a8a">Production Friday</text>
-    <text x="770" y="305" class="body" fill="#475569">Missions 11–16 · 6 escalating stages</text>
+    <text x="770" y="305" class="body" fill="#475569">Missions 13–19 · 7 escalating stages</text>
     <rect x="770" y="329" width="88" height="25" rx="12" fill="#fee2e2"/><text x="814" y="346" text-anchor="middle" class="tag" fill="#991b1b">RESPOND</text>
     <text x="770" y="384" class="body" fill="#334155">• logs and transformation</text>
     <text x="770" y="410" class="body" fill="#334155">• ownership and disk usage</text>
@@ -63,7 +63,7 @@
     <rect x="1075" y="195" width="300" height="54" rx="20" fill="#dbeafe"/><path d="M1075 229 h300 v20 h-300z" fill="#dbeafe"/>
     <text x="1100" y="229" class="world" fill="#172554">World 4</text>
     <text x="1100" y="278" class="campaign" fill="#1e3a8a">The Automation Shift</text>
-    <text x="1100" y="305" class="body" fill="#475569">Missions 18–20 · beginner → advanced</text>
+    <text x="1100" y="305" class="body" fill="#475569">Missions 26–29 · beginner → advanced</text>
     <rect x="1100" y="329" width="98" height="25" rx="12" fill="#ede9fe"/><text x="1149" y="346" text-anchor="middle" class="tag" fill="#5b21b6">AUTOMATE</text>
     <text x="1100" y="384" class="body" fill="#334155">• modal editing</text>
     <text x="1100" y="410" class="body" fill="#334155">• executable shell scripts</text>
@@ -76,14 +76,14 @@
     <rect x="90" y="625" width="390" height="125" rx="20" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
     <text x="120" y="660" class="world" fill="#4c1d95">Docker World 1</text>
     <text x="120" y="690" class="campaign" fill="#5b21b6">It Works on My Machine</text>
-    <text x="120" y="719" class="body" fill="#475569">Mission 17 · list, inspect, and start owned fixtures</text>
+    <text x="120" y="719" class="body" fill="#475569">Missions 20–25 · six beginner lifecycle and diagnostic stages</text>
   </g>
   <path d="M510 687 H635" stroke="#7c3aed" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arrowPurple)"/>
   <g>
     <rect x="660" y="625" width="690" height="125" rx="20" fill="#ede9fe" stroke="#a78bfa" stroke-width="2" stroke-dasharray="7 5"/>
     <text x="690" y="660" class="campaign" fill="#4c1d95">Separate readiness and progress</text>
     <text x="690" y="690" class="body" fill="#5b21b6">Pinned local fixture · no automatic pull · Docker never blocks Linux</text>
-    <text x="690" y="718" class="body" fill="#5b21b6">The current curriculum intentionally begins with one bounded lifecycle mission.</text>
+    <text x="690" y="718" class="body" fill="#5b21b6">Typed list, logs, inspect, start, restart, and stop actions only.</text>
   </g>
 
   <rect x="55" y="812" width="245" height="28" rx="14" fill="#172554"/><text x="177" y="831" text-anchor="middle" class="tag" fill="#ffffff">OUTCOME-BASED VALIDATION</text>

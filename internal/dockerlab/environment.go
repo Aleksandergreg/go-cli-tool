@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -84,8 +85,17 @@ func (e *environment) Execute(ctx context.Context, line string) (game.Execution,
 			result.Output = action.alias + "\n"
 		}
 		result.PracticedCommands = []string{"docker"}
+	case actionStop:
+		err = e.stopContainer(ctx, action.alias)
+		if err == nil {
+			result.Output = action.alias + "\n"
+		}
+		result.PracticedCommands = []string{"docker"}
 	case actionInspect:
 		result.Output, err = e.logicalInspect(ctx, action.alias)
+		result.PracticedCommands = []string{"docker"}
+	case actionLogs:
+		result.Output, err = e.containerLogs(ctx, action.alias)
 		result.PracticedCommands = []string{"docker"}
 	default:
 		err = fmt.Errorf("unsupported Docker action")
@@ -105,6 +115,13 @@ func (e *environment) Observe(ctx context.Context, condition mission.Condition) 
 		}
 		inspection, exists, err := e.inspect(ctx, tracked.id)
 		return exists && inspection.State.Running, err
+	case mission.ConditionDockerContainerStopped:
+		tracked, exists := e.container(condition.Container)
+		if !exists {
+			return false, nil
+		}
+		inspection, exists, err := e.inspect(ctx, tracked.id)
+		return exists && !inspection.State.Running, err
 	case mission.ConditionDockerContainerCountEqual:
 		if condition.Count == nil {
 			return false, fmt.Errorf("docker_container_count_equals requires count")
@@ -214,9 +231,20 @@ func (e *environment) createContainer(ctx context.Context, index int, fixture mi
 		"--ulimit", "nofile=256:256",
 		"--restart", "no",
 		"--stop-timeout", "1",
-		"--entrypoint", "/bin/sleep",
-		reference,
-		"86400",
+	}
+	if fixture.ExitCode != nil {
+		args = append(args,
+			"--entrypoint", "/bin/sh",
+			reference,
+			"-c", `printf '%s\n' "$1"; exit "$2"`,
+			"opsquest-diagnostic", fixture.Log, strconv.Itoa(*fixture.ExitCode),
+		)
+	} else {
+		args = append(args,
+			"--entrypoint", "/bin/sleep",
+			reference,
+			"86400",
+		)
 	}
 	result, err := e.run(ctx, args...)
 	if err != nil {
@@ -281,6 +309,43 @@ func (e *environment) restartContainer(ctx context.Context, alias string) error 
 	return err
 }
 
+func (e *environment) stopContainer(ctx context.Context, alias string) error {
+	tracked, exists := e.container(alias)
+	if !exists {
+		return fmt.Errorf("docker: container %q is not part of this mission", alias)
+	}
+	_, err := e.run(ctx, "container", "stop", tracked.id)
+	return err
+}
+
+func (e *environment) waitContainer(ctx context.Context, alias string, expectedExitCode int) error {
+	tracked, exists := e.container(alias)
+	if !exists {
+		return fmt.Errorf("docker: container %q is not part of this mission", alias)
+	}
+	result, err := e.run(ctx, "container", "wait", tracked.id)
+	if err != nil {
+		return err
+	}
+	exitCode, err := strconv.Atoi(strings.TrimSpace(result.stdout))
+	if err != nil || exitCode != expectedExitCode {
+		return fmt.Errorf("Docker fixture %s exited with unexpected status %q", alias, strings.TrimSpace(result.stdout))
+	}
+	return nil
+}
+
+func (e *environment) containerLogs(ctx context.Context, alias string) (string, error) {
+	tracked, exists := e.container(alias)
+	if !exists {
+		return "", fmt.Errorf("docker: container %q is not part of this mission", alias)
+	}
+	result, err := e.run(ctx, "container", "logs", tracked.id)
+	if err != nil {
+		return "", err
+	}
+	return result.stdout, nil
+}
+
 func (e *environment) listContainers(ctx context.Context, all bool) (string, error) {
 	var output strings.Builder
 	output.WriteString("CONTAINER ID  IMAGE     STATUS   NAMES\n")
@@ -322,12 +387,14 @@ func (e *environment) logicalInspect(ctx context.Context, alias string) (string,
 		Name  string `json:"Name"`
 		Image string `json:"Image"`
 		State struct {
-			Running bool   `json:"Running"`
-			Status  string `json:"Status"`
+			Running  bool   `json:"Running"`
+			Status   string `json:"Status"`
+			ExitCode int    `json:"ExitCode"`
 		} `json:"State"`
 	}{ID: tracked.logicalID, Name: tracked.alias, Image: tracked.imageAlias}
 	logical.State.Running = inspection.State.Running
 	logical.State.Status = inspection.State.Status
+	logical.State.ExitCode = inspection.State.ExitCode
 	encoded, err := json.MarshalIndent(logical, "", "  ")
 	if err != nil {
 		return "", err
@@ -341,8 +408,9 @@ type containerInspection struct {
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
 	State struct {
-		Running bool   `json:"Running"`
-		Status  string `json:"Status"`
+		Running  bool   `json:"Running"`
+		Status   string `json:"Status"`
+		ExitCode int    `json:"ExitCode"`
 	} `json:"State"`
 }
 
@@ -457,7 +525,7 @@ func (dockerCompletion) CommandNames() []string {
 }
 
 func (c dockerCompletion) PathCandidates(prefix string) []game.CompletionCandidate {
-	values := []string{"--all", "-a", "container", "inspect", "ls", "ps", "restart", "start"}
+	values := []string{"--all", "-a", "container", "inspect", "logs", "ls", "ps", "restart", "start", "stop"}
 	for _, tracked := range c.environment.snapshotContainers() {
 		values = append(values, tracked.alias)
 	}

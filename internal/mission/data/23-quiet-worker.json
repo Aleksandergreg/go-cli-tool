@@ -1,0 +1,38 @@
+{
+  "id": "docker-quiet-worker",
+  "number": 23,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Quiet the Worker",
+  "campaign": "It Works on My Machine",
+  "difficulty": "beginner",
+  "story": "A noisy worker is consuming a queue reserved for maintenance. Metrics is healthy and must keep reporting while the worker is paused.",
+  "objective": "Stop the existing worker container, keep metrics running, and leave exactly two mission containers.",
+  "suggested_commands": ["docker"],
+  "hints": [
+    "docker ps shows the currently running mission containers.",
+    "docker stop changes an existing container from running to stopped.",
+    "Try: docker stop worker"
+  ],
+  "explanation": "Stopping a container ends its current process without deleting the container. Targeting the specific alias protects unrelated healthy services.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {"name": "worker", "image": "fixture", "state": "running"},
+      {"name": "metrics", "image": "fixture", "state": "running"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "docker_container_stopped", "container": "worker"},
+      {"type": "docker_container_running", "container": "metrics"},
+      {"type": "docker_container_count_equals", "count": 2}
+    ]
+  },
+  "rewards": {"xp": 60, "hint_penalty": 10}
+}

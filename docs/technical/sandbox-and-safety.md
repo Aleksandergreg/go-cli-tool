@@ -98,13 +98,13 @@ Docker missions are opt-in and follow a narrower path:
 1. The mission catalog accepts only pinned image references and bounded logical fixtures.
 2. Availability checks the Docker executable, active Docker-compatible engine, and exact local image without creating resources or pulling images. An active `orbstack` context is identified for provider-specific guidance only.
 3. The factory generates a random session ID and creates containers with generated names and five ownership labels.
-4. Player text is parsed into `list`, `start`, `restart`, `inspect`, or `help`; flags and aliases must match the small grammar.
+4. Player text is parsed into `list`, `start`, `restart`, `stop`, `inspect`, `logs`, or `help`; flags and aliases must match the small grammar.
 5. The adapter resolves a validated logical alias to a tracked exact container ID.
 6. `exec.CommandContext` receives fixed arguments constructed by the adapter.
 7. Observations inspect exact IDs or enumerate by the session label, then verify the complete ownership-label set.
 8. `Close` seals the attempt immediately, re-inspects ownership, removes only matching exact IDs, and retains unresolved resources for a retry.
 
-Created containers use no network, a read-only root filesystem, a bounded temporary filesystem, an unprivileged numeric user, no Linux capabilities, `no-new-privileges`, and explicit PID, memory, CPU, file-descriptor, restart, and stop-timeout limits. They do not receive host bind mounts, devices, privileged mode, host networking, or a Docker socket.
+Created containers use no network, a read-only root filesystem, a bounded temporary filesystem, an unprivileged numeric user, no Linux capabilities, `no-new-privileges`, and explicit PID, memory, CPU, file-descriptor, restart, and stop-timeout limits. Diagnostic fixtures use a fixed shell program; bounded log text and exit status are passed as data arguments rather than interpolated into that program. Containers do not receive host bind mounts, devices, privileged mode, host networking, or a Docker socket.
 
 Docker-specific ceilings include:
 
@@ -113,6 +113,7 @@ Docker-specific ceilings include:
 | Player Docker line | 64 KiB |
 | Images per mission | 16 |
 | Containers per mission | 32 |
+| Declarative diagnostic log per container | 8 KiB |
 | Captured Docker stdout and stderr | 2 MiB each |
 | Normal Docker operation | 10 seconds |
 | Cleanup attempt | 10 seconds |

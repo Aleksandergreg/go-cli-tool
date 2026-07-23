@@ -25,5 +25,6 @@ Iteration reports preserve point-in-time delivery claims and observed validation
 | [13](iterations/iteration-13.md) | Onboarding and world-aware progression |
 | [14](iterations/iteration-14.md) | Hosted Zensical documentation and GitHub Pages delivery |
 | [15](iterations/iteration-15.md) | Behavior-preserving non-Docker codebase simplification |
+| [16](iterations/iteration-16.md) | Beginner Linux and Docker mission expansion |
 
 New reports use the supplied iteration template and a zero-padded `iteration-NN.md` filename.

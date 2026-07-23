@@ -122,7 +122,7 @@ func TestSessionRejectsMissingCoreDependencies(t *testing.T) {
 }
 
 func TestObjectiveRecallsSuggestedCommandsWithoutUsingHint(t *testing.T) {
-	catalog, item := seamCatalogMission(t, "4")
+	catalog, item := seamCatalogMission(t, "linux-find-logs")
 	player := profile.New("tester")
 	out := &bytes.Buffer{}
 	session := Session{
@@ -223,8 +223,8 @@ func TestSessionUsesFactoryContextAndClosesBeforeAwardingXP(t *testing.T) {
 
 func TestSessionClosesEnvironmentOnEveryTerminalPath(t *testing.T) {
 	catalog, first := seamCatalogMission(t, "1")
-	_, worldTwoFirst := seamCatalogMission(t, "6")
-	_, stateMission := seamCatalogMission(t, "3")
+	_, worldTwoFirst := seamCatalogMission(t, "linux-permissions")
+	_, stateMission := seamCatalogMission(t, "linux-workspace")
 	readFailure := errors.New("read failed")
 	observeFailure := errors.New("observe failed")
 
@@ -242,7 +242,7 @@ func TestSessionClosesEnvironmentOnEveryTerminalPath(t *testing.T) {
 		{name: "quit", item: first, reader: &seamReader{lines: []string{"quit"}}, wantQuit: true},
 		{name: "EOF", item: first, reader: &seamReader{}, wantQuit: true},
 		{name: "switch", item: first, reader: &seamReader{lines: []string{"next"}}, wantSwitch: "linux-config-crawl"},
-		{name: "stage switch", item: worldTwoFirst, reader: &seamReader{lines: []string{"play 3"}}, wantSwitch: "linux-runaway"},
+		{name: "stage switch", item: worldTwoFirst, reader: &seamReader{lines: []string{"play 4"}}, wantSwitch: "linux-runaway"},
 		{name: "world switch", item: first, reader: &seamReader{lines: []string{"world 2"}}, wantSwitch: "linux-permissions", wantWorld: 2},
 		{name: "read error", item: first, reader: &seamReader{endErr: readFailure}, wantErrIs: readFailure},
 		{
@@ -436,7 +436,7 @@ func TestDeferredCleanupFailureIsReturnedOnce(t *testing.T) {
 }
 
 func TestSandboxEnvironmentPreservesInteractiveVi(t *testing.T) {
-	_, item := seamCatalogMission(t, "13")
+	_, item := seamCatalogMission(t, "linux-config-surgery")
 	environment, err := (SandboxFactory{}).Create(context.Background(), item)
 	if err != nil {
 		t.Fatal(err)
@@ -480,7 +480,7 @@ func (f unavailableFactory) Availability(context.Context, mission.Mission) Avail
 
 func TestEnvironmentAvailabilityIsOptionalAndNonMutating(t *testing.T) {
 	_, simulated := seamCatalogMission(t, "1")
-	_, docker := seamCatalogMission(t, "17")
+	_, docker := seamCatalogMission(t, "docker-container-census")
 	plainFactory := FactoryFunc(func(context.Context, mission.Mission) (Environment, error) {
 		t.Fatal("availability unexpectedly created an environment")
 		return nil, nil

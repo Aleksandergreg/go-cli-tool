@@ -1,0 +1,31 @@
+{
+  "id": "linux-log-preview",
+  "number": 9,
+  "title": "Opening Lines",
+  "campaign": "The Logpocalypse",
+  "difficulty": "beginner",
+  "story": "The ledger service failed during startup. Before chasing its final complaint, the team wants the first three lines that describe how the launch began.",
+  "objective": "Print exactly the first three lines of /var/log/ledger/startup.log.",
+  "start_dir": "/var/log/ledger",
+  "suggested_commands": ["cat", "head"],
+  "hints": [
+    "head reads from the beginning of a file.",
+    "The -n option controls how many lines are printed.",
+    "Try: head -n 3 startup.log"
+  ],
+  "explanation": "head keeps an initial log inspection focused. It is useful for finding startup context without printing an entire large file.",
+  "setup": {
+    "directories": [
+      {"path": "/var/log/ledger"}
+    ],
+    "files": [
+      {"path": "/var/log/ledger/startup.log", "content": "08:00 INFO ledger starting\n08:00 INFO loading configuration\n08:01 INFO connecting to database\n08:01 WARN retrying connection\n08:02 ERROR startup timed out\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_equals", "value": "08:00 INFO ledger starting\n08:00 INFO loading configuration\n08:01 INFO connecting to database"}
+    ]
+  },
+  "rewards": {"xp": 55, "hint_penalty": 10}
+}

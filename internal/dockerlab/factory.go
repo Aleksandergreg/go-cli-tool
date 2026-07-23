@@ -115,6 +115,15 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 		}
 	}
 	for _, fixture := range item.Docker.Containers {
+		if fixture.ExitCode != nil {
+			if err := environment.startContainer(ctx, fixture.Name); err != nil {
+				return environment, joinSetupCleanupError(fmt.Errorf("start diagnostic Docker fixture %s: %w", fixture.Name, err), environment.Close())
+			}
+			if err := environment.waitContainer(ctx, fixture.Name, *fixture.ExitCode); err != nil {
+				return environment, joinSetupCleanupError(fmt.Errorf("wait for diagnostic Docker fixture %s: %w", fixture.Name, err), environment.Close())
+			}
+			continue
+		}
 		if fixture.State != mission.DockerStateRunning {
 			continue
 		}
