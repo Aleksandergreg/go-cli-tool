@@ -1,17 +1,49 @@
 ---
-description: Delivered foundations and forward-looking proposals for OpsQuest gameplay, infrastructure, and documentation.
-audience: contributors and maintainers
-status: current
+description: Forward-looking OpsQuest gameplay, distribution, and curriculum proposals that are not implemented.
+audience: players, contributors, and maintainers
+status: proposed
 ---
 
-# OpsQuest roadmap and proposals
+# Roadmap
 
-This section contains forward-looking documents. It is not a promise that every item will ship, and it is not the source of truth for current behavior. Every page states whether its foundation is delivered, work is in progress, or the document is only a proposal.
+This page records possible future work, not delivery promises or current
+behavior. Shipped behavior belongs in the player and technical guides.
 
-| Document | Status | Scope |
-| --- | --- | --- |
-| [Docker Foundations](docker-foundations.md) | First vertical slice delivered; later missions proposed | Optional Docker campaign increments and their safety boundary |
-| [CI/CD improvements](ci-cd.md) | Foundation delivered; follow-ups proposed | Release, security, dependency, and distribution automation |
-| [Hosted documentation](hosted-documentation.md) | Initial Zensical rollout implemented | Platform decision, information architecture, delivery, and follow-up checks |
+## Docker Foundations
 
-Once roadmap work ships, update the relevant [game](../game/README.md) or [technical](../technical/README.md) guide so current behavior has one canonical home.
+The current six-mission campaign intentionally supports only listing, logs,
+sanitized inspection, and bounded lifecycle actions for attempt-owned
+containers.
+
+Possible later increments include:
+
+- environment-aware container creation;
+- limited port publication;
+- bounded volumes and networking;
+- Dockerfile or Compose concepts;
+- more advanced outcome-based troubleshooting.
+
+Each expansion would widen the external-engine boundary. It requires its own
+parser contract, threat model, resource ownership rules, cleanup behavior, and
+real-engine integration coverage before becoming gameplay. Privileged mode,
+host bind mounts, host networking, devices, and Docker socket exposure remain
+out of scope.
+
+## Delivery and distribution
+
+Possible follow-ups include:
+
+- scheduled `govulncheck ./...` after its update behavior is understood;
+- artifact attestations for released archives;
+- opt-in scheduled Docker lifecycle testing;
+- signed checksums, macOS signing and notarization, or a Homebrew tap when
+  external binary distribution justifies their credentials and maintenance.
+
+## Curriculum and product ideas
+
+Longer-term ideas include external mission packs, streaks, efficiency medals,
+and generated daily incidents. Kubernetes remains future scope and would need
+an isolated disposable cluster plus a separate safety design.
+
+When a proposal ships, remove it from this page and update its canonical
+current guide in the same change.

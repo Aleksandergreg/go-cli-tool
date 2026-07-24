@@ -6,7 +6,8 @@ status: current
 
 # Quick start
 
-OpsQuest requires Go 1.22 or newer. Clone the repository, then start the recommended Linux route:
+OpsQuest requires Go 1.26 or newer when building from source. Clone the
+repository, then start the recommended Linux route:
 
 ```console
 $ go run ./cmd/opsquest play
@@ -52,7 +53,7 @@ $ opsquest doctor                # check catalog, profile, and Docker readiness
 
 ## Next steps
 
-- [How missions work](how-missions-work.md)
+- [Missions, hints, and progress](missions-and-progress.md)
 - [Controls and commands](controls-and-commands.md)
-- [Linux worlds](linux-worlds.md)
+- [Mission map](mission-map.md)
 - [Optional Docker setup](docker-foundations.md)

@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 4
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Fixed both UX issues.
 

@@ -7,13 +7,7 @@
   "packages": {
     ".": {
       "package-name": "opsquest",
-      "version-file": "internal/buildinfo/version.go",
-      "extra-files": [
-        {
-          "type": "generic",
-          "path": "initial_prompt.md"
-        }
-      ]
+      "version-file": "internal/buildinfo/version.go"
     }
   }
 }

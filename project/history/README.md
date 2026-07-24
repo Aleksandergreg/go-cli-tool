@@ -1,12 +1,8 @@
----
-description: Index of point-in-time OpsQuest iteration reports and their observed delivery evidence.
-audience: contributors and maintainers
-status: historical
----
-
 # OpsQuest delivery history
 
-Iteration reports preserve point-in-time delivery claims and observed validation. They are useful for understanding why the project evolved, but the [game](../game/README.md) and [technical](../technical/README.md) sections describe the current system.
+Iteration reports preserve point-in-time delivery claims and observed validation. They are useful for understanding why the project evolved, but the [public documentation](../../docs/README.md) and [repository README](../../README.md) describe the current system.
+
+This archive stays in the repository and is intentionally excluded from the Zensical site.
 
 | Iteration | Main focus |
 | ---: | --- |

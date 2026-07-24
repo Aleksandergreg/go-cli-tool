@@ -1,4 +1,4 @@
-<!-- Rendered export; edit the matching Excalidraw source. -->
+<!-- Rendered export for the player mission map; edit the matching Excalidraw source. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="860" viewBox="0 0 1500 860" role="img" aria-labelledby="title desc">
   <title id="title">OpsQuest learning journey</title>
   <desc id="desc">Two-lane curriculum overview showing four Linux worlds with twenty-three missions and one independent six-mission Docker Foundations world.</desc>
@@ -76,14 +76,14 @@
     <rect x="90" y="625" width="390" height="125" rx="20" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
     <text x="120" y="660" class="world" fill="#4c1d95">Docker World 1</text>
     <text x="120" y="690" class="campaign" fill="#5b21b6">It Works on My Machine</text>
-    <text x="120" y="719" class="body" fill="#475569">Missions 20–25 · six beginner lifecycle and diagnostic stages</text>
+    <text x="120" y="719" class="body" fill="#475569">Missions 20–25 · 6 beginner lifecycle and diagnostic stages</text>
   </g>
   <path d="M510 687 H635" stroke="#7c3aed" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arrowPurple)"/>
   <g>
     <rect x="660" y="625" width="690" height="125" rx="20" fill="#ede9fe" stroke="#a78bfa" stroke-width="2" stroke-dasharray="7 5"/>
     <text x="690" y="660" class="campaign" fill="#4c1d95">Separate readiness and progress</text>
     <text x="690" y="690" class="body" fill="#5b21b6">Pinned local fixture · no automatic pull · Docker never blocks Linux</text>
-    <text x="690" y="718" class="body" fill="#5b21b6">Typed list, logs, inspect, start, restart, and stop actions only.</text>
+    <text x="690" y="718" class="body" fill="#5b21b6">6 bounded missions · typed list, logs, inspect, and lifecycle actions only.</text>
   </g>
 
   <rect x="55" y="812" width="245" height="28" rx="14" fill="#172554"/><text x="177" y="831" text-anchor="middle" class="tag" fill="#ffffff">OUTCOME-BASED VALIDATION</text>

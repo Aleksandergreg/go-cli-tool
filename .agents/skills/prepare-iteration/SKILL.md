@@ -5,12 +5,12 @@ description: "Use when completing an OpsQuest iteration, release-sized milestone
 
 # Prepare an OpsQuest iteration
 
-Use [references/iteration-template.md](references/iteration-template.md) for the final `docs/history/iterations/iteration-NN.md`. The report is an evidence record, so include only commands and results actually observed.
+Use [references/iteration-template.md](references/iteration-template.md) for the final `project/history/iterations/iteration-NN.md`. The report is an evidence record, so include only commands and results actually observed.
 
 ## Workflow
 
 1. Establish the milestone boundary.
-   - Read the reports in `docs/history/iterations/`, README, `internal/cli/app.go`, and the milestone request.
+   - Read the reports in `project/history/iterations/`, README, `internal/cli/app.go`, and the milestone request.
    - Identify the next iteration number and intended version. Do not change version strings or roadmap claims unless the milestone requires it.
 
 2. Review the complete change set.
@@ -30,7 +30,7 @@ Use [references/iteration-template.md](references/iteration-template.md) for the
    - Use individual targets such as `make build` or `make smoke-test` only to isolate a failure or when the full target cannot run. Verify the built release binary with `./bin/opsquest version` when the version changes.
    - Record exact commands, exit results, and relevant observed output. Never infer that an unrun check passed because a related command succeeded.
 
-5. Write `docs/history/iterations/iteration-NN.md`.
+5. Write `project/history/iterations/iteration-NN.md`.
    - Summarize delivered user behavior, architecture or tooling changes, and tests without copying commit history.
    - Describe compatibility and safety considerations, including intentionally unchanged formats or boundaries.
    - List validation results actually observed and remaining work that is genuinely outside the iteration.

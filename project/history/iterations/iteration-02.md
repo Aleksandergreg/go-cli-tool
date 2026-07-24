@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 2
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 OpsQuest is now expanded to v0.2.0 with a clean working tree.
 

@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 8
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Implemented the first Docker Foundations vertical slice, including Mission 17 with progressive tool hints.
 
@@ -24,7 +24,7 @@ Key additions:
 - Linux Completionist and existing profile version remain compatible.
 - Signal-aware cleanup, ambiguous-create recovery, and an optional real-engine integration target.
 
-Primary implementation: [environment.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/environment.go#L49), [Docker environment](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/dockerlab/environment.go#L206), [Mission 17](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/mission/data/17-container-census.json#L6), and [current implementation brief](https://github.com/Aleksandergreg/go-cli-tool/blob/main/initial_prompt.md#L168).
+Primary implementation: [environment.go](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/environment.go#L49), [Docker environment](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/dockerlab/environment.go#L206), [Mission 17](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/mission/data/17-container-census.json#L6), and the [implementation brief at this iteration](https://github.com/Aleksandergreg/go-cli-tool/blob/f3dd3e6cb52c894ac887e69469998c21d03c16c0/initial_prompt.md#L168).
 
 Validation passed:
 

@@ -1,12 +1,39 @@
 ---
-description: OpsQuest mission JSON, embedded catalog loading, validation vocabulary, worlds, and compatibility rules.
+description: Author declarative OpsQuest missions with observable outcomes, strict catalog validation, and compatibility-safe identifiers.
 audience: mission authors and contributors
 status: current
 ---
 
-# Mission content model
+# Mission authoring
 
 Mission content is declarative JSON embedded into the OpsQuest binary from `internal/mission/data`. Go code owns parsing, validation, execution, and outcome observation; mission files describe one exercise.
+
+## Author around evidence
+
+A mission defines its initial world and the evidence of success. Validation
+should answer “what must now be true?” rather than “which command did the
+player type?”
+
+Good evidence includes:
+
+- a file exists at one path and no longer exists at another;
+- file content, mode, or owner matches the intended result;
+- a target process is stopped while a healthy process remains running;
+- output contains all relevant paths and excludes a distractor;
+- a report contains exactly the required logical lines;
+- an attempt-owned Docker container is in the required state.
+
+Avoid requiring one command name, argument order, or intermediate state when
+another supported solution demonstrates the same understanding.
+
+Before adding or moving a mission, answer:
+
+1. Which prior observations or command behaviors does it assume?
+2. What concept is introduced rather than merely repeated?
+3. Which observable outcomes prove the objective?
+4. Which equivalent supported solutions should remain valid?
+5. Where will the concept return with greater complexity?
+6. Can a player understand incomplete progress and restart safely?
 
 ## Mission shape
 
@@ -44,7 +71,10 @@ Catalog access is indexed by ID and number. Returned missions and worlds are dee
 
 Conditions cover output, working directory, path existence, file content and logical lines, modes, owners, process state, environment values, and bounded Docker container state. Docker fixtures may additionally declare a bounded log and exit code together for a stopped one-shot diagnostic job; container conditions can require either running or stopped state. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
 
-Validators describe evidence, not the command that must produce it. See [Outcome-based mission design](../game/mission-design.md) for the product rule.
+Suggested commands identify the intended tool family but do not constrain
+validation. One to five hints should progress from concept, through inspection
+strategy, toward concrete syntax. Difficulty should reflect reasoning and
+composition rather than missing documentation.
 
 ## Worlds and placement
 
@@ -60,4 +90,14 @@ Compatibility-sensitive mission data includes:
 
 Changing one requires explicit compatibility reasoning and canonical success plus incomplete-solution coverage.
 
-The implementation lives in [`internal/mission`](https://github.com/Aleksandergreg/go-cli-tool/tree/main/internal/mission). Use `$add-mission` for repository-specific authoring steps.
+## Required repository evidence
+
+Every mission change needs canonical success coverage plus an incomplete or
+incorrect solution. Catalog tests must continue rejecting malformed fields,
+unsafe paths, conflicting setup, unsupported validators, and incompatible
+environment data.
+
+The implementation lives in
+[`internal/mission`](https://github.com/Aleksandergreg/go-cli-tool/tree/main/internal/mission).
+Use the repository's `$add-mission` workflow for the complete authoring and
+validation sequence.

@@ -1,6 +1,6 @@
 # OpsQuest agent guide
 
-OpsQuest is a Go 1.22 CLI game with 23 in-memory Linux missions and six optional Docker Foundations labs. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. Kubernetes remains future scope unless a task explicitly adds it.
+OpsQuest is a Go 1.26 CLI game with 23 in-memory Linux missions and 6 optional Docker Foundations labs. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. Kubernetes remains future scope unless a task explicitly adds it.
 
 ## Repository map
 
@@ -14,10 +14,11 @@ OpsQuest is a Go 1.22 CLI game with 23 in-memory Linux missions and six optional
 - `internal/dockerlab`: optional Docker capability detection, typed teaching commands, isolated resource lifecycle, and Docker observations.
 - `internal/profile`: versioned profile model and atomic JSON persistence.
 - `scripts`: deterministic repository checks used by both Make and CI.
-- `docs/game`: current curriculum and learning-design documentation.
+- `docs/game`: learning principles and the high-level product explanation.
 - `docs/technical`: current architecture, safety, and implementation diagrams.
 - `docs/roadmap`: explicitly labeled proposals and unfinished improvements.
-- `docs/history/iterations`: observed delivery reports for completed product iterations.
+- `project/history/iterations`: repository-only delivery reports for completed product iterations.
+- `project/decisions`: implemented project decisions that should not appear on the public site.
 - `mkdocs.yml` and `.github/workflows/docs.yml`: pinned Zensical navigation, strict site validation, and GitHub Pages delivery.
 
 ## Working workflow
@@ -56,7 +57,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Normal local gate: `make check`.
 - Comprehensive gate, including race detection: `make check-all`.
 
-Update README command lists, mission counts, safety notes, or roadmap claims when behavior changes. Use `$prepare-iteration` for a release-sized milestone and base its `docs/history/iterations/iteration-NN.md` report on the supplied template.
+Update README command lists, mission counts, safety notes, or roadmap claims when behavior changes. Use `$prepare-iteration` for a release-sized milestone and base its `project/history/iterations/iteration-NN.md` report on the supplied template.
 
 ## Definition of done
 

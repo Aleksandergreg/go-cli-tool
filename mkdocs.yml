@@ -17,8 +17,8 @@ theme:
   language: en
   features:
     - navigation.instant
-    - navigation.sections
     - navigation.indexes
+    - navigation.path
     - navigation.top
     - toc.follow
     - content.action.edit
@@ -42,33 +42,25 @@ theme:
 
 nav:
   - Home: README.md
-  - Play OpsQuest:
-      - Overview: play/README.md
+  - Play:
+      - play/README.md
       - Quick start: play/quick-start.md
-      - How missions work: play/how-missions-work.md
+      - Missions, hints, and progress: play/missions-and-progress.md
       - Controls and commands: play/controls-and-commands.md
-      - Linux worlds: play/linux-worlds.md
+      - Mission map: play/mission-map.md
       - Docker Foundations: play/docker-foundations.md
-  - Game and learning:
-      - Overview: game/README.md
+  - How OpsQuest works:
+      - game/README.md
       - Learning philosophy: game/learning-philosophy.md
-      - Curriculum and mission map: game/curriculum.md
-      - Outcome-based mission design: game/mission-design.md
-      - Progression and rewards: game/progression.md
-  - Technical:
-      - Overview: technical/README.md
       - Architecture: technical/architecture.md
       - Sandbox and safety: technical/sandbox-and-safety.md
-      - Mission content model: technical/mission-content.md
-      - Profiles and compatibility: technical/profiles-and-compatibility.md
+  - Contribute:
+      - technical/README.md
       - Contributing and quality gates: technical/contributing.md
-      - Repository governance: technical/repository-governance.md
+      - Mission authoring: technical/mission-authoring.md
+      - Profiles and compatibility: technical/profiles-and-compatibility.md
   - Project:
-      - Roadmap: roadmap/README.md
-      - Hosted documentation: roadmap/hosted-documentation.md
-      - Docker Foundations roadmap: roadmap/docker-foundations.md
-      - CI/CD improvements: roadmap/ci-cd.md
-      - Delivery archive: history/README.md
+      - roadmap/README.md
       - Changelog: https://github.com/Aleksandergreg/go-cli-tool/blob/main/CHANGELOG.md
       - Releases: https://github.com/Aleksandergreg/go-cli-tool/releases
 

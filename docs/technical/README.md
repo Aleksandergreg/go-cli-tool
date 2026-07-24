@@ -1,20 +1,25 @@
 ---
-description: Maintainer-oriented map of OpsQuest architecture, safety, mission content, persistence, and contribution workflows.
+description: Contributor map for OpsQuest quality gates, mission authoring, profile compatibility, and repository workflows.
 audience: contributors and maintainers
 status: current
 ---
 
-# Technical documentation
+# Contribute
 
-OpsQuest separates product flow, declarative mission content, isolated execution, and durable player progress. These guides describe the implemented system; code and tests remain authoritative.
+Start with the repository
+[`AGENTS.md`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/AGENTS.md).
+It defines package boundaries, safety invariants, required validation, and the
+definition of done.
 
 ## Reading order
 
-1. [Architecture](architecture.md) maps packages, startup, mission attempts, and environment contracts.
-2. [Sandbox and safety](sandbox-and-safety.md) traces command execution, virtual state, quotas, Docker isolation, and threat controls.
-3. [Mission content model](mission-content.md) explains embedded JSON, catalog integrity, validators, and world derivation.
-4. [Profiles and compatibility](profiles-and-compatibility.md) covers durable progress, atomic storage, and sensitive identifiers.
-5. [Contributing and quality gates](contributing.md) maps common changes to repository workflows and validation.
-6. [Repository governance](repository-governance.md) documents GitHub rulesets, action policy, credentials, state, and the reviewed OpenTofu apply path.
+1. [Contributing and quality gates](contributing.md) maps changes to packages,
+   repository workflows, and validation commands.
+2. [Mission authoring](mission-authoring.md) explains declarative content,
+   observable outcomes, catalog integrity, and compatibility.
+3. [Profiles and compatibility](profiles-and-compatibility.md) covers durable
+   progress, atomic storage, migrations, and sensitive identifiers.
 
-Editable Mermaid and Excalidraw sources plus rendered SVGs live in [`diagrams/`](diagrams/). Each guide links to the diagrams it owns so visual material retains its implementation context.
+Implementation context remains available in [Architecture](architecture.md) and
+[Sandbox and safety](sandbox-and-safety.md). Code and tests remain
+authoritative.

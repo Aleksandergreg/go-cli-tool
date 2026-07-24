@@ -5,7 +5,7 @@ security controls, and branch/tag rulesets with OpenTofu. It intentionally
 contains no provider credential, backend credential, variable-value file, or
 state.
 
-Read the [repository governance runbook](../../docs/technical/repository-governance.md)
+Read the [repository governance runbook](GOVERNANCE.md)
 before planning or applying changes. In particular:
 
 - authenticate at runtime through `GITHUB_TOKEN`, GitHub App environment

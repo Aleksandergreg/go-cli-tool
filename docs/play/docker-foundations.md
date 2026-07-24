@@ -39,7 +39,7 @@ $ opsquest play --track docker
 
 ## Current lessons
 
-The six beginner missions cover a deliberately narrow operational loop:
+The 6 beginner missions cover a deliberately narrow operational loop:
 
 1. **Container Census** — list containers and start an existing stopped service.
 2. **Last Broadcast** — read bounded logs from an exited one-shot job.
@@ -56,4 +56,6 @@ OpsQuest generates unique names and ownership labels, maps player-visible aliase
 
 The selected Docker-compatible engine remains a powerful external dependency. OpsQuest constrains the lesson and cleanup scope; it does not present the engine itself as an untrusted-code security boundary.
 
-See [Sandbox and safety](../technical/sandbox-and-safety.md#docker-teaching-boundary) for the full lifecycle and [Docker Foundations roadmap](../roadmap/docker-foundations.md) for possible later lessons.
+See [Sandbox and safety](../technical/sandbox-and-safety.md#docker-teaching-boundary)
+for the full lifecycle and the [roadmap](../roadmap/README.md#docker-foundations)
+for possible later expansions.
