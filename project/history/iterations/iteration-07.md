@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 7
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Implemented all five improvements.
 

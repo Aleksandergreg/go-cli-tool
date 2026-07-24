@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 3
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Implemented the complete Codex development harness. The final local quality gate passes, no gameplay behavior changed, and the working tree is clean.
 

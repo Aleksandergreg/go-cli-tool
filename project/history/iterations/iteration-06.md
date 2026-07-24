@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 6
 
-> Historical audit. See the [documentation map](../../README.md) for current behavior.
+> Historical audit. See the [repository README](../../../README.md) for current behavior.
 
 Yes—there are worthwhile improvements, but I would not broadly rewrite the project. The current package structure is sensible for 16 missions. The best path is to fix several concrete correctness/resource issues, then introduce a narrow environment boundary before Docker work.
 

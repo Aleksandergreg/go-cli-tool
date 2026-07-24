@@ -1,10 +1,10 @@
 ---
-description: Complete map of current OpsQuest tracks, worlds, missions, suggested tools, and observable outcomes.
+description: Complete player map of OpsQuest tracks, worlds, missions, suggested tools, and observable outcomes.
 audience: players, educators, and mission authors
 status: current
 ---
 
-# OpsQuest curriculum
+# Mission map
 
 OpsQuest teaches operational problem-solving through incidents rather than isolated command drills. Missions provide a disposable environment, describe an observable goal, and accept any supported command sequence that produces the required outcome.
 
@@ -17,11 +17,28 @@ Editable source: [`learning-journey.excalidraw`](diagrams/learning-journey.excal
 The curriculum has two independent tracks:
 
 - **Linux:** 23 missions across four ordered worlds. Bare `opsquest play` follows this track.
-- **Docker:** six optional Foundations missions in one beginner world. Docker readiness never blocks Linux play.
+- **Docker:** 6 optional Foundations missions in one beginner world. Docker readiness never blocks Linux play.
 
 Display numbers are global across both tracks: Docker occupies Missions 20–25 and Linux World 4 resumes at Mission 26. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
 
-The [learning philosophy](learning-philosophy.md) explains the incident loop and feedback model. [Outcome-based mission design](mission-design.md) describes how validators preserve equivalent solutions.
+The [learning philosophy](../game/learning-philosophy.md) explains the incident
+loop and feedback model. [Mission authoring](../technical/mission-authoring.md)
+describes how validators preserve equivalent solutions.
+
+## Follow or explore the path
+
+```console
+$ opsquest play                 # resume Linux progress
+$ opsquest map                  # see every world and stage
+$ opsquest map --track docker   # see the optional Docker world
+$ opsquest play --world 3       # stay within Production Friday
+$ opsquest play 19              # begin at a global mission number
+$ opsquest play linux-find-logs # begin at a stable mission ID
+```
+
+Worlds recommend an order but do not lock content. Every mission remains
+directly playable and replayable. Use `--once` when you want one mission rather
+than continuous play.
 
 ## Current mission map
 
@@ -85,6 +102,8 @@ Docker Foundations progresses through listing, logs, sanitized exit status, targ
 
 The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, and beginner Docker lifecycle gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
 
-Read [Progression and rewards](progression.md) for route and persistence behavior, and [Outcome-based mission design](mission-design.md) for the authoring checklist.
+Read [Missions, hints, and progress](missions-and-progress.md) for route,
+reward, and persistence behavior, and [Mission authoring](../technical/mission-authoring.md)
+for the authoring checklist.
 
 Mission content and its canonical success/incomplete coverage live in [`internal/mission/data`](https://github.com/Aleksandergreg/go-cli-tool/tree/main/internal/mission/data) and [`internal/game/missions_test.go`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/missions_test.go). Use the repository's `$add-mission` skill when changing that content.

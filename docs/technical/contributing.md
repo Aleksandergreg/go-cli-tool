@@ -30,6 +30,7 @@ Use `$add-mission`, `$extend-sandbox-command`, or `$prepare-iteration` when the 
 | Mission catalog and canonical outcomes | `make validate-missions` |
 | Agent instructions and skill structure | `make check-agent-docs` |
 | Deterministic CLI path | `make smoke-test` |
+| Documentation consistency | `make check-docs` |
 | Ordinary repository gate | `make check` |
 | Comprehensive gate with race detection | `make check-all` |
 | Real Docker lifecycle | `make docker-integration` |
@@ -53,10 +54,15 @@ $ make docs-serve
 Before committing documentation changes:
 
 ```console
+$ make check-docs
 $ make docs-check
 ```
 
-The strict build validates internal pages and anchors and writes the static site to ignored `site/`. If a suitable Python is not installed, the official pinned container can run the same check:
+The dependency-free check validates navigation ownership, page metadata,
+mission counts, Go requirements, repository/site boundaries, and learning
+diagram facts. The strict Zensical build validates public pages and anchors and
+writes the static site to ignored `site/`. If a suitable Python is not
+installed, the official pinned container can run the same site check:
 
 ```console
 $ docker run --rm -v "$PWD:/docs" zensical/zensical:0.0.51 build --clean --strict
@@ -66,11 +72,15 @@ The Pages workflow runs the same Make target on documentation pull requests. Mer
 
 ## Documentation lifecycle
 
-- Put player instructions in `play/`.
-- Put learning and game-system explanations in `game/`.
-- Put implemented contracts and safety properties in `technical/`.
-- Put unfinished work in `roadmap/` with an explicit status.
-- Put point-in-time reports in `history/iterations/` and keep them out of primary search.
+- Put player instructions and the current mission map in `docs/play/`.
+- Put learning and system explanations in `docs/game/` or `docs/technical/`.
+- Put contributor workflows and compatibility contracts in `docs/technical/`.
+- Put only unfinished work in `docs/roadmap/` with an explicit status.
+- Put implemented decisions in `project/decisions/`.
+- Put point-in-time reports in `project/history/iterations/`; they are
+  repository records, not public site pages.
+- Keep infrastructure runbooks beside the infrastructure they operate.
+- List every public Markdown page explicitly in `mkdocs.yml`.
 - Update an editable diagram source and its matching SVG together.
 
 Review docs claims in the same pull request as the behavior they describe. Cross-link shared explanations instead of maintaining copies.

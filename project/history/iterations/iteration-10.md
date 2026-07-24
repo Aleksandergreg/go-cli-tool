@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 10
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Implemented a repository-wide architecture, safety, correctness, and performance refactor.
 
@@ -22,7 +22,7 @@ Key improvements:
 - Made archive extraction transactional and tightened `tar -C` semantics.
 - Hardened Docker cleanup for partial, ambiguous, and delayed container creation while retaining ownership-label verification.
 - Reduced long-line vi redraws to 44 allocations per operation.
-- Updated [README.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/README.md), [initial_prompt.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/initial_prompt.md), [AGENTS.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/AGENTS.md), skill guidance, smoke testing, and [iteration 9](iteration-09.md).
+- Updated [README.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/README.md), the [implementation brief at this iteration](https://github.com/Aleksandergreg/go-cli-tool/blob/1e0946574f55b6c4d7a737f61617a2fe8a1acee8/initial_prompt.md), [AGENTS.md](https://github.com/Aleksandergreg/go-cli-tool/blob/main/AGENTS.md), skill guidance, smoke testing, and [iteration 9](iteration-09.md).
 
 Validation observed:
 

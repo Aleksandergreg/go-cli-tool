@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 12
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Implemented Release Please, GoReleaser, and CodeQL without changing gameplay, mission data, profiles, or production Go dependencies.
 

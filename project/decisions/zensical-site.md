@@ -1,12 +1,9 @@
----
-description: Decision record and operating plan for the OpsQuest Zensical site on GitHub Pages.
-audience: contributors and maintainers
-status: implemented
----
+# Decision: host documentation with Zensical
 
-# Hosted documentation
-
-Status: the initial Zensical site, content split, strict build, and GitHub Pages workflow are implemented and live at [aleksandergreg.github.io/go-cli-tool](https://aleksandergreg.github.io/go-cli-tool/). Deployment runs from `main` through GitHub Actions.
+Status: the Zensical site, intent-based content split, strict build, and GitHub
+Pages workflow are implemented and live at
+[aleksandergreg.github.io/go-cli-tool](https://aleksandergreg.github.io/go-cli-tool/).
+Deployment runs from `main` through GitHub Actions.
 
 ## Recommendation
 
@@ -18,35 +15,36 @@ Use **Astro Starlight** instead if the priority changes from documentation-first
 
 ## Site information architecture
 
-The first release should optimize for three visitor questions: “How do I play?”, “What does the game teach?”, and “How does it stay safe?”
+The site optimizes for three visitor questions: “How do I play?”, “What does
+the game teach?”, and “How does it stay safe?”
 
 ```text
 Home
-├── Play OpsQuest
+├── Play
 │   ├── Quick start
-│   ├── How missions work
+│   ├── Missions, hints, and progress
 │   ├── Controls and teaching-shell commands
-│   ├── Linux worlds
-│   └── Optional Docker Foundations
-├── Game and learning
+│   ├── Mission map
+│   └── Docker Foundations
+├── How OpsQuest works
 │   ├── Learning philosophy
-│   ├── Curriculum and mission map
-│   ├── Outcome-based mission design
-│   └── Progression, hints, XP, and achievements
-├── Technical
 │   ├── Architecture
-│   ├── Mission runtime
-│   ├── Sandbox and safety
-│   ├── Mission schema and content model
-│   ├── Profiles and compatibility
-│   └── Contributing and quality gates
+│   └── Sandbox and safety
+├── Contribute
+│   ├── Contributing and quality gates
+│   ├── Mission authoring
+│   └── Profiles and compatibility
 └── Project
-    ├── Roadmap and future improvements
-    ├── Changelog and releases
-    └── Delivery archive
+    ├── Roadmap
+    ├── Changelog
+    └── Releases
 ```
 
-The public navigation does not need to mirror every repository directory. In particular, iteration reports should sit under a quiet archive page and be excluded from search if they start outranking current documentation. Roadmap pages must remain visibly labeled as proposals or partial delivery.
+The public navigation does not mirror every repository directory. Iteration
+reports, completed decisions, and infrastructure runbooks stay outside
+`docs_dir`; current guidance and genuine proposals remain public. Top-level
+sections are collapsible and use index pages so overview links do not become
+duplicate sidebar entries.
 
 Keep the root README concise and useful on package/repository pages: pitch, install, smallest quick start, safety summary, and links into the site. Move long-form controls, shell semantics, mission tables, and architecture explanations into the site rather than maintaining two copies.
 
@@ -60,7 +58,10 @@ Keep the root README concise and useful on package/repository pages: pitch, inst
 | [VitePress](https://vitepress.dev/guide/what-is-vitepress) | Fast, polished technical docs with Vue-enhanced Markdown | Vue/Node stack offers more programmability than this site currently needs | Good, but no decisive advantage over Starlight here |
 | [Docusaurus](https://docusaurus.io/docs.html) | Strong React ecosystem, docs versioning, localization, and content features | Heavier application and maintenance model; versioning would be premature | Revisit only if multiple supported doc versions or a broader project website become real requirements |
 
-Do not add documentation versioning initially. OpsQuest has one active product line and the existing delivery archive already records milestones. Even the Docusaurus guide warns that versioning duplicates content and adds contributor and build complexity when it is not truly needed.
+Do not add documentation versioning initially. OpsQuest has one active product
+line, and the repository-only delivery history already records milestones. Even
+the Docusaurus guide warns that versioning duplicates content and adds
+contributor and build complexity when it is not truly needed.
 
 ## Hosting and delivery
 
@@ -76,8 +77,11 @@ GitHub's [custom Pages workflow](https://docs.github.com/en/pages/getting-starte
 ## Content and maintenance rules
 
 - Keep Markdown and editable diagram sources in this repository as the single source of truth.
-- Add page metadata only when the generator is introduced: at minimum `description`, `audience`, and `status` for roadmap/archive filtering.
-- Keep current, proposed, and historical material visibly distinct; a shipped proposal must update a current guide.
+- Give every public page `description`, `audience`, and `status` metadata.
+- Keep current and proposed material visibly distinct; a shipped proposal must
+  update a current guide and leave the roadmap.
+- Keep historical reports and implemented decisions under `project/`, outside
+  the public site source.
 - Keep diagram source and SVG export together. The site should publish the SVG and link to the editable source on GitHub.
 - Prefer stable relative links and fail the site build on broken internal links.
 - Give every page one clear owner section. Cross-link rather than copy shared explanations.
@@ -85,11 +89,16 @@ GitHub's [custom Pages workflow](https://docs.github.com/en/pages/getting-starte
 
 ## Rollout status
 
-1. **Content foundation — complete:** repository docs are organized by play, game, technical, roadmap, and history, with explicit lifecycle rules.
-2. **Generator proof of concept — complete:** Zensical is pinned, navigation remains Material-compatible, local preview and strict build targets exist, and no custom theme code is required.
+1. **Content foundation — complete:** public docs are organized by visitor
+   intent; repository-only decisions and history have explicit homes.
+2. **Generator proof of concept — complete:** Zensical is pinned, navigation
+   remains Material-compatible, local preview and strict build targets exist,
+   and no custom theme code is required.
 3. **Player content pass — complete:** quick start, mission mechanics, controls, Linux worlds, and Docker Foundations have dedicated pages; the root README remains concise.
 4. **Technical content pass — complete:** mission content, profile compatibility, and contribution workflows have focused pages alongside architecture and safety.
 5. **Publish — complete:** pull requests build in strict mode; `main` builds, uploads, and deploys the GitHub Pages artifact. The first deployment completed successfully on July 22, 2026, and the public HTTPS endpoint returned the expected OpsQuest site.
 6. **Reassess after use — future:** remain on Zensical if the pinned build is reliable; use the same content with Material if alpha churn is costly; consider Starlight only if custom interactive presentation becomes a product goal.
 
-This order keeps the information model independent from the rendering tool. The original documentation expansion would have been easier to manage if audience, authority, lifecycle, and navigation were defined before diagrams and delivery reports accumulated; the new folder structure makes those rules explicit before a site generator is selected.
+This structure keeps the information model independent from the renderer:
+audience and lifecycle decide whether content is public, while Zensical only
+presents the selected public source tree.

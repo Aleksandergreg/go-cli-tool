@@ -8,7 +8,7 @@ search:
 
 # OpsQuest iteration 11
 
-> Historical delivery record. See the [documentation map](../../README.md) for current behavior.
+> Historical delivery record. See the [repository README](../../../README.md) for current behavior.
 
 Date: 2026-07-18
 Version: unreleased; executable baseline remains 0.3.0

@@ -41,4 +41,6 @@ A world should introduce concepts in increasing combinations:
 - culminate in a boss that combines previously practiced concepts;
 - avoid making difficulty depend only on obscure flags.
 
-The [current curriculum](curriculum.md) makes the sequence visible. [Mission design](mission-design.md) turns these principles into authoring checks.
+The [mission map](../play/mission-map.md) makes the sequence visible.
+[Mission authoring](../technical/mission-authoring.md) turns these principles
+into authoring checks.

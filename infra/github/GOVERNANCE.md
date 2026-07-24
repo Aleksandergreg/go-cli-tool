@@ -1,10 +1,4 @@
----
-description: Declarative GitHub settings, rulesets, credential boundaries, OpenTofu state, and the reviewed apply procedure.
-audience: maintainers
-status: current
----
-
-# Repository governance
+# GitHub repository governance
 
 OpsQuest keeps GitHub repository policy in OpenTofu under
 [`infra/github`](https://github.com/Aleksandergreg/go-cli-tool/tree/main/infra/github).

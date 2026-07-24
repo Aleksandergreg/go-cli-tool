@@ -110,7 +110,7 @@ Each JSON file decodes into a `mission.Mission` containing narrative fields, sug
 
 Worlds are derived views rather than persisted schema. Within each track, each contiguous campaign becomes one ordered world; a mission's world and stage placement is computed at catalog load. Linux and Docker therefore have separate world numbering even though mission numbers are global. Catalog accessors return deep copies so callers cannot mutate embedded content.
 
-See [Curriculum](../game/curriculum.md) for the current world and mission map.
+See the [mission map](../play/mission-map.md) for the current worlds and missions.
 
 ## Persistence and compatibility
 
