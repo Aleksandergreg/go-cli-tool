@@ -8,6 +8,10 @@ status: current
 
 OpsQuest provides line editing and a focused Linux teaching shell inside each mission.
 
+With `opsquest play --web`, command entry, completion, history, and raw command
+output remain in the terminal. Mission narrative, objectives, revealed hints,
+outcome checks, and the field guide appear in the [web mission companion](web-companion.md).
+
 ## Interactive editing
 
 | Keys | Action |

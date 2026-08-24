@@ -6,10 +6,11 @@ status: current
 
 # OpsQuest sandbox and safety
 
-OpsQuest has two execution models with different trust boundaries:
+OpsQuest has two execution models and one optional presentation boundary:
 
 - Linux missions use a teaching shell implemented entirely in Go over in-memory state.
 - Optional Docker missions parse a deliberately small command language and translate typed actions into fixed Docker CLI arguments for attempt-owned resources on the active Docker-compatible engine.
+- `play --web` serves sanitized mission snapshots from an ephemeral IPv4 loopback port; the browser cannot submit commands or approve completion.
 
 Neither model passes a raw player line to a host shell.
 
@@ -19,10 +20,34 @@ Neither model passes a raw player line to a host shell.
 
 Editable source: [`trust-boundaries.excalidraw`](diagrams/trust-boundaries.excalidraw)
 
-The player controls command text and navigation choices. Trusted OpsQuest code decides whether that text is a session control, a simulated-shell command, or one of the supported Docker teaching forms. Only two components normally interact with durable or external host facilities:
+The diagram focuses on command and storage authority. The separate loopback
+presentation boundary is described in [Web companion boundary](#web-companion-boundary).
+
+The player controls command text and navigation choices. Trusted OpsQuest code decides whether that text is a session control, a simulated-shell command, or one of the supported Docker teaching forms. Only three components normally interact with durable or external host facilities:
 
 - `profile.Store` reads and atomically replaces one configured profile file. Player commands cannot address this path.
 - `dockerlab.execRunner` invokes the discovered Docker executable with arguments constructed inside `internal/dockerlab`. It never invokes `sh -c` and never forwards the original line.
+- `webapp.Server` listens on `127.0.0.1` for the lifetime of one `play --web` command. It has no environment, runner, profile store, or command-input dependency.
+
+## Web companion boundary
+
+The companion uses an ephemeral port and a cryptographically random one-time
+pairing token. A successful exchange creates an HTTP-only, same-site cookie and
+redirects away from the token-bearing URL. Exact Host and Origin checks reduce
+loopback confusion and DNS-rebinding exposure; restrictive CSP, frame, referrer,
+content-type, permissions, and cross-origin headers constrain the embedded page.
+
+After pairing, the page may read the latest sanitized snapshot and subscribe to
+Server-Sent Events. It cannot submit terminal lines, address virtual files,
+choose Docker aliases or IDs, alter profile data, reveal a hint without the CLI
+control, or mark an objective complete. Static assets use no external scripts,
+fonts, trackers, or network service.
+
+Snapshots are complete current projections with monotonically increasing event
+IDs. A slow subscriber skips obsolete queued snapshots and converges on the
+latest state. They exclude raw mission setup and condition objects, command
+text, terminal output, and internal resource identifiers. The page constructs
+all mission text with DOM text nodes rather than HTML interpolation.
 
 ## Linux command execution
 
@@ -133,6 +158,9 @@ The Docker-compatible engine remains a powerful external dependency; OpsQuest re
 | Cleanup removes another container | Exact ID plus managed/schema/session/mission/alias label verification | `internal/dockerlab/environment.go` and tests |
 | Partial Docker setup leaks resources silently | Factory may return a partial environment; managed cleanup and retryable `Close` | `internal/dockerlab/factory.go`, environment contract tests |
 | Persisted display text injects terminal controls | Profile names reject non-printable characters and normalize legacy values | `internal/profile/profile.go` and tests |
+| Another site reaches the loopback companion | One-time capability pairing, exact Host/Origin checks, same-site HTTP-only cookie, no permissive CORS | `internal/webapp/server.go` and tests |
+| Browser input reaches a mission environment | Companion exposes only read-only state and SSE routes; `game.Session` has no companion command callback | `internal/webapp`, `internal/game/companion.go` |
+| Browser observes private attempt internals | Dedicated sanitized snapshot type; no setup, raw condition, transcript, or resource-ID fields | `internal/game/companion.go` and tests |
 
 ## Safety review checklist
 

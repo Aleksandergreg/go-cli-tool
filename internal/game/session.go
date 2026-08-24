@@ -20,6 +20,8 @@ type Session struct {
 	Mission      mission.Mission
 	Player       *profile.Profile
 	Saver        ProfileSaver
+	Reporter     AttemptReporter
+	Companion    bool
 	In           io.Reader
 	Out          io.Writer
 	ErrOut       io.Writer
@@ -85,7 +87,19 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 
 	replaying := s.Player.IsComplete(s.Mission.ID)
 	hintsUsed := s.Player.MissionHints(s.Mission.ID)
-	printMission(s.Out, s.Mission, hintsUsed, replaying, s.Catalog, s.Style)
+	currentOutcomes := []outcomeResult(nil)
+	if s.Reporter != nil {
+		currentOutcomes, err = evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, "")
+		if err != nil {
+			return SessionResult{}, fmt.Errorf("prepare companion mission status: %w", err)
+		}
+		s.reportAttempt(AttemptStarted, AttemptStateActive, currentOutcomes, hintsUsed, replaying, 0, false, nil, nil, nil)
+	}
+	if s.Companion {
+		fmt.Fprintf(s.Out, "\nMission %02d ready in the web companion. Enter lab commands below.\n", s.Mission.Number)
+	} else {
+		printMission(s.Out, s.Mission, hintsUsed, replaying, s.Catalog, s.Style)
+	}
 	reader := s.Reader
 	if reader == nil {
 		reader = NewCommandLineReader(s.In, s.Out)
@@ -102,6 +116,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		line, readErr := reader.ReadLine(s.Style.Prompt(environment.PromptLabel()), environment.CompletionSource())
 		if errors.Is(readErr, io.EOF) {
 			fmt.Fprintln(s.Out)
+			s.reportAttempt(AttemptPaused, AttemptStatePaused, currentOutcomes, hintsUsed, replaying, 0, false, practiced, discovered, nil)
 			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
 		}
 		if readErr != nil {
@@ -230,6 +245,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		switch line {
 		case "quit", "exit", ":q":
 			fmt.Fprintln(s.Out, s.Style.Accent("Mission paused. Your profile progress is safe."))
+			s.reportAttempt(AttemptPaused, AttemptStatePaused, currentOutcomes, hintsUsed, replaying, 0, false, practiced, discovered, nil)
 			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
 		case "hint":
 			if hintsUsed >= len(s.Mission.Hints) {
@@ -251,18 +267,34 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			if cost == 0 {
 				costLabel = "no XP cost"
 			}
-			prefix := fmt.Sprintf("Hint %d/%d (%s):", hintsUsed, len(s.Mission.Hints), costLabel)
-			fmt.Fprintf(s.Out, "%s %s\n", s.Style.Warning(prefix), s.Mission.Hints[hintsUsed-1])
+			s.reportAttempt(AttemptHint, AttemptStateActive, currentOutcomes, hintsUsed, replaying, 0, false, practiced, discovered, nil)
+			if s.Companion {
+				message := fmt.Sprintf("Hint %d/%d revealed in the web companion (%s).", hintsUsed, len(s.Mission.Hints), costLabel)
+				fmt.Fprintln(s.Out, s.Style.Warning(message))
+			} else {
+				prefix := fmt.Sprintf("Hint %d/%d (%s):", hintsUsed, len(s.Mission.Hints), costLabel)
+				fmt.Fprintf(s.Out, "%s %s\n", s.Style.Warning(prefix), s.Mission.Hints[hintsUsed-1])
+			}
 			continue
 		case "objective":
-			fmt.Fprintf(s.Out, "%s\n%s\n\n%s\n", s.Style.Section("OBJECTIVE"), s.Mission.Objective, s.Style.CommandGuide(s.Mission.SuggestedCommands))
+			if s.Companion {
+				fmt.Fprintln(s.Out, s.Style.Accent("The objective and suggested commands are shown in the web companion."))
+			} else {
+				fmt.Fprintf(s.Out, "%s\n%s\n\n%s\n", s.Style.Section("OBJECTIVE"), s.Mission.Objective, s.Style.CommandGuide(s.Mission.SuggestedCommands))
+			}
 			continue
 		case "status":
 			outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, lastOutput)
 			if err != nil {
 				return SessionResult{}, fmt.Errorf("check mission status: %w", err)
 			}
-			printOutcomeStatus(s.Out, outcomes, s.Style)
+			currentOutcomes = outcomes
+			s.reportAttempt(AttemptProgress, AttemptStateActive, currentOutcomes, hintsUsed, replaying, 0, false, practiced, discovered, nil)
+			if s.Companion {
+				fmt.Fprintln(s.Out, s.Style.Accent("Mission status refreshed in the web companion."))
+			} else {
+				printOutcomeStatus(s.Out, outcomes, s.Style)
+			}
 			continue
 		case "restart":
 			if err := environment.close(); err != nil {
@@ -273,10 +305,21 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 				return SessionResult{}, fmt.Errorf("restart mission: %w", err)
 			}
 			lastOutput = ""
+			if s.Reporter != nil {
+				currentOutcomes, err = evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, "")
+				if err != nil {
+					return SessionResult{}, fmt.Errorf("refresh companion mission status: %w", err)
+				}
+				s.reportAttempt(AttemptRestarted, AttemptStateActive, currentOutcomes, hintsUsed, replaying, 0, false, practiced, discovered, nil)
+			}
 			fmt.Fprintln(s.Out, s.Style.Accent("Mission environment restarted. Hints and command mastery are retained."))
 			continue
 		case "?", "guide":
-			printMissionControls(s.Out, s.Style)
+			if s.Companion {
+				fmt.Fprintln(s.Out, s.Style.Accent("Mission controls and guidance are shown in the web companion."))
+			} else {
+				printMissionControls(s.Out, s.Style)
+			}
 			continue
 		}
 
@@ -336,10 +379,14 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		if err != nil {
 			return SessionResult{}, fmt.Errorf("validate mission: %w", err)
 		}
+		currentOutcomes = outcomes
+		s.reportAttempt(AttemptProgress, AttemptStateActive, currentOutcomes, hintsUsed, replaying, 0, false, practiced, discovered, unlocked)
 		if !allOutcomesSatisfied(outcomes) {
 			printAchievements(s.Out, unlocked, s.Style)
-			message := fmt.Sprintf("Progress — %d/%d outcome checks satisfied. Type status to see what remains.", satisfiedOutcomeCount(outcomes), len(outcomes))
-			fmt.Fprintln(s.Out, s.Style.Accent(message))
+			if !s.Companion {
+				message := fmt.Sprintf("Progress — %d/%d outcome checks satisfied. Type status to see what remains.", satisfiedOutcomeCount(outcomes), len(outcomes))
+				fmt.Fprintln(s.Out, s.Style.Accent(message))
+			}
 			continue
 		}
 		if err := environment.close(); err != nil {
@@ -357,9 +404,68 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 		if err := s.Saver.Save(*s.Player); err != nil {
 			return SessionResult{}, err
 		}
-		printCompletion(s.Out, s.Mission, xp, firstCompletion, practiced, discovered, unlocked, s.Style)
+		s.reportAttempt(AttemptCompleted, AttemptStateCompleted, currentOutcomes, hintsUsed, replaying, xp, firstCompletion, practiced, discovered, unlocked)
+		if s.Companion {
+			printCompanionCompletion(s.Out, xp, firstCompletion, unlocked, s.Style)
+		} else {
+			printCompletion(s.Out, s.Mission, xp, firstCompletion, practiced, discovered, unlocked, s.Style)
+		}
 		return SessionResult{Completed: true, XPAwarded: xp, HintsUsed: hintsUsed, WorldRoute: worldRoute}, nil
 	}
+}
+
+func (s Session) reportAttempt(eventType AttemptEventType, state string, outcomes []outcomeResult, hintsUsed int, replaying bool, xp int, firstCompletion bool, practiced, discovered []string, unlocked []profile.Achievement) {
+	if s.Reporter == nil {
+		return
+	}
+	placement, _ := s.Catalog.Placement(s.Mission.ID)
+	revealedCount := min(hintsUsed, len(s.Mission.Hints))
+	revealedHints := slices.Clone(s.Mission.Hints[:revealedCount])
+	publicOutcomes := make([]AttemptOutcome, len(outcomes))
+	for index, outcome := range outcomes {
+		publicOutcomes[index] = AttemptOutcome{Description: outcome.Description, Satisfied: outcome.Satisfied}
+	}
+	achievements := make([]string, len(unlocked))
+	for index, achievement := range unlocked {
+		achievements[index] = achievement.Title
+	}
+	explanation := ""
+	if state == AttemptStateCompleted {
+		explanation = s.Mission.Explanation
+	}
+	s.Reporter.ReportAttempt(AttemptEvent{
+		Type: eventType,
+		Snapshot: AttemptSnapshot{
+			MissionID:            s.Mission.ID,
+			Number:               s.Mission.Number,
+			Title:                s.Mission.Title,
+			Track:                s.Mission.EffectiveTrack(),
+			WorldNumber:          placement.WorldNumber,
+			WorldTotal:           placement.WorldTotal,
+			WorldName:            placement.WorldName,
+			StageNumber:          placement.StageNumber,
+			StageTotal:           placement.StageTotal,
+			Difficulty:           s.Mission.Difficulty,
+			Story:                s.Mission.Story,
+			Objective:            s.Mission.Objective,
+			SuggestedCommands:    slices.Clone(s.Mission.SuggestedCommands),
+			RevealedHints:        revealedHints,
+			HintCount:            len(s.Mission.Hints),
+			HintsUsed:            hintsUsed,
+			Outcomes:             publicOutcomes,
+			SatisfiedOutcomes:    satisfiedOutcomeCount(outcomes),
+			RewardAvailable:      AdjustedReward(s.Mission, hintsUsed),
+			BaseReward:           s.Mission.Rewards.XP,
+			Replaying:            replaying,
+			State:                state,
+			Explanation:          explanation,
+			XPAwarded:            xp,
+			FirstCompletion:      firstCompletion,
+			PracticedCommands:    slices.Clone(practiced),
+			DiscoveredCommands:   slices.Clone(discovered),
+			UnlockedAchievements: achievements,
+		},
+	})
 }
 
 func printMission(out io.Writer, item mission.Mission, hintsUsed int, completed bool, catalog mission.Catalog, style ui.Style) {
@@ -566,6 +672,17 @@ func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, pr
 	}
 	printAchievements(out, unlocked, style)
 	fmt.Fprintf(out, "\n%s\n", item.Explanation)
+}
+
+func printCompanionCompletion(out io.Writer, xp int, first bool, unlocked []profile.Achievement, style ui.Style) {
+	fmt.Fprintf(out, "\n%s\n", style.Success("✓ Mission complete!"))
+	if first {
+		fmt.Fprintln(out, style.Reward(fmt.Sprintf("+%d XP", xp)))
+	} else {
+		fmt.Fprintln(out, style.Accent("Replay complete — XP was already claimed."))
+	}
+	printAchievements(out, unlocked, style)
+	fmt.Fprintln(out, style.Accent("The explanation and completed objective are shown in the web companion."))
 }
 
 func printAchievements(out io.Writer, unlocked []profile.Achievement, style ui.Style) {

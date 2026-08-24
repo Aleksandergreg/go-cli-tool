@@ -42,6 +42,7 @@ $ opsquest map --ids             # include stable mission IDs
 $ opsquest play --world 2        # stay within Linux World 2
 $ opsquest play 4                # begin at global Mission 4
 $ opsquest play --once 4         # return after one mission
+$ opsquest play --web            # show guidance in a local browser
 $ opsquest show 16               # preview without starting
 $ opsquest profile               # view XP, rank, and progress
 $ opsquest commands              # view practiced commands
@@ -54,6 +55,7 @@ $ opsquest doctor                # check catalog, profile, and Docker readiness
 ## Next steps
 
 - [Missions, hints, and progress](missions-and-progress.md)
+- [Web mission companion](web-companion.md)
 - [Controls and commands](controls-and-commands.md)
 - [Mission map](mission-map.md)
 - [Optional Docker setup](docker-foundations.md)

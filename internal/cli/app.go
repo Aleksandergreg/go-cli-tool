@@ -16,18 +16,20 @@ import (
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 	"github.com/aleksandergregersen/opsquest/internal/ui"
+	"github.com/aleksandergregersen/opsquest/internal/webapp"
 )
 
 type App struct {
-	in         io.Reader
-	out        io.Writer
-	errOut     io.Writer
-	catalog    mission.Catalog
-	store      profile.Store
-	ctx        context.Context
-	factory    game.Factory
-	style      ui.Style
-	errorStyle ui.Style
+	in             io.Reader
+	out            io.Writer
+	errOut         io.Writer
+	catalog        mission.Catalog
+	store          profile.Store
+	ctx            context.Context
+	factory        game.Factory
+	startCompanion CompanionStarter
+	style          ui.Style
+	errorStyle     ui.Style
 }
 
 type playRouteKind uint8
@@ -43,17 +45,31 @@ type playRoute struct {
 	worldNumber int
 }
 
+// Companion is the lifecycle and presentation boundary used by web-assisted
+// play. It receives sanitized game snapshots and never accepts player command
+// text or completion decisions.
+type Companion interface {
+	game.AttemptReporter
+	URL() string
+	Close(context.Context) error
+}
+
+// CompanionStarter creates one companion for the lifetime of a play command.
+type CompanionStarter func(context.Context) (Companion, error)
+
 // Config contains the process-level dependencies required by the CLI. The
 // executable supplies persistent storage and the combined environment factory;
-// focused tests may omit Context and Factory to use safe in-process defaults.
+// focused tests may omit Context, Factory, and StartCompanion to use safe local
+// defaults.
 type Config struct {
-	Context context.Context
-	In      io.Reader
-	Out     io.Writer
-	ErrOut  io.Writer
-	Catalog mission.Catalog
-	Store   profile.Store
-	Factory game.Factory
+	Context        context.Context
+	In             io.Reader
+	Out            io.Writer
+	ErrOut         io.Writer
+	Catalog        mission.Catalog
+	Store          profile.Store
+	Factory        game.Factory
+	StartCompanion CompanionStarter
 }
 
 func New(config Config) *App {
@@ -72,16 +88,22 @@ func New(config Config) *App {
 	if config.Factory == nil {
 		config.Factory = game.SandboxFactory{}
 	}
+	if config.StartCompanion == nil {
+		config.StartCompanion = func(ctx context.Context) (Companion, error) {
+			return webapp.Start(ctx)
+		}
+	}
 	return &App{
-		in:         config.In,
-		out:        config.Out,
-		errOut:     config.ErrOut,
-		catalog:    config.Catalog,
-		store:      config.Store,
-		ctx:        config.Context,
-		factory:    config.Factory,
-		style:      ui.Auto(config.Out),
-		errorStyle: ui.Auto(config.ErrOut),
+		in:             config.In,
+		out:            config.Out,
+		errOut:         config.ErrOut,
+		catalog:        config.Catalog,
+		store:          config.Store,
+		ctx:            config.Context,
+		factory:        config.Factory,
+		startCompanion: config.StartCompanion,
+		style:          ui.Auto(config.Out),
+		errorStyle:     ui.Auto(config.ErrOut),
 	}
 }
 
@@ -156,16 +178,17 @@ func (a *App) Run(args []string) error {
 	}
 }
 
-func (a *App) runPlay(args []string) error {
+func (a *App) runPlay(args []string) (returnErr error) {
 	flags := a.newFlagSet("play", func() { a.printPlayUsage(a.errOut) })
 	track := flags.String("track", mission.TrackLinux, "play the linux or docker track")
 	worldNumber := flags.Int("world", 0, "start the next incomplete stage in a world")
 	once := flags.Bool("once", false, "return after one completed mission")
+	web := flags.Bool("web", false, "show mission guidance in a local browser companion")
 	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
 	if flags.NArg() > 1 {
-		return fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [MISSION]")
+		return fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [--web] [MISSION]")
 	}
 	trackProvided, worldProvided := flagProvided(flags, "track"), flagProvided(flags, "world")
 	selectedTrack := strings.ToLower(strings.TrimSpace(*track))
@@ -212,8 +235,27 @@ func (a *App) runPlay(args []string) error {
 			return nil
 		}
 	}
+	var activeCompanion Companion
+	if *web {
+		activeCompanion, err = a.startCompanion(a.ctx)
+		if err != nil {
+			return fmt.Errorf("start web companion: %w", err)
+		}
+		defer func() {
+			closeContext, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+			defer cancel()
+			if err := activeCompanion.Close(closeContext); err != nil {
+				returnErr = errors.Join(returnErr, fmt.Errorf("close web companion: %w", err))
+			}
+		}()
+		fmt.Fprintln(a.out, a.style.Header("WEB MISSION COMPANION"))
+		fmt.Fprintf(a.out, "Open this one-time local URL in your browser:\n%s\n", a.style.Accent(activeCompanion.URL()))
+		fmt.Fprintln(a.out, a.style.Muted("Keep this terminal for commands. The browser can display progress but cannot execute anything."))
+	}
 	if item.EffectiveTrack() == mission.TrackLinux && isPristineProfile(player) {
-		a.printQuickStart()
+		if !*web {
+			a.printQuickStart()
+		}
 		player.Onboarded = true
 		if err := a.store.Save(player); err != nil {
 			return err
@@ -225,14 +267,16 @@ func (a *App) runPlay(args []string) error {
 		currentTrack := item.EffectiveTrack()
 		wasComplete := player.IsComplete(item.ID)
 		session := game.Session{
-			Mission: item,
-			Player:  &player,
-			Saver:   a.store,
-			In:      a.in,
-			Out:     a.out,
-			ErrOut:  a.errOut,
-			Reader:  reader,
-			Catalog: a.catalog,
+			Mission:   item,
+			Player:    &player,
+			Saver:     a.store,
+			Reporter:  activeCompanion,
+			Companion: activeCompanion != nil,
+			In:        a.in,
+			Out:       a.out,
+			ErrOut:    a.errOut,
+			Reader:    reader,
+			Catalog:   a.catalog,
 			ListMissions: func(args []string) error {
 				if !hasFlag(args, "--track") {
 					args = append([]string{"--track", currentTrack}, args...)
@@ -793,10 +837,11 @@ func (a *App) runHelp(args []string) error {
 }
 
 func (a *App) printPlayUsage(out io.Writer) {
-	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [MISSION]")
+	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [--web] [MISSION]")
 	fmt.Fprintln(out, "Without a selector, resume the first incomplete mission and continue the recommended path.")
 	fmt.Fprintln(out, "A mission number or ID follows catalog order from that exact stage; --world stays inside one world.")
 	fmt.Fprintln(out, "Use --once to return after one completed mission.")
+	fmt.Fprintln(out, "Use --web to show guidance and live objective progress in a local browser companion.")
 }
 
 func (a *App) printListUsage(out io.Writer) {

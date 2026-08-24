@@ -14,13 +14,17 @@ OpsQuest separates product flow, declarative mission content, isolated execution
 
 Editable source: [`system-landscape.excalidraw`](diagrams/system-landscape.excalidraw)
 
-There are three materially different state domains:
+The landscape diagram focuses on the command-execution and persistence path;
+the optional read-only companion projection is detailed separately below.
+
+There are four materially different state domains:
 
 | Domain | Owner | Lifetime | Host interaction |
 | --- | --- | --- | --- |
 | Mission definition | `internal/mission` | Embedded in the binary | Reads embedded JSON only |
 | Mission attempt | `internal/sandbox` or `internal/dockerlab` | One attempt or restart | In-memory for Linux; exact labeled Docker resources for Docker labs |
 | Player progress | `internal/profile` | Across processes | Atomic `profile.json` replacement in the platform config directory |
+| Companion projection | `internal/webapp` | One `play --web` process | Loopback HTTP only; no durable writes or command execution |
 
 Linux mission state is never persisted. Completing, quitting, switching, or restarting a Linux mission discards its virtual filesystem, environment, processes, archives, and history. Hints, command practice, completions, XP, and achievements belong to the profile instead.
 
@@ -38,6 +42,7 @@ Editable source: [`component-architecture.mmd`](diagrams/component-architecture.
 | `internal/mission` | Strict schema, embedded catalog, tracks, worlds, and defensive copies | Content stays declarative; rejects invalid catalogs before play starts |
 | `internal/sandbox` | Teaching-shell lexer, parser, dispatcher, virtual filesystem/processes/archives | Never invokes a host shell or accesses host paths |
 | `internal/dockerlab` | Optional Docker-compatible engine availability, typed teaching actions, fixtures, observations, and cleanup | Only this adapter may launch the Docker CLI, using constructed arguments and tracked resource IDs |
+| `internal/webapp` | Optional embedded mission companion, one-time pairing, current snapshot, and server-sent events | Serves a read-only projection on IPv4 loopback; accepts no command or completion input |
 | `internal/profile` | Versioned progress model and atomic JSON storage | The only normal durable state written by the application |
 | `internal/ui` | Terminal capability detection and semantic ANSI roles | Styling stays out of execution results and validators |
 | `internal/buildinfo` | Release-managed executable version | Updated by release automation |
@@ -54,7 +59,7 @@ OrbStack does not introduce a second execution backend. On macOS it is selected 
 2. Load and validate every embedded mission with `mission.LoadCatalog`.
 3. Resolve the profile store with `profile.DefaultStore`.
 4. Construct the CLI with standard streams, catalog, store, and the combined environment factory.
-5. Dispatch `os.Args[1:]` through `cli.App.Run`.
+5. Dispatch `os.Args[1:]` through `cli.App.Run`; `play --web` additionally starts an ephemeral loopback companion for that command.
 6. Render any returned error once at the process boundary and exit non-zero.
 
 Catalog loading is fail-fast. JSON decoding disallows unknown fields, mission numbers must be globally contiguous, IDs and numbers must be unique, setup and validation fields must match the selected environment, and campaigns must remain contiguous within each track.
@@ -76,6 +81,7 @@ The runtime flow is:
 7. If any outcome is missing, the same attempt continues. `status` describes satisfied and missing outcomes without prescribing a command sequence.
 8. Once every outcome passes, the session closes the environment **before** awarding XP. This prevents a Docker attempt with unresolved cleanup from being recorded as complete.
 9. First completion records hint-adjusted XP and achievements. Replays retain the original completion and award no duplicate XP.
+10. When a companion reporter is configured, the session publishes a sanitized complete snapshot after start, hints, observations, restart, pause, and persisted completion. Publishing never participates in the validation decision.
 
 `restart` closes the active environment and creates a new one from the same declarative mission. Mission switching returns a validated mission ID to the CLI, which starts a separate fresh session.
 
@@ -103,6 +109,31 @@ The contract carries several design decisions:
 - Factories may return both a partial environment and an error. The managed wrapper closes that partial attempt before propagating the failure.
 
 The simulated adapter wraps one `sandbox.Sandbox`. The Docker adapter maps logical mission aliases to generated names and exact container IDs, so neither the session nor player sees engine-owned resource identifiers.
+
+## Web companion contract
+
+`play --web` starts `internal/webapp` on `127.0.0.1` with an ephemeral port.
+The printed one-time pairing URL establishes an HTTP-only, same-site browser
+session, then the browser loads static HTML, CSS, and JavaScript embedded in the
+same executable. The current state is available as a JSON snapshot, and
+subsequent updates use Server-Sent Events. A reconnect receives the latest
+complete snapshot rather than querying the environment or replaying commands.
+
+`game.AttemptSnapshot` is a dedicated public projection. It contains narrative,
+suggested tool names, revealed hints, described outcome status, placement,
+reward information, and completion feedback. It does not contain mission setup
+objects, condition structs, player command text, terminal output, Docker IDs,
+or a profile mutation capability.
+
+The direction of authority is one-way:
+
+1. Terminal input reaches `game.Session` and the selected `Environment`.
+2. `game.Session` evaluates outcomes and persists progress exactly as in terminal-only play.
+3. Only after those decisions does it publish a presentation snapshot.
+4. `internal/webapp` retains and broadcasts the snapshot without calling back into the session.
+
+Completion is not published until environment cleanup and profile persistence
+both succeed. This retains the existing Docker cleanup-before-XP invariant.
 
 ## Mission and world model
 
@@ -135,6 +166,7 @@ Changing one of these requires explicit compatibility reasoning even when the Go
 | Add a validation outcome | `internal/mission`, `internal/game`, environment adapters | Strict schema checks and canonical mission coverage |
 | Change attempt controls or progression | `internal/game` | `internal/cli` routes and profile persistence |
 | Add a top-level command | `internal/cli` | Smoke test and README examples |
+| Change the browser companion or projection | `internal/webapp`, `internal/game` | Pairing/HTTP isolation, lifecycle ordering, CLI fallback, and race tests |
 | Expand Docker teaching behavior | `internal/dockerlab` | Parser rejection tests, ownership cleanup, real integration gate |
 | Change colors or terminal presentation | `internal/ui` | CLI/session rendering tests and non-terminal output |
 | Change durable progress | `internal/profile` | Migration/compatibility tests and atomic-write behavior |

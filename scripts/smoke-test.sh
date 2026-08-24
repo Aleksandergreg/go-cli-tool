@@ -91,6 +91,14 @@ once_output="$(printf 'pwd\n' | run_fresh_opsquest play --once 1)"
 assert_contains "one-shot play" "${once_output}" "NEXT RECOMMENDED"
 assert_not_contains "one-shot play" "${once_output}" "MISSION 02: Configuration Crawl"
 
+web_output="$(printf 'pwd\n' | run_fresh_opsquest play --web --once 1)"
+assert_no_ansi "web companion play" "${web_output}"
+assert_contains "web companion play" "${web_output}" "WEB MISSION COMPANION"
+assert_contains "web companion play" "${web_output}" "http://127.0.0.1:"
+assert_contains "web companion play" "${web_output}" "Mission 01 ready in the web companion"
+assert_contains "web companion play" "${web_output}" "✓ Mission complete!"
+assert_not_contains "web companion play" "${web_output}" "Your first ticket simply says"
+
 printf 'pwd\n' | run_route_opsquest play --once 1 >/dev/null
 replay_hints_output="$(printf 'hint\nhint\nhint\nquit\n' | run_route_opsquest play 1)"
 assert_contains "replay hints" "${replay_hints_output}" "Hint 1/2 (no XP cost):"
