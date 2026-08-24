@@ -45,6 +45,7 @@ nav:
   - Play:
       - play/README.md
       - Quick start: play/quick-start.md
+      - Web mission companion: play/web-companion.md
       - Missions, hints, and progress: play/missions-and-progress.md
       - Controls and commands: play/controls-and-commands.md
       - Mission map: play/mission-map.md

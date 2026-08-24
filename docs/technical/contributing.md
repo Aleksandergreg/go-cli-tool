@@ -17,6 +17,7 @@ Start with the repository [`AGENTS.md`](https://github.com/Aleksandergreg/go-cli
 | Mission schema, catalog, worlds, or JSON content | `internal/mission` |
 | Teaching-shell parsing, files, processes, archives, or commands | `internal/sandbox` |
 | Optional Docker actions, fixtures, observation, or cleanup | `internal/dockerlab` |
+| Local browser companion, pairing, HTTP projection, or assets | `internal/webapp` |
 | Durable progress and migrations | `internal/profile` |
 | Terminal color policy | `internal/ui` |
 

@@ -11,8 +11,9 @@ OpsQuest teaches through short incidents inside disposable environments. You ins
 ## Start here
 
 1. [Install and launch OpsQuest](quick-start.md).
-2. Learn how [missions, hints, routes, and rewards work](missions-and-progress.md).
-3. Keep the [controls and command reference](controls-and-commands.md) nearby while playing.
+2. Optionally move guidance into the [local web companion](web-companion.md).
+3. Learn how [missions, hints, routes, and rewards work](missions-and-progress.md).
+4. Keep the [controls and command reference](controls-and-commands.md) nearby while playing.
 
 The default route follows the four Linux worlds in the [mission map](mission-map.md).
 The separate [Docker Foundations](docker-foundations.md) track is optional and

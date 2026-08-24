@@ -35,6 +35,7 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 - Quote-aware globs and variables, pipelines, redirection, and command history
 - A compact virtual `vi` and bounded virtual shell scripts
 - Progressive hints, free command guidance, XP, ranks, and six achievements
+- An optional loopback-only web companion for mission guidance and live progress
 - World maps, direct mission practice, replay, and persistent profile progress
 - Outcome validation for output, paths, content, permissions, processes, environment, and Docker state
 
@@ -63,12 +64,14 @@ $ opsquest guide
 $ opsquest map
 $ opsquest play --world 2
 $ opsquest play --once 4
+$ opsquest play --web
 $ opsquest profile
 $ opsquest achievements
 $ opsquest doctor
 ```
 
 The complete player guide covers [installation and first play](docs/play/quick-start.md),
+[the local web companion](docs/play/web-companion.md),
 [missions and progress](docs/play/missions-and-progress.md), and
 [controls and commands](docs/play/controls-and-commands.md).
 
@@ -92,6 +95,8 @@ boundary.
 Player-entered Linux commands—including virtual scripts—are parsed and executed by OpsQuest. They never reach a host shell, host process, or host path. The teaching shell operates only on bounded in-memory state.
 
 Docker input is parsed into a small set of typed teaching actions. OpsQuest constructs Docker arguments itself, uses only exact resources labeled for the current attempt, applies resource restrictions, and verifies ownership again during cleanup. It does not expose arbitrary Docker passthrough, privileged mode, host mounts, host networking, devices, or the Docker socket.
+
+The optional web companion binds only to an ephemeral `127.0.0.1` port, uses a one-time pairing URL, and exposes a read-only mission projection. It cannot submit commands, mutate the profile or attempt, address Docker resources, or approve completion.
 
 Read [Sandbox and safety](docs/technical/sandbox-and-safety.md) for trust boundaries, quotas, cleanup behavior, and threat controls.
 
@@ -119,6 +124,7 @@ internal/mission/   Strict embedded catalog, worlds, and mission JSON
 internal/profile/   XP, ranks, achievements, and atomic persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
 internal/dockerlab/ Optional, label-scoped Docker adapter
+internal/webapp/    Loopback-only mission companion and embedded browser UI
 docs/               Zensical documentation source and diagrams
 project/            Repository-only decisions and delivery history
 ```

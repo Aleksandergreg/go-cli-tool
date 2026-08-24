@@ -43,6 +43,7 @@ recorded while a mission is incomplete, so quitting cannot erase the cost.
 - `opsquest play --world N` stays within one Linux world.
 - A global mission number or stable ID begins there and follows that track.
 - `--once` returns after one completed mission.
+- `--web` moves mission guidance and live outcome progress into a local browser companion while commands remain in the terminal.
 - Completed missions remain replayable and never award duplicate XP.
 
 Inside a mission, `play N` means Stage N of the current world. A stable ID from
