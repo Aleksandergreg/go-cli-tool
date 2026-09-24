@@ -43,6 +43,13 @@ type Server struct {
 	pairMu sync.Mutex
 	paired bool
 
+	// connMu guards connections that have not started a request yet.
+	// http.Server.Shutdown leaves such connections open for several seconds,
+	// and browsers routinely preconnect, so Close must end them itself.
+	connMu  sync.Mutex
+	closing bool
+	unused  map[net.Conn]struct{}
+
 	mu          sync.Mutex
 	sequence    uint64
 	current     publication
@@ -79,6 +86,7 @@ func Start(ctx context.Context) (*Server, error) {
 		pairToken:    pairToken,
 		sessionToken: sessionToken,
 		done:         make(chan struct{}),
+		unused:       make(map[net.Conn]struct{}),
 		subscribers:  make(map[chan publication]struct{}),
 	}
 	mux := http.NewServeMux()
@@ -93,6 +101,7 @@ func Start(ctx context.Context) (*Server, error) {
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       75 * time.Second,
 		MaxHeaderBytes:    16 * 1024,
+		ConnState:         server.trackConnection,
 	}
 
 	go func() {
@@ -123,7 +132,8 @@ func (s *Server) URL() string {
 	return s.baseURL + "/pair?token=" + url.QueryEscape(s.pairToken)
 }
 
-// Close stops accepting companion requests and closes active event streams.
+// Close stops accepting companion requests, closes active event streams and
+// unused connections, and force-closes anything still open when ctx expires.
 func (s *Server) Close(ctx context.Context) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -131,12 +141,40 @@ func (s *Server) Close(ctx context.Context) error {
 	var closeErr error
 	s.closeOnce.Do(func() {
 		close(s.done)
+		s.closeUnusedConnections()
 		closeErr = s.httpServer.Shutdown(ctx)
 		if errors.Is(closeErr, http.ErrServerClosed) {
 			closeErr = nil
 		}
+		if closeErr != nil {
+			_ = s.httpServer.Close()
+		}
 	})
 	return closeErr
+}
+
+func (s *Server) trackConnection(conn net.Conn, state http.ConnState) {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	if state != http.StateNew {
+		delete(s.unused, conn)
+		return
+	}
+	if s.closing {
+		_ = conn.Close()
+		return
+	}
+	s.unused[conn] = struct{}{}
+}
+
+func (s *Server) closeUnusedConnections() {
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
+	s.closing = true
+	for conn := range s.unused {
+		_ = conn.Close()
+		delete(s.unused, conn)
+	}
 }
 
 // ReportAttempt publishes the latest sanitized session snapshot without
