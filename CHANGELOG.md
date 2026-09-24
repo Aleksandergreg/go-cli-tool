@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.0...v0.7.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **webapp:** close unsued connections so companion shutdown is prompt ([#30](https://github.com/Aleksandergreg/go-cli-tool/issues/30)) ([a2503d0](https://github.com/Aleksandergreg/go-cli-tool/commit/a2503d01a6c418294c25f17fa7389e19d895c8c5))
+* **webapp:** close unused connections so companion shutdown is prompt ([a2503d0](https://github.com/Aleksandergreg/go-cli-tool/commit/a2503d01a6c418294c25f17fa7389e19d895c8c5))
+
 ## [0.7.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.6.0...v0.7.0) (2026-08-24)
 
 
