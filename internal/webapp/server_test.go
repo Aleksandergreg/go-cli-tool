@@ -4,7 +4,9 @@ import (
 	"bufio"
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -242,6 +244,46 @@ func TestServerClosesWhenApplicationContextIsCancelled(t *testing.T) {
 	case <-server.done:
 	case <-time.After(3 * time.Second):
 		t.Fatal("companion did not close after application context cancellation")
+	}
+}
+
+func TestServerCloseDoesNotWaitForUnusedConnections(t *testing.T) {
+	server, err := Start(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A browser preconnect: accepted by the server but never sends a request.
+	conn, err := net.Dial("tcp4", server.host)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		server.connMu.Lock()
+		tracked := len(server.unused)
+		server.connMu.Unlock()
+		if tracked == 1 {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("companion did not track the unused connection")
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	closeContext, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	if err := server.Close(closeContext); err != nil {
+		t.Fatalf("close companion with unused connection: %v", err)
+	}
+	if err := conn.SetReadDeadline(time.Now().Add(time.Second)); err != nil {
+		t.Fatal(err)
+	}
+	_, err = conn.Read(make([]byte, 1))
+	var netErr net.Error
+	if err == nil || (errors.As(err, &netErr) && netErr.Timeout()) {
+		t.Fatalf("unused connection still open after close: %v", err)
 	}
 }
 
