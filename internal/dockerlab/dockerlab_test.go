@@ -71,6 +71,21 @@ type fakeDockerRunner struct {
 	networkOrder      []string
 	networkCreates    int
 	failNetworkCreate bool
+	// contextFailure makes every invocation fail the way the Docker CLI does
+	// when the selected context cannot be resolved.
+	contextFailure bool
+	// contextFailureOnNetworkRemove fails only network removal that way.
+	contextFailureOnNetworkRemove bool
+}
+
+// contextNotFoundMessage is the Docker CLI's output when the selected
+// context is missing, captured from Docker 29.7.2.
+const contextNotFoundMessage = `Failed to initialize: unable to resolve docker endpoint: context "opsquest-missing-context": context not found: open /home/player/.docker/contexts/meta/fdff/meta.json: no such file or directory`
+
+func (r *fakeDockerRunner) setContextFailure(failing bool) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.contextFailure = failing
 }
 
 func newFakeDockerRunner() *fakeDockerRunner {
@@ -92,6 +107,9 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		return runResult{}, err
 	}
 	r.calls = append(r.calls, append([]string(nil), args...))
+	if r.contextFailure {
+		return runResult{stderr: contextNotFoundMessage}, errors.New("exit status 1")
+	}
 
 	switch {
 	case hasPrefix(args, "context", "show"):
@@ -345,6 +363,8 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 			}
 		}
 		return runResult{stdout: output.String()}, nil
+	case hasPrefix(args, "network", "rm") && r.contextFailureOnNetworkRemove:
+		return runResult{stderr: contextNotFoundMessage}, errors.New("exit status 1")
 	case hasPrefix(args, "network", "rm"):
 		id := args[len(args)-1]
 		network, exists := r.networks[id]
