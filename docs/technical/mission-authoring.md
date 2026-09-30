@@ -78,8 +78,11 @@ Conditions cover output, working directory, path existence, file content and log
 | `health: healthy` or `unhealthy` | Service with a fixed passing or failing health probe | Not allowed on exiting fixtures; setup waits for a running probe to settle |
 | `log` + `exit_code` | One-shot diagnostic job | Must be `stopped`; setup runs it to completion |
 | `log` + non-zero `exit_code` + `restart: on-failure` | Bounded crash loop (`on-failure:50`) | Must be `running`; setup waits until at least two restarts are visible |
+| `networks: [...]` | Joins declared attempt networks at creation | Up to 4 declared networks; without it, networking is disabled and the container cannot join a network later |
 
-Container conditions can require running or stopped state (both require the container to still exist), or `docker_container_absent` after the player removes it. Every container a condition names must be declared in the fixture setup. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
+A Docker setup can declare up to 8 `networks` by logical name (`{"name": "db-net"}`). Names follow the logical-name rules and cannot be `bridge`, `host`, `none`, or `default`. OpsQuest creates every declared network as an internal network before the containers.
+
+Container conditions can require running or stopped state (both require the container to still exist), or `docker_container_absent` after the player removes it. Network conditions are route-independent: `docker_containers_share_network` and `docker_containers_isolated` take exactly two `containers` and pass only while both still exist, and `docker_network_absent` takes a declared `network`. Prefer shared or isolated pairs over naming a specific network, so a player who creates their own network also succeeds. Every container or network a condition names must be declared in the fixture setup. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
 
 Suggested commands identify the intended tool family but do not constrain
 validation. One to five hints should progress from concept, through inspection

@@ -28,11 +28,14 @@ func TestCatalogWorldsAreOrderedWithinEachTrack(t *testing.T) {
 	}
 
 	docker := catalog.Worlds(TrackDocker)
-	if len(docker) != 2 || docker[0].Number != 1 || docker[0].Name != "It Works on My Machine" || len(docker[0].Missions) != 6 || docker[0].Missions[0].ID != "docker-container-census" {
+	if len(docker) != 3 || docker[0].Number != 1 || docker[0].Name != "It Works on My Machine" || len(docker[0].Missions) != 6 || docker[0].Missions[0].ID != "docker-container-census" {
 		t.Fatalf("Worlds(docker) first world = %d worlds, %q", len(docker), docker[0].Name)
 	}
 	if docker[1].Number != 2 || docker[1].Name != "Container Triage" || len(docker[1].Missions) != 5 || docker[1].Missions[0].ID != "docker-janitor-duty" {
 		t.Fatalf("Worlds(docker) second world = number %d, name %q, stages %d", docker[1].Number, docker[1].Name, len(docker[1].Missions))
+	}
+	if docker[2].Number != 3 || docker[2].Name != "Network Plumbing" || len(docker[2].Missions) != 5 || docker[2].Missions[0].ID != "docker-network-census" {
+		t.Fatalf("Worlds(docker) third world = number %d, name %q, stages %d", docker[2].Number, docker[2].Name, len(docker[2].Missions))
 	}
 	if worlds := catalog.Worlds("missing"); worlds != nil {
 		t.Fatalf("Worlds(missing) = %#v, want nil", worlds)
@@ -84,11 +87,15 @@ func TestCatalogWorldLookupAndPlacement(t *testing.T) {
 		},
 		{
 			missionID: "docker-container-census",
-			want:      Placement{Track: TrackDocker, WorldNumber: 1, WorldTotal: 2, WorldName: "It Works on My Machine", StageNumber: 1, StageTotal: 6},
+			want:      Placement{Track: TrackDocker, WorldNumber: 1, WorldTotal: 3, WorldName: "It Works on My Machine", StageNumber: 1, StageTotal: 6},
 		},
 		{
 			missionID: "docker-postmortem-triage",
-			want:      Placement{Track: TrackDocker, WorldNumber: 2, WorldTotal: 2, WorldName: "Container Triage", StageNumber: 5, StageTotal: 5},
+			want:      Placement{Track: TrackDocker, WorldNumber: 2, WorldTotal: 3, WorldName: "Container Triage", StageNumber: 5, StageTotal: 5},
+		},
+		{
+			missionID: "docker-segmentation",
+			want:      Placement{Track: TrackDocker, WorldNumber: 3, WorldTotal: 3, WorldName: "Network Plumbing", StageNumber: 5, StageTotal: 5},
 		},
 	}
 	for _, test := range tests {

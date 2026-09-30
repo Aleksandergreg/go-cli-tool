@@ -59,12 +59,17 @@ type environment struct {
 	readyTimeout time.Duration
 	containers   []*trackedContainer
 	byAlias      map[string]*trackedContainer
+	// networks holds every network this attempt created, including ones
+	// the player later removed, so cleanup can verify each exact ID.
+	networks      []*trackedNetwork
+	networkByName map[string]*trackedNetwork
 
-	cleanupMutex   sync.Mutex
-	mutex          sync.RWMutex
-	closing        bool
-	closed         bool
-	cleanupPending []*trackedContainer
+	cleanupMutex    sync.Mutex
+	mutex           sync.RWMutex
+	closing         bool
+	closed          bool
+	cleanupPending  []*trackedContainer
+	networksPending []*trackedNetwork
 }
 
 var (
@@ -126,6 +131,27 @@ func (e *environment) Execute(ctx context.Context, line string) (game.Execution,
 	case actionLogs:
 		result.Output, err = e.containerLogs(ctx, action.alias, action.tail)
 		result.PracticedCommands = []string{"docker"}
+	case actionNetworkList:
+		result.Output, err = e.listNetworks(ctx)
+		result.PracticedCommands = []string{"docker"}
+	case actionNetworkCreate:
+		result.Output, err = e.createPlayerNetwork(ctx, action.network)
+		result.PracticedCommands = []string{"docker"}
+	case actionNetworkRemove:
+		err = e.removeNetwork(ctx, action.network)
+		if err == nil {
+			result.Output = action.network + "\n"
+		}
+		result.PracticedCommands = []string{"docker"}
+	case actionNetworkInspect:
+		result.Output, err = e.logicalNetworkInspect(ctx, action.network)
+		result.PracticedCommands = []string{"docker"}
+	case actionNetworkConnect:
+		err = e.connectNetwork(ctx, action.network, action.alias)
+		result.PracticedCommands = []string{"docker"}
+	case actionNetworkDisconnect:
+		err = e.disconnectNetwork(ctx, action.network, action.alias)
+		result.PracticedCommands = []string{"docker"}
 	default:
 		err = fmt.Errorf("unsupported Docker action")
 	}
@@ -158,6 +184,17 @@ func (e *environment) Observe(ctx context.Context, condition mission.Condition) 
 		}
 		_, exists, err := e.inspect(ctx, tracked.id)
 		return err == nil && !exists, err
+	case mission.ConditionDockerNetworkShared, mission.ConditionDockerNetworkIsolated:
+		if len(condition.Containers) != 2 {
+			return false, fmt.Errorf("%s requires exactly two containers", condition.Type)
+		}
+		shared, bothExist, err := e.shareNetwork(ctx, condition.Containers[0], condition.Containers[1])
+		if err != nil || !bothExist {
+			return false, err
+		}
+		return shared == (condition.Type == mission.ConditionDockerNetworkShared), nil
+	case mission.ConditionDockerNetworkAbsent:
+		return e.networkAbsent(ctx, condition.Network)
 	case mission.ConditionDockerContainerCountEqual:
 		if condition.Count == nil {
 			return false, fmt.Errorf("docker_container_count_equals requires count")
@@ -184,8 +221,10 @@ func (e *environment) Close() error {
 	if !e.closing {
 		e.closing = true
 		e.cleanupPending = append([]*trackedContainer(nil), e.containers...)
+		e.networksPending = append([]*trackedNetwork(nil), e.networks...)
 	}
 	containers := append([]*trackedContainer(nil), e.cleanupPending...)
+	networks := append([]*trackedNetwork(nil), e.networksPending...)
 	e.mutex.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), cleanupTimeout)
@@ -216,9 +255,15 @@ func (e *environment) Close() error {
 		}
 	}
 
+	// Networks go last: Docker refuses to remove a network while any of
+	// its containers still exist.
+	unresolvedNetworks, networkErrors := e.closeNetworks(ctx, networks)
+	cleanupErrors = append(cleanupErrors, networkErrors...)
+
 	e.mutex.Lock()
 	e.cleanupPending = unresolved
-	e.closed = len(unresolved) == 0
+	e.networksPending = unresolvedNetworks
+	e.closed = len(unresolved) == 0 && len(unresolvedNetworks) == 0
 	e.mutex.Unlock()
 	return errors.Join(cleanupErrors...)
 }
@@ -265,8 +310,23 @@ func (e *environment) createContainer(ctx context.Context, index int, fixture mi
 	if fixture.Restart == mission.DockerRestartOnFailure {
 		restartPolicy = fmt.Sprintf("on-failure:%d", crashLoopMaxRetries)
 	}
+	// A fixture without declared networks keeps networking disabled. One
+	// with networks starts on the first attempt-owned internal network and
+	// joins the rest before it starts.
+	networkArgs := []string{"--network", "none"}
+	var joined []*trackedNetwork
+	for _, name := range fixture.Networks {
+		network, exists := e.network(name)
+		if !exists || network.id == "" {
+			return nil, fmt.Errorf("create Docker fixture %s: network %q was not created", fixture.Name, name)
+		}
+		joined = append(joined, network)
+	}
+	if len(joined) > 0 {
+		networkArgs = []string{"--network", joined[0].id, "--network-alias", fixture.Name}
+	}
+	args = append(args, networkArgs...)
 	args = append(args,
-		"--network", "none",
 		"--read-only",
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8m",
 		"--user", "65532:65532",
@@ -324,6 +384,11 @@ func (e *environment) createContainer(ctx context.Context, index int, fixture mi
 		return e.reconcileAmbiguousCreate(tracked, createErr)
 	}
 	tracked.id = id
+	for _, network := range joined[min(1, len(joined)):] {
+		if _, err := e.run(ctx, "network", "connect", "--alias", fixture.Name, network.id, id); err != nil {
+			return tracked, fmt.Errorf("connect Docker fixture %s to network %s: %w", fixture.Name, network.name, err)
+		}
+	}
 	return tracked, nil
 }
 
@@ -608,6 +673,9 @@ func (e *environment) logicalInspect(ctx context.Context, alias string) (string,
 		HostConfig struct {
 			RestartPolicy restartPolicy `json:"RestartPolicy"`
 		} `json:"HostConfig"`
+		NetworkSettings struct {
+			Networks []string `json:"Networks"`
+		} `json:"NetworkSettings"`
 	}{ID: tracked.logicalID, Name: tracked.alias, Image: tracked.imageAlias, RestartCount: inspection.RestartCount}
 	logical.State.Running = inspection.State.Running
 	logical.State.Restarting = inspection.State.Restarting
@@ -616,6 +684,7 @@ func (e *environment) logicalInspect(ctx context.Context, alias string) (string,
 	if health := healthStatus(inspection); health != "none" {
 		logical.State.Health = &logicalHealth{Status: health}
 	}
+	logical.NetworkSettings.Networks = e.logicalNetworks(inspection)
 	logical.HostConfig.RestartPolicy = inspection.HostConfig.RestartPolicy
 	if logical.HostConfig.RestartPolicy.Name == "" {
 		logical.HostConfig.RestartPolicy.Name = "no"
@@ -654,6 +723,15 @@ type containerInspection struct {
 		ExitCode   int          `json:"ExitCode"`
 		Health     *healthState `json:"Health"`
 	} `json:"State"`
+	NetworkSettings struct {
+		// Networks is keyed by the engine network name. NetworkID can be
+		// empty before a container first starts, so both identify a network.
+		Networks map[string]endpointState `json:"Networks"`
+	} `json:"NetworkSettings"`
+}
+
+type endpointState struct {
+	NetworkID string `json:"NetworkID"`
 }
 
 func (e *environment) inspect(ctx context.Context, id string) (containerInspection, bool, error) {
@@ -791,9 +869,16 @@ func (dockerCompletion) CommandNames() []string {
 }
 
 func (c dockerCompletion) PathCandidates(prefix string) []game.CompletionCandidate {
-	values := []string{"--all", "--filter", "--tail", "-a", "container", "inspect", "logs", "ls", "ps", "restart", "rm", "start", "stop"}
+	values := []string{"--all", "--filter", "--tail", "-a", "connect", "container", "create", "disconnect", "inspect", "logs", "ls", "network", "ps", "restart", "rm", "start", "stop"}
 	for _, tracked := range c.environment.snapshotContainers() {
 		values = append(values, tracked.alias)
+	}
+	seen := make(map[string]bool)
+	for _, network := range c.environment.snapshotNetworks() {
+		if !seen[network.name] {
+			seen[network.name] = true
+			values = append(values, network.name)
+		}
 	}
 	sort.Strings(values)
 	candidates := make([]game.CompletionCandidate, 0)

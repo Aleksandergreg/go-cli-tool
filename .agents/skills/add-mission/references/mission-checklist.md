@@ -10,7 +10,7 @@ Every mission supplies:
 - An effective learning `track` and `environment`; omitted values preserve the legacy `linux` and `simulated` defaults.
 - Teaching content: `story`, `objective`, one or more unique base names in `suggested_commands`, `hints`, and `explanation`.
 - Simulated labs: an absolute clean `start_dir` plus declarative `setup` containing `directories`, `files`, `processes`, `environment`, and `archives` as needed.
-- Docker labs: `track: docker`, `environment: docker`, and a declarative `docker` setup containing digest-pinned image references and logical `running` or `stopped` container fixtures. Fixtures may select fixed Go-implemented behaviors: an optional startup `log`, a `health` probe (`healthy` or `unhealthy`), a stopped one-shot job (`log` + `exit_code`), or a running bounded crash loop (`log` + non-zero `exit_code` + `restart: on-failure`). They do not define simulated setup or a start directory.
+- Docker labs: `track: docker`, `environment: docker`, and a declarative `docker` setup containing digest-pinned image references and logical `running` or `stopped` container fixtures. Fixtures may select fixed Go-implemented behaviors: an optional startup `log`, a `health` probe (`healthy` or `unhealthy`), a stopped one-shot job (`log` + `exit_code`), or a running bounded crash loop (`log` + non-zero `exit_code` + `restart: on-failure`). A setup may declare internal `networks` by logical name, and fixtures join them through `networks`; a fixture without networks runs with networking disabled. They do not define simulated setup or a start directory.
 - Declarative `validation.all`: one or more observable conditions.
 - `rewards`: positive `xp` and non-negative `hint_penalty`.
 
@@ -26,7 +26,7 @@ Use the smallest combination that proves the outcome without encoding a command 
 - Virtual file state: `file_content_equals`, `file_content_contains`, `file_lines_equal`, `file_mode_equals`, `file_owner_equals`.
 - Virtual processes: `process_stopped`, `process_running`.
 - Virtual environment: `env_equals` with `NAME=value`.
-- Docker state: `docker_container_running`, `docker_container_stopped`, or `docker_container_absent` with a declared logical container alias, and `docker_container_count_equals` with a non-negative count. Running and stopped both require the container to still exist.
+- Docker state: `docker_container_running`, `docker_container_stopped`, or `docker_container_absent` with a declared logical container alias, and `docker_container_count_equals` with a non-negative count. Running and stopped both require the container to still exist. Network state: `docker_containers_share_network` and `docker_containers_isolated` with exactly two declared `containers` (both must exist), and `docker_network_absent` with a declared `network`.
 
 Output-only validation is appropriate when producing the exact useful output is the lesson. Prefer filesystem, process, or environment state when the operational result should survive the final command. Combine positive and negative conditions when distractors could otherwise produce a false completion.
 

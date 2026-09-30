@@ -11,16 +11,21 @@ behavior. Shipped behavior belongs in the player and technical guides.
 
 ## Docker Foundations
 
-The current two Docker worlds intentionally support only listing with fixed
-filters, logs, sanitized inspection, bounded lifecycle actions, and removal of
-stopped attempt-owned containers. Fixture health probes and crash loops are
-fixed behaviors chosen by the mission.
+The current three Docker worlds intentionally support only listing with fixed
+filters, logs, sanitized inspection, bounded lifecycle actions, removal of
+stopped attempt-owned containers, and option-free management of internal
+attempt-owned networks. Fixture health probes and crash loops are fixed
+behaviors chosen by the mission.
 
 Possible later increments include:
 
 - environment-aware container creation through a limited `docker run`;
 - limited port publication;
-- bounded volumes and networking;
+- bounded, attempt-owned volumes (they attach only at container creation, so
+  they depend on a limited `docker run`, and a fresh named volume is not
+  writable by the fixture's unprivileged user);
+- reachability probes that check traffic between containers, not just shared
+  network membership;
 - Dockerfile or Compose concepts, possibly taught in the simulated shell;
 - restart-to-recover health lessons, which need fixture state that survives a
   restart.

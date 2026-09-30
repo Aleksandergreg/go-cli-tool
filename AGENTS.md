@@ -1,6 +1,6 @@
 # OpsQuest agent guide
 
-OpsQuest is a Go 1.26 CLI game with 23 in-memory Linux missions and 11 optional Docker labs across two worlds. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. Kubernetes remains future scope unless a task explicitly adds it.
+OpsQuest is a Go 1.26 CLI game with 23 in-memory Linux missions and 16 optional Docker labs across three worlds. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. Kubernetes remains future scope unless a task explicitly adds it.
 
 ## Repository map
 

@@ -51,6 +51,9 @@ const (
 	ConditionDockerContainerStopped    ConditionType = "docker_container_stopped"
 	ConditionDockerContainerCountEqual ConditionType = "docker_container_count_equals"
 	ConditionDockerContainerAbsent     ConditionType = "docker_container_absent"
+	ConditionDockerNetworkShared       ConditionType = "docker_containers_share_network"
+	ConditionDockerNetworkIsolated     ConditionType = "docker_containers_isolated"
+	ConditionDockerNetworkAbsent       ConditionType = "docker_network_absent"
 )
 
 // Mission is a declarative OpsQuest exercise. Setup describes the isolated
@@ -135,7 +138,14 @@ type ArchiveEntry struct {
 // code maps these aliases and names to isolated engine resources.
 type DockerSetup struct {
 	Images     []DockerImageSpec     `json:"images"`
+	Networks   []DockerNetworkSpec   `json:"networks,omitempty"`
 	Containers []DockerContainerSpec `json:"containers"`
+}
+
+// DockerNetworkSpec is one logical, attempt-owned network. The Docker adapter
+// always creates it as an internal network with a generated name.
+type DockerNetworkSpec struct {
+	Name string `json:"name"`
 }
 
 type DockerImageSpec struct {
@@ -154,6 +164,10 @@ type DockerContainerSpec struct {
 	ExitCode *int   `json:"exit_code,omitempty"`
 	Health   string `json:"health,omitempty"`
 	Restart  string `json:"restart,omitempty"`
+	// Networks lists declared networks the fixture joins at creation. A
+	// fixture without networks runs with networking disabled and cannot be
+	// connected to a network later.
+	Networks []string `json:"networks,omitempty"`
 }
 
 type Validation struct {
@@ -161,14 +175,16 @@ type Validation struct {
 }
 
 type Condition struct {
-	Type      ConditionType `json:"type"`
-	Path      string        `json:"path,omitempty"`
-	Value     string        `json:"value,omitempty"`
-	Values    []string      `json:"values,omitempty"`
-	PID       int           `json:"pid,omitempty"`
-	Container string        `json:"container,omitempty"`
-	Count     *int          `json:"count,omitempty"`
-	present   conditionFields
+	Type       ConditionType `json:"type"`
+	Path       string        `json:"path,omitempty"`
+	Value      string        `json:"value,omitempty"`
+	Values     []string      `json:"values,omitempty"`
+	PID        int           `json:"pid,omitempty"`
+	Container  string        `json:"container,omitempty"`
+	Count      *int          `json:"count,omitempty"`
+	Network    string        `json:"network,omitempty"`
+	Containers []string      `json:"containers,omitempty"`
+	present    conditionFields
 }
 
 // UnmarshalJSON retains field presence so validation can reject an unsupported
