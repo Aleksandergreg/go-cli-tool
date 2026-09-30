@@ -12,8 +12,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 29 {
-		t.Fatalf("len(All()) = %d, want 29", len(items))
+	if len(items) != 34 {
+		t.Fatalf("len(All()) = %d, want 34", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {
@@ -46,7 +46,7 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 
 	linux := catalog.InTrack("")
 	docker := catalog.InTrack(TrackDocker)
-	if len(linux) != 23 || len(docker) != 6 {
+	if len(linux) != 23 || len(docker) != 11 {
 		t.Fatalf("track sizes = linux %d, docker %d", len(linux), len(docker))
 	}
 	if docker[0].ID != "docker-container-census" || docker[0].Number != 20 {
@@ -217,6 +217,44 @@ func TestExpandedDockerCurriculumMetadata(t *testing.T) {
 	diagnostic, _ := catalog.Find("docker-last-broadcast")
 	if diagnostic.Docker == nil || len(diagnostic.Docker.Containers) != 1 || diagnostic.Docker.Containers[0].Log == "" || diagnostic.Docker.Containers[0].ExitCode == nil || *diagnostic.Docker.Containers[0].ExitCode != 78 {
 		t.Fatalf("diagnostic Docker setup = %#v", diagnostic.Docker)
+	}
+}
+
+func TestContainerTriageCurriculum(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := []struct {
+		id         string
+		number     int
+		difficulty string
+		hints      int
+	}{
+		{id: "docker-janitor-duty", number: 30, difficulty: DifficultyBeginner, hints: 3},
+		{id: "docker-tail-end", number: 31, difficulty: DifficultyBeginner, hints: 3},
+		{id: "docker-running-isnt-healthy", number: 32, difficulty: DifficultyIntermediate, hints: 3},
+		{id: "docker-crash-loop", number: 33, difficulty: DifficultyIntermediate, hints: 3},
+		{id: "docker-postmortem-triage", number: 34, difficulty: DifficultyAdvanced, hints: 5},
+	}
+	for _, want := range wants {
+		item, found := catalog.Find(want.id)
+		if !found {
+			t.Errorf("mission %q missing", want.id)
+			continue
+		}
+		if item.Number != want.number || item.Campaign != "Container Triage" || item.EffectiveTrack() != TrackDocker || item.Difficulty != want.difficulty || len(item.Hints) != want.hints {
+			t.Errorf("mission %q curriculum metadata = number %d, campaign %q, track %q, difficulty %q, hints %d", item.ID, item.Number, item.Campaign, item.EffectiveTrack(), item.Difficulty, len(item.Hints))
+		}
+	}
+	worlds := catalog.Worlds(TrackDocker)
+	if len(worlds) != 2 || worlds[1].Name != "Container Triage" || len(worlds[1].Missions) != 5 {
+		t.Fatalf("Docker worlds = %d, want Foundations plus Container Triage", len(worlds))
+	}
+	crashLoop, _ := catalog.Find("docker-crash-loop")
+	payments := crashLoop.Docker.Containers[0]
+	if payments.Restart != DockerRestartOnFailure || payments.State != DockerStateRunning || payments.ExitCode == nil || *payments.ExitCode == 0 {
+		t.Fatalf("crash-loop fixture = %#v", payments)
 	}
 }
 
@@ -709,6 +747,14 @@ func TestCatalogTrackBoundariesAndAdjacency(t *testing.T) {
 	last, found := catalog.LastInTrack(TrackLinux)
 	if !found || last.Number != 29 {
 		t.Fatalf("LastInTrack(linux) = %#v, %v", last, found)
+	}
+	lastDocker, found := catalog.LastInTrack(TrackDocker)
+	if !found || lastDocker.ID != "docker-postmortem-triage" || lastDocker.Number != 34 {
+		t.Fatalf("LastInTrack(docker) = %#v, %v", lastDocker, found)
+	}
+	crossWorld, found := catalog.AdjacentInTrack("docker-shift-handoff", 1)
+	if !found || crossWorld.ID != "docker-janitor-duty" {
+		t.Fatalf("AdjacentInTrack(after Docker 25) = %#v, %v", crossWorld, found)
 	}
 	next, found := catalog.AdjacentInTrack("linux-production-friday", 1)
 	if !found || next.ID != "linux-runbook-runner" {

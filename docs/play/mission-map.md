@@ -17,9 +17,9 @@ Editable source: [`learning-journey.excalidraw`](diagrams/learning-journey.excal
 The curriculum has two independent tracks:
 
 - **Linux:** 23 missions across four ordered worlds. Bare `opsquest play` follows this track.
-- **Docker:** 6 optional Foundations missions in one beginner world. Docker readiness never blocks Linux play.
+- **Docker:** 11 optional missions across two worlds: Foundations, then Container Triage. Docker readiness never blocks Linux play.
 
-Display numbers are global across both tracks: Docker occupies Missions 20–25 and Linux World 4 resumes at Mission 26. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
+Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, and Docker World 2 continues at Mission 30. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
 
 The [learning philosophy](../game/learning-philosophy.md) explains the incident
 loop and feedback model. [Mission authoring](../technical/mission-authoring.md)
@@ -30,7 +30,7 @@ describes how validators preserve equivalent solutions.
 ```console
 $ opsquest play                 # resume Linux progress
 $ opsquest map                  # see every world and stage
-$ opsquest map --track docker   # see the optional Docker world
+$ opsquest map --track docker   # see the optional Docker worlds
 $ opsquest play --world 3       # stay within Production Friday
 $ opsquest play 19              # begin at a global mission number
 $ opsquest play linux-find-logs # begin at a stable mission ID
@@ -75,6 +75,11 @@ The “tools” column records suggested commands, not a mandatory solution. Out
 | 27 | Linux W4.2 | Beginner | Make a focused configuration edit with a modal editor | `cat`, `vi` | Content and mode equal |
 | 28 | Linux W4.3 | Intermediate | Repair, permit, and run a reusable report script | `cat`, `less`, `vi`, `sed`, `chmod`, `sh` | Report content/lines and script mode |
 | 29 | Linux W4.4 | Advanced | Reason about child-shell directory and environment scope | `cat`, `less`, `vi`, `sed`, `chmod`, `sh`, `pwd`, `env` | Parent scope preserved; report and script state correct |
+| 30 | Docker W2.1 | Beginner | Remove finished job containers while services keep running | `docker` | Jobs absent; services running; count equals |
+| 31 | Docker W2.2 | Beginner | Read only the end of a long job log | `docker` | Output equals final log lines |
+| 32 | Docker W2.3 | Intermediate | Replace a running but unhealthy replica with its standby | `docker` | Unhealthy target stopped; healthy and standby running; count equals |
+| 33 | Docker W2.4 | Intermediate | Stop a restart-policy crash loop and surface its fault | `docker` | Target stopped; service running; count equals; output contains fault |
+| 34 | Docker W2.5 | Advanced | Triage health and exit codes while preserving evidence | `docker` | Canary and failed job stopped; successful jobs absent; api running; count equals |
 
 ## World progression
 
@@ -98,9 +103,13 @@ The final Linux world moves from executing a supplied script to repairing reusab
 
 Docker Foundations progresses through listing, logs, sanitized exit status, targeted stop, multi-service recovery, and a mixed lifecycle handoff. Logical aliases hide real container names and IDs, keeping every lesson focused on observable state for exact attempt-owned resources.
 
+### Docker World 2: Container Triage
+
+Container Triage separates evidence from clutter. It adds removal of stopped containers, log tails, health probes, and restart policies, then combines them in an advanced boss where the player must decide what to stop, what to remove, and what to keep for the postmortem.
+
 ## Curriculum evolution
 
-The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, and beginner Docker lifecycle gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
+The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, beginner Docker lifecycle, and Docker triage gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
 
 Read [Missions, hints, and progress](missions-and-progress.md) for route,
 reward, and persistence behavior, and [Mission authoring](../technical/mission-authoring.md)

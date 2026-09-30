@@ -30,7 +30,7 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 ## What is included
 
 - 23 Linux missions across four ordered learning worlds
-- 6 optional, disposable Docker Foundations missions
+- 11 optional, disposable Docker missions across two worlds: Foundations and Container Triage
 - An isolated in-memory filesystem, environment, process table, and archives
 - Quote-aware globs and variables, pipelines, redirection, and command history
 - A compact virtual `vi` and bounded virtual shell scripts
@@ -85,7 +85,10 @@ $ opsquest doctor
 $ opsquest play 20
 ```
 
-OpsQuest never pulls the image automatically. See
+OpsQuest never pulls the image automatically. If an OpsQuest process is
+killed before it can clean up, the next Docker mission removes its leftover lab
+containers; `opsquest doctor` reports them and `opsquest doctor --cleanup`
+removes them on demand. See
 [Docker Foundations](docs/play/docker-foundations.md) for Docker Desktop,
 Docker Engine, and OrbStack setup, plus the teaching subset and isolation
 boundary.
@@ -94,7 +97,7 @@ boundary.
 
 Player-entered Linux commands—including virtual scripts—are parsed and executed by OpsQuest. They never reach a host shell, host process, or host path. The teaching shell operates only on bounded in-memory state.
 
-Docker input is parsed into a small set of typed teaching actions. OpsQuest constructs Docker arguments itself, uses only exact resources labeled for the current attempt, applies resource restrictions, and verifies ownership again during cleanup. It does not expose arbitrary Docker passthrough, privileged mode, host mounts, host networking, devices, or the Docker socket.
+Docker input is parsed into a small set of typed teaching actions. OpsQuest constructs Docker arguments itself, uses only exact resources labeled for the current attempt, applies resource restrictions, and verifies ownership again during cleanup. Fixture processes live at most 24 hours, and leftovers from a crashed process are removed only when every ownership label matches and the recorded owner process is gone. It does not expose arbitrary Docker passthrough, privileged mode, host mounts, host networking, devices, or the Docker socket.
 
 The optional web companion binds only to an ephemeral `127.0.0.1` port, uses a one-time pairing URL, and exposes a read-only mission projection. It cannot submit commands, mutate the profile or attempt, address Docker resources, or approve completion.
 

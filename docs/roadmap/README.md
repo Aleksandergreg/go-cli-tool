@@ -11,17 +11,19 @@ behavior. Shipped behavior belongs in the player and technical guides.
 
 ## Docker Foundations
 
-The current six-mission campaign intentionally supports only listing, logs,
-sanitized inspection, and bounded lifecycle actions for attempt-owned
-containers.
+The current two Docker worlds intentionally support only listing with fixed
+filters, logs, sanitized inspection, bounded lifecycle actions, and removal of
+stopped attempt-owned containers. Fixture health probes and crash loops are
+fixed behaviors chosen by the mission.
 
 Possible later increments include:
 
-- environment-aware container creation;
+- environment-aware container creation through a limited `docker run`;
 - limited port publication;
 - bounded volumes and networking;
-- Dockerfile or Compose concepts;
-- more advanced outcome-based troubleshooting.
+- Dockerfile or Compose concepts, possibly taught in the simulated shell;
+- restart-to-recover health lessons, which need fixture state that survives a
+  restart.
 
 Each expansion would widen the external-engine boundary. It requires its own
 parser contract, threat model, resource ownership rules, cleanup behavior, and

@@ -317,3 +317,15 @@ func TestFixtureReadinessTimesOutAndCleansUp(t *testing.T) {
 		t.Fatalf("containers remaining after failed readiness = %d", commandRunner.containerCount())
 	}
 }
+
+func TestPlainListingKeepsOriginalLayout(t *testing.T) {
+	environment := createTestEnvironment(t, newFakeDockerRunner())
+	listed, err := environment.Execute(context.Background(), "docker ps")
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "CONTAINER ID  IMAGE     STATUS   NAMES\nlab-02        fixture   running  metrics\n"
+	if listed.Output != want {
+		t.Fatalf("docker ps output:\n%q\nwant:\n%q", listed.Output, want)
+	}
+}

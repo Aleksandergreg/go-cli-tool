@@ -176,14 +176,19 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 		if err := environment.startContainer(ctx, fixture.Name); err != nil {
 			return environment, joinSetupCleanupError(fmt.Errorf("start Docker fixture %s: %w", fixture.Name, err), environment.Close())
 		}
-		if fixture.Health != "" {
-			expected := fixture.Health
-			settled := func(inspection containerInspection) bool {
-				return healthStatus(inspection) == expected
-			}
-			if err := environment.waitForFixture(ctx, fixture.Name, settled); err != nil {
-				return environment, joinSetupCleanupError(fmt.Errorf("wait for Docker fixture %s health: %w", fixture.Name, err), environment.Close())
-			}
+	}
+	// Probes run concurrently once every fixture has started, so waiting
+	// after all starts costs one probe interval rather than one per fixture.
+	for _, fixture := range item.Docker.Containers {
+		if fixture.Health == "" || fixture.State != mission.DockerStateRunning {
+			continue
+		}
+		expected := fixture.Health
+		settled := func(inspection containerInspection) bool {
+			return healthStatus(inspection) == expected
+		}
+		if err := environment.waitForFixture(ctx, fixture.Name, settled); err != nil {
+			return environment, joinSetupCleanupError(fmt.Errorf("wait for Docker fixture %s health: %w", fixture.Name, err), environment.Close())
 		}
 	}
 	return environment, nil

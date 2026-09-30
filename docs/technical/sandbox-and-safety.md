@@ -122,14 +122,25 @@ Docker missions are opt-in and follow a narrower path:
 
 1. The mission catalog accepts only pinned image references and bounded logical fixtures.
 2. Availability checks the Docker executable, active Docker-compatible engine, and exact local image without creating resources or pulling images. An active `orbstack` context is identified for provider-specific guidance only.
-3. The factory generates a random session ID and creates containers with generated names and five ownership labels.
-4. Player text is parsed into `list`, `start`, `restart`, `stop`, `inspect`, `logs`, or `help`; flags and aliases must match the small grammar.
+3. The factory first sweeps orphaned fixtures (see below), then generates a random session ID and creates containers with generated names, five ownership labels, and two advisory owner labels (process ID and host name).
+4. Player text is parsed into `list`, `start`, `restart`, `stop`, `rm`, `inspect`, `logs`, or `help`; flags and aliases must match the small grammar. `ps` filters are limited to fixed `status` and `health` values and are evaluated in Go over sanitized inspection data rather than passed to Docker. `logs --tail` accepts only a whole number up to 10,000 or `all`. `rm` has no `--force` form and refuses a running container.
 5. The adapter resolves a validated logical alias to a tracked exact container ID.
 6. `exec.CommandContext` receives fixed arguments constructed by the adapter.
 7. Observations inspect exact IDs or enumerate by the session label, then verify the complete ownership-label set.
-8. `Close` seals the attempt immediately, re-inspects ownership, removes only matching exact IDs, and retains unresolved resources for a retry.
+8. `Close` seals the attempt immediately, re-inspects ownership, removes only matching exact IDs, and retains unresolved resources for a retry. Containers the player already removed count as resolved.
+9. Engine errors that name a tracked container are rewritten to its logical identity, and a missing container is reported as removed, so real IDs and generated names never reach the player.
 
-Created containers use no network, a read-only root filesystem, a bounded temporary filesystem, an unprivileged numeric user, no Linux capabilities, `no-new-privileges`, and explicit PID, memory, CPU, file-descriptor, restart, and stop-timeout limits. Diagnostic fixtures use a fixed shell program; bounded log text and exit status are passed as data arguments rather than interpolated into that program. Containers do not receive host bind mounts, devices, privileged mode, host networking, or a Docker socket.
+Created containers use no network, a read-only root filesystem, a bounded temporary filesystem, an unprivileged numeric user, no Linux capabilities, `no-new-privileges`, and explicit PID, memory, CPU, file-descriptor, restart, and stop-timeout limits. Diagnostic and logging fixtures use fixed shell programs; bounded log text, exit status, and lifetime are passed as data arguments rather than interpolated into those programs. Long-lived fixture processes exit after 24 hours. Health probes are the fixed BusyBox applets `true` or `false`, selected by a validated `health` enum. The restart policy is `no` except for a declared crash-loop fixture, which uses `on-failure:50` and therefore stops relaunching on its own. Containers do not receive host bind mounts, devices, privileged mode, host networking, published ports, or a Docker socket.
+
+### Orphaned fixtures
+
+A process that is killed before `Close` leaves its fixtures behind. Before each Docker attempt, and on demand through `opsquest doctor --cleanup`, the factory lists containers labeled `com.opsquest.managed=true` and removes an exact ID only when all of these hold:
+
+- the managed, schema, session, mission, and alias labels are present and well formed;
+- the container name is the generated `opsquest-<session>-cNN` form for that same session;
+- either the owner-host label matches this machine and the recorded owner process is no longer running, or the container is older than the 24-hour fixture lifetime.
+
+Owners on other hosts, and fixtures created before owner labels existed, can therefore only age out. A plain `opsquest doctor` counts orphans without removing anything. A failed automatic sweep never blocks mission setup.
 
 Docker-specific ceilings include:
 
@@ -157,6 +168,9 @@ The Docker-compatible engine remains a powerful external dependency; OpsQuest re
 | Docker input becomes arbitrary CLI flags | Typed parser accepts only exact actions and validated logical aliases | `internal/dockerlab/parser.go` and tests |
 | Cleanup removes another container | Exact ID plus managed/schema/session/mission/alias label verification | `internal/dockerlab/environment.go` and tests |
 | Partial Docker setup leaks resources silently | Factory may return a partial environment; managed cleanup and retryable `Close` | `internal/dockerlab/factory.go`, environment contract tests |
+| A killed process leaks running fixtures | 24-hour fixture lifetime; owner-process and age-based sweep with complete label and generated-name proof | `internal/dockerlab/janitor.go` and tests |
+| Orphan sweep removes a live or foreign container | Live same-host owners are never swept; unknown owners only after the fixture lifetime; exact IDs only | `internal/dockerlab/janitor_test.go` |
+| Removed containers leak engine identity | Missing-container errors mapped to the alias; tracked IDs and names redacted from engine errors | `internal/dockerlab/environment.go` and tests |
 | Persisted display text injects terminal controls | Profile names reject non-printable characters and normalize legacy values | `internal/profile/profile.go` and tests |
 | Another site reaches the loopback companion | One-time capability pairing, exact Host/Origin checks, same-site HTTP-only cookie, no permissive CORS | `internal/webapp/server.go` and tests |
 | Browser input reaches a mission environment | Companion exposes only read-only state and SSE routes; `game.Session` has no companion command callback | `internal/webapp`, `internal/game/companion.go` |

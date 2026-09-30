@@ -1,7 +1,7 @@
 <!-- Rendered export for the player mission map; edit the matching Excalidraw source. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1500" height="860" viewBox="0 0 1500 860" role="img" aria-labelledby="title desc">
   <title id="title">OpsQuest learning journey</title>
-  <desc id="desc">Two-lane curriculum overview showing four Linux worlds with twenty-three missions and one independent six-mission Docker Foundations world.</desc>
+  <desc id="desc">Two-lane curriculum overview showing four Linux worlds with twenty-three missions and two independent Docker worlds with eleven missions.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#2563eb"/></marker>
     <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#7c3aed"/></marker>
@@ -74,16 +74,16 @@
   <text x="72" y="598" class="lane" fill="#6d28d9">DOCKER TRACK · OPTIONAL · INDEPENDENT WORLD NUMBERING</text>
   <g filter="url(#shadow)">
     <rect x="90" y="625" width="390" height="125" rx="20" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
-    <text x="120" y="660" class="world" fill="#4c1d95">Docker World 1</text>
-    <text x="120" y="690" class="campaign" fill="#5b21b6">It Works on My Machine</text>
-    <text x="120" y="719" class="body" fill="#475569">Missions 20–25 · 6 beginner lifecycle and diagnostic stages</text>
+    <text x="120" y="660" class="world" fill="#4c1d95">Docker Worlds 1–2</text>
+    <text x="120" y="690" class="campaign" fill="#5b21b6">Foundations → Container Triage</text>
+    <text x="120" y="719" class="body" fill="#475569">Missions 20–34 · 11 stages; Linux 26–29 sit between</text>
   </g>
   <path d="M510 687 H635" stroke="#7c3aed" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arrowPurple)"/>
   <g>
     <rect x="660" y="625" width="690" height="125" rx="20" fill="#ede9fe" stroke="#a78bfa" stroke-width="2" stroke-dasharray="7 5"/>
     <text x="690" y="660" class="campaign" fill="#4c1d95">Separate readiness and progress</text>
     <text x="690" y="690" class="body" fill="#5b21b6">Pinned local fixture · no automatic pull · Docker never blocks Linux</text>
-    <text x="690" y="718" class="body" fill="#5b21b6">6 bounded missions · typed list, logs, inspect, and lifecycle actions only.</text>
+    <text x="690" y="718" class="body" fill="#5b21b6">11 bounded missions · typed list, filter, logs, inspect, lifecycle, and rm only.</text>
   </g>
 
   <rect x="55" y="812" width="245" height="28" rx="14" fill="#172554"/><text x="177" y="831" text-anchor="middle" class="tag" fill="#ffffff">OUTCOME-BASED VALIDATION</text>

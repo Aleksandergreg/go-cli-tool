@@ -912,7 +912,9 @@ func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
 		"Container Census",
 		"Shift Handoff",
 		"docker-container-census",
-		"0/6 missions complete",
+		"WORLD 2/2 · Container Triage",
+		"Postmortem Triage",
+		"0/11 missions complete",
 		"Continue: opsquest play --track docker",
 		"Jump: opsquest play --track docker --world N",
 		"IDs: opsquest map --track docker --ids",
@@ -1085,7 +1087,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"doctor"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "29 missions (23 Linux, 6 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
+	if !strings.Contains(out.String(), "34 missions (23 Linux, 11 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
 		t.Fatalf("doctor output = %s", out.String())
 	}
 }
@@ -1163,7 +1165,7 @@ func TestListCampaignFilterUsesCampaignTotal(t *testing.T) {
 	if !strings.Contains(out.String(), "0/6 missions complete") {
 		t.Fatalf("campaign-filtered total missing:\n%s", out.String())
 	}
-	if strings.Contains(out.String(), "0/29 missions complete") || strings.Contains(out.String(), "Production Friday") {
+	if strings.Contains(out.String(), "0/34 missions complete") || strings.Contains(out.String(), "Production Friday") {
 		t.Fatalf("campaign filter used catalog-wide scope:\n%s", out.String())
 	}
 }
@@ -1363,4 +1365,126 @@ func (e *cliDockerEnvironment) Observe(ctx context.Context, condition mission.Co
 func (e *cliDockerEnvironment) Close() error {
 	e.closed = true
 	return nil
+}
+
+type cliJanitorFactory struct {
+	cliDockerFactory
+	orphans     int
+	checkErr    error
+	removeErr   error
+	checks      int
+	removeCalls int
+}
+
+func (f *cliJanitorFactory) OrphanedResources(context.Context) (int, error) {
+	f.checks++
+	return f.orphans, f.checkErr
+}
+
+func (f *cliJanitorFactory) RemoveOrphanedResources(context.Context) (int, error) {
+	f.removeCalls++
+	if f.removeErr != nil {
+		return 1, f.removeErr
+	}
+	removed := f.orphans
+	f.orphans = 0
+	return removed, nil
+}
+
+func TestDoctorReportsAndCleansOrphanedDockerLabs(t *testing.T) {
+	run := func(t *testing.T, factory game.Factory, args ...string) (string, error) {
+		t.Helper()
+		store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+		catalog, err := mission.LoadCatalog()
+		if err != nil {
+			t.Fatal(err)
+		}
+		out := &bytes.Buffer{}
+		app := New(Config{Out: out, ErrOut: &bytes.Buffer{}, Catalog: catalog, Store: store, Factory: factory})
+		err = app.Run(append([]string{"doctor"}, args...))
+		return out.String(), err
+	}
+
+	t.Run("plain doctor is read-only", func(t *testing.T) {
+		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "Docker is ready for this mission."}, orphans: 2}
+		output, err := run(t, factory)
+		if err != nil || !strings.Contains(output, "docker cleanup: 2 orphaned lab containers from exited OpsQuest processes; run 'opsquest doctor --cleanup'") {
+			t.Fatalf("doctor output = %s, error = %v", output, err)
+		}
+		if factory.checks != 1 || factory.removeCalls != 0 {
+			t.Fatalf("checks = %d, removals = %d", factory.checks, factory.removeCalls)
+		}
+	})
+
+	t.Run("clean engine", func(t *testing.T) {
+		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}}
+		output, err := run(t, factory)
+		if err != nil || !strings.Contains(output, "docker cleanup: no orphaned lab containers") {
+			t.Fatalf("doctor output = %s, error = %v", output, err)
+		}
+	})
+
+	t.Run("check failure is a warning", func(t *testing.T) {
+		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}, checkErr: fmt.Errorf("list failed")}
+		output, err := run(t, factory)
+		if err != nil || !strings.Contains(output, "could not check for orphaned lab containers · list failed") {
+			t.Fatalf("doctor output = %s, error = %v", output, err)
+		}
+	})
+
+	t.Run("unavailable engine skips the check", func(t *testing.T) {
+		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{detail: "Docker labs unavailable"}, orphans: 2}
+		output, err := run(t, factory)
+		if err != nil || strings.Contains(output, "docker cleanup") || factory.checks != 0 {
+			t.Fatalf("doctor output = %s, error = %v, checks = %d", output, err, factory.checks)
+		}
+	})
+
+	t.Run("cleanup removes orphans", func(t *testing.T) {
+		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}, orphans: 1}
+		output, err := run(t, factory, "--cleanup")
+		if err != nil || !strings.Contains(output, "docker cleanup: removed 1 orphaned lab container\n") || factory.removeCalls != 1 {
+			t.Fatalf("doctor output = %s, error = %v, removals = %d", output, err, factory.removeCalls)
+		}
+	})
+
+	t.Run("cleanup failure fails the command", func(t *testing.T) {
+		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}, orphans: 2, removeErr: fmt.Errorf("daemon went away")}
+		output, err := run(t, factory, "--cleanup")
+		if err == nil || !strings.Contains(err.Error(), "docker cleanup failed") || !strings.Contains(output, "removed 1, then failed · daemon went away") {
+			t.Fatalf("doctor output = %s, error = %v", output, err)
+		}
+	})
+
+	t.Run("cleanup failure before removal", func(t *testing.T) {
+		factory := &zeroRemovalJanitor{&cliJanitorFactory{cliDockerFactory: cliDockerFactory{detail: "unavailable"}, removeErr: fmt.Errorf("docker executable not found in PATH")}}
+		output, err := run(t, factory, "--cleanup")
+		if err == nil || !strings.Contains(output, "docker cleanup: failed · docker executable not found in PATH") || strings.Contains(output, "removed 0") {
+			t.Fatalf("doctor output = %s, error = %v", output, err)
+		}
+	})
+
+	t.Run("cleanup without Docker labs", func(t *testing.T) {
+		output, err := run(t, game.SandboxFactory{}, "--cleanup")
+		if err != nil || !strings.Contains(output, "nothing to clean; Docker labs are not configured") {
+			t.Fatalf("doctor output = %s, error = %v", output, err)
+		}
+	})
+
+	t.Run("rejects positional arguments", func(t *testing.T) {
+		if _, err := run(t, game.SandboxFactory{}, "cleanup"); err == nil {
+			t.Fatal("doctor accepted a positional argument")
+		}
+	})
+}
+
+// zeroRemovalJanitor fails before removing anything, as when the Docker CLI
+// is absent.
+type zeroRemovalJanitor struct {
+	*cliJanitorFactory
+}
+
+func (f *zeroRemovalJanitor) RemoveOrphanedResources(context.Context) (int, error) {
+	f.removeCalls++
+	return 0, f.removeErr
 }

@@ -491,7 +491,8 @@ func (e *environment) listContainers(ctx context.Context, all bool, filters []li
 		alias     string
 	}
 	rows := make([]row, 0, len(e.containers))
-	statusWidth := len("STATUS")
+	// Eight columns preserves the original listing layout for plain states.
+	statusWidth := 8
 	for _, tracked := range e.snapshotContainers() {
 		inspection, exists, err := e.inspect(ctx, tracked.id)
 		if err != nil {

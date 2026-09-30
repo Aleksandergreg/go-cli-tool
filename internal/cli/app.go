@@ -739,7 +739,8 @@ func (a *App) runShow(args []string) error {
 }
 
 func (a *App) runDoctor(args []string) error {
-	flags := a.newFlagSet("doctor", func() { fmt.Fprintln(a.errOut, "Usage: opsquest doctor") })
+	flags := a.newFlagSet("doctor", func() { fmt.Fprintln(a.errOut, "Usage: opsquest doctor [--cleanup]") })
+	cleanup := flags.Bool("cleanup", false, "remove Docker lab containers left behind by exited OpsQuest processes")
 	if help, err := parseFlags(flags, args); help || err != nil {
 		return err
 	}
@@ -756,13 +757,56 @@ func (a *App) runDoctor(args []string) error {
 	fmt.Fprintf(a.out, "  %s profile: version %d, %d completed missions\n", check, player.Version, len(player.Completed))
 	fmt.Fprintf(a.out, "  %s profile path: %s\n", check, a.store.Path())
 	fmt.Fprintf(a.out, "  %s Linux labs: in-memory; no host shell or filesystem access\n", check)
+	dockerReady := false
 	if item, found := a.catalog.FirstInTrack(mission.TrackDocker); found {
 		availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
+		dockerReady = availability.Available
 		if availability.Available {
 			fmt.Fprintf(a.out, "  %s docker labs: ready · %s\n", check, availability.Detail)
 		} else {
 			fmt.Fprintf(a.out, "  %s docker labs: unavailable · %s\n", a.style.Warning("!"), availability.Detail)
 		}
+	}
+	return a.reportOrphanedLabs(*cleanup, dockerReady)
+}
+
+// reportOrphanedLabs checks for, or with cleanup removes, lab resources left
+// behind by OpsQuest processes that exited without closing their attempt.
+// A plain doctor run stays read-only and only checks a reachable engine.
+func (a *App) reportOrphanedLabs(cleanup, dockerReady bool) error {
+	janitor, supported := a.factory.(game.ResourceJanitor)
+	check := a.style.Success("✓")
+	warning := a.style.Warning("!")
+	if !supported {
+		if cleanup {
+			fmt.Fprintf(a.out, "  %s docker cleanup: nothing to clean; Docker labs are not configured\n", check)
+		}
+		return nil
+	}
+	if cleanup {
+		removed, err := janitor.RemoveOrphanedResources(a.ctx)
+		if err != nil {
+			if removed > 0 {
+				fmt.Fprintf(a.out, "  %s docker cleanup: removed %d, then failed · %v\n", warning, removed, err)
+			} else {
+				fmt.Fprintf(a.out, "  %s docker cleanup: failed · %v\n", warning, err)
+			}
+			return fmt.Errorf("docker cleanup failed: %w", err)
+		}
+		fmt.Fprintf(a.out, "  %s docker cleanup: removed %d orphaned lab %s\n", check, removed, plural(removed, "container", "containers"))
+		return nil
+	}
+	if !dockerReady {
+		return nil
+	}
+	count, err := janitor.OrphanedResources(a.ctx)
+	switch {
+	case err != nil:
+		fmt.Fprintf(a.out, "  %s docker cleanup: could not check for orphaned lab containers · %v\n", warning, err)
+	case count > 0:
+		fmt.Fprintf(a.out, "  %s docker cleanup: %d orphaned lab %s from exited OpsQuest processes; run 'opsquest doctor --cleanup'\n", warning, count, plural(count, "container", "containers"))
+	default:
+		fmt.Fprintf(a.out, "  %s docker cleanup: no orphaned lab containers\n", check)
 	}
 	return nil
 }
@@ -825,7 +869,7 @@ func (a *App) runHelp(args []string) error {
 	case "show", "mission":
 		fmt.Fprintln(a.out, "Usage: opsquest show [MISSION]")
 	case "doctor":
-		fmt.Fprintln(a.out, "Usage: opsquest doctor")
+		fmt.Fprintln(a.out, "Usage: opsquest doctor [--cleanup]")
 	case "reset":
 		fmt.Fprintln(a.out, "Usage: opsquest reset [--yes]")
 	case "version":
@@ -864,7 +908,7 @@ func (a *App) printUsage() {
   opsquest commands        Show commands practiced successfully
   opsquest achievements    Show learning achievements
   opsquest show [MISSION]  Preview a mission without starting it
-  opsquest doctor          Check the catalog, profile, and safety mode
+  opsquest doctor          Check the catalog, profile, safety mode, and lab cleanup
   opsquest reset [--yes]   Reset local progress
   opsquest version         Print the version
 
