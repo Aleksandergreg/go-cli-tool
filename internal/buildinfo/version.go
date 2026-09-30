@@ -4,4 +4,4 @@ package buildinfo
 
 // Version is the current OpsQuest semantic version. Release Please updates this
 // constant in its release pull request before GoReleaser builds the tagged source.
-const Version = "0.7.1"
+const Version = "0.8.0"
