@@ -1,0 +1,49 @@
+{
+  "id": "docker-tail-end",
+  "number": 31,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Tail End",
+  "campaign": "Container Triage",
+  "difficulty": "beginner",
+  "story": "The nightly ledger reconciliation failed after dozens of routine progress lines. The incident channel only wants the lines that explain how it ended.",
+  "objective": "Display only the final three log lines of the ledger container.",
+  "suggested_commands": [
+    "docker"
+  ],
+  "hints": [
+    "The reason a job stopped is usually at the end of its log.",
+    "docker logs accepts an option that limits output to the most recent lines.",
+    "docker logs --tail 3 ledger prints only the last three lines."
+  ],
+  "explanation": "docker logs --tail N reads only the newest N lines, the same idea as tail -n on a file. With long logs, that brings the ending into view without scrolling through the whole history.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {
+        "name": "ledger",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "INFO ledger reconciliation starting run=2026-09-30\nINFO batch 001 reconciled\nINFO batch 002 reconciled\nINFO batch 003 reconciled\nINFO batch 004 reconciled\nINFO batch 005 reconciled\nINFO batch 006 reconciled\nINFO batch 007 reconciled\nINFO batch 008 reconciled\nINFO batch 009 reconciled\nINFO batch 010 reconciled\nINFO batch 011 reconciled\nINFO batch 012 reconciled\nINFO batch 013 reconciled\nINFO batch 014 reconciled\nINFO batch 015 reconciled\nINFO batch 016 reconciled\nWARN batch 017 retried after lock timeout\nINFO batch 017 reconciled\nINFO batch 018 reconciled\nINFO batch 019 reconciled\nINFO batch 020 reconciled\nINFO batch 021 reconciled\nINFO batch 022 reconciled\nINFO batch 023 reconciled\nINFO batch 024 reconciled\nINFO batch 025 reconciled\nINFO batch 026 reconciled\nINFO batch 027 reconciled\nINFO batch 028 reconciled\nINFO batch 029 reconciled\nINFO batch 030 reconciled\nERROR batch 031 checksum mismatch account=4471\nERROR reconciliation aborted after 30 clean batches\nINFO ledger exiting with status 1",
+        "exit_code": 1
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {
+        "type": "output_equals",
+        "value": "ERROR batch 031 checksum mismatch account=4471\nERROR reconciliation aborted after 30 clean batches\nINFO ledger exiting with status 1"
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 80,
+    "hint_penalty": 10
+  }
+}

@@ -110,6 +110,8 @@ func describeCondition(condition mission.Condition) string {
 			return fmt.Sprintf("Exactly %d mission containers exist", *condition.Count)
 		}
 		return "The required number of mission containers exist"
+	case mission.ConditionDockerContainerAbsent:
+		return fmt.Sprintf("Container %s has been removed", condition.Container)
 	default:
 		return fmt.Sprintf("Outcome condition %s is satisfied", condition.Type)
 	}

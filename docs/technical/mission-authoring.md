@@ -21,7 +21,7 @@ Good evidence includes:
 - a target process is stopped while a healthy process remains running;
 - output contains all relevant paths and excludes a distractor;
 - a report contains exactly the required logical lines;
-- an attempt-owned Docker container is in the required state.
+- an attempt-owned Docker container is in the required state, or has been removed.
 
 Avoid requiring one command name, argument order, or intermediate state when
 another supported solution demonstrates the same understanding.
@@ -62,14 +62,24 @@ Linux remains the default track and `simulated` remains the default environment 
 - missing narrative, guidance, setup, validation, or reward data;
 - unsafe, conflicting, or inconsistent virtual paths and state;
 - validators with missing, extra, or incompatible fields;
-- unpinned Docker images, invalid aliases, oversized Docker setup, or incomplete diagnostic fixtures;
+- unpinned Docker images, invalid aliases, oversized Docker setup, or inconsistent fixture behaviors;
 - a campaign that reappears as separate worlds in one track.
 
 Catalog access is indexed by ID and number. Returned missions and worlds are deep copies so adapters cannot mutate embedded content.
 
 ## Observable validation
 
-Conditions cover output, working directory, path existence, file content and logical lines, modes, owners, process state, environment values, and bounded Docker container state. Docker fixtures may additionally declare a bounded log and exit code together for a stopped one-shot diagnostic job; container conditions can require either running or stopped state. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
+Conditions cover output, working directory, path existence, file content and logical lines, modes, owners, process state, environment values, and bounded Docker container state. Docker fixtures select fixed behaviors implemented in Go rather than supplying commands:
+
+| Fixture fields | Behavior | Rules |
+| --- | --- | --- |
+| none | Long-lived service | `running` or `stopped` |
+| `log` | Long-lived service that prints a startup log | Log at most 8 KiB, no NUL |
+| `health: healthy` or `unhealthy` | Service with a fixed passing or failing health probe | Not allowed on exiting fixtures; setup waits for a running probe to settle |
+| `log` + `exit_code` | One-shot diagnostic job | Must be `stopped`; setup runs it to completion |
+| `log` + non-zero `exit_code` + `restart: on-failure` | Bounded crash loop (`on-failure:50`) | Must be `running`; setup waits until at least two restarts are visible |
+
+Container conditions can require running or stopped state (both require the container to still exist), or `docker_container_absent` after the player removes it. Every container a condition names must be declared in the fixture setup. The game layer compares output conditions; the active environment observes state conditions through the shared `Environment` contract.
 
 Suggested commands identify the intended tool family but do not constrain
 validation. One to five hints should progress from concept, through inspection

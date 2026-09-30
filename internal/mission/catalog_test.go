@@ -12,8 +12,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 29 {
-		t.Fatalf("len(All()) = %d, want 29", len(items))
+	if len(items) != 34 {
+		t.Fatalf("len(All()) = %d, want 34", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {
@@ -46,7 +46,7 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 
 	linux := catalog.InTrack("")
 	docker := catalog.InTrack(TrackDocker)
-	if len(linux) != 23 || len(docker) != 6 {
+	if len(linux) != 23 || len(docker) != 11 {
 		t.Fatalf("track sizes = linux %d, docker %d", len(linux), len(docker))
 	}
 	if docker[0].ID != "docker-container-census" || docker[0].Number != 20 {
@@ -220,6 +220,44 @@ func TestExpandedDockerCurriculumMetadata(t *testing.T) {
 	}
 }
 
+func TestContainerTriageCurriculum(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := []struct {
+		id         string
+		number     int
+		difficulty string
+		hints      int
+	}{
+		{id: "docker-janitor-duty", number: 30, difficulty: DifficultyBeginner, hints: 3},
+		{id: "docker-tail-end", number: 31, difficulty: DifficultyBeginner, hints: 3},
+		{id: "docker-running-isnt-healthy", number: 32, difficulty: DifficultyIntermediate, hints: 3},
+		{id: "docker-crash-loop", number: 33, difficulty: DifficultyIntermediate, hints: 3},
+		{id: "docker-postmortem-triage", number: 34, difficulty: DifficultyAdvanced, hints: 5},
+	}
+	for _, want := range wants {
+		item, found := catalog.Find(want.id)
+		if !found {
+			t.Errorf("mission %q missing", want.id)
+			continue
+		}
+		if item.Number != want.number || item.Campaign != "Container Triage" || item.EffectiveTrack() != TrackDocker || item.Difficulty != want.difficulty || len(item.Hints) != want.hints {
+			t.Errorf("mission %q curriculum metadata = number %d, campaign %q, track %q, difficulty %q, hints %d", item.ID, item.Number, item.Campaign, item.EffectiveTrack(), item.Difficulty, len(item.Hints))
+		}
+	}
+	worlds := catalog.Worlds(TrackDocker)
+	if len(worlds) != 2 || worlds[1].Name != "Container Triage" || len(worlds[1].Missions) != 5 {
+		t.Fatalf("Docker worlds = %d, want Foundations plus Container Triage", len(worlds))
+	}
+	crashLoop, _ := catalog.Find("docker-crash-loop")
+	payments := crashLoop.Docker.Containers[0]
+	if payments.Restart != DockerRestartOnFailure || payments.State != DockerStateRunning || payments.ExitCode == nil || *payments.ExitCode == 0 {
+		t.Fatalf("crash-loop fixture = %#v", payments)
+	}
+}
+
 func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 	tests := []struct {
 		name    string
@@ -276,19 +314,85 @@ func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 			wantErr: "unknown state",
 		},
 		{
-			name: "diagnostic log without exit code",
-			mutate: func(item *Mission) {
-				item.Docker.Containers[0].Log = "diagnostic"
-			},
-			wantErr: "requires both log and exit_code",
-		},
-		{
 			name: "diagnostic exit code without log",
 			mutate: func(item *Mission) {
 				exitCode := 1
 				item.Docker.Containers[0].ExitCode = &exitCode
 			},
-			wantErr: "requires both log and exit_code",
+			wantErr: "exit_code requires a log",
+		},
+		{
+			name: "service log too large",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Log = strings.Repeat("x", maxDockerFixtureLogBytes+1)
+			},
+			wantErr: "log exceeds",
+		},
+		{
+			name: "unknown health",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Health = "starting"
+			},
+			wantErr: "unknown health",
+		},
+		{
+			name: "health on exiting fixture",
+			mutate: func(item *Mission) {
+				exitCode := 0
+				item.Docker.Containers[0].Log = "complete"
+				item.Docker.Containers[0].ExitCode = &exitCode
+				item.Docker.Containers[0].Health = DockerHealthHealthy
+			},
+			wantErr: "cannot declare health",
+		},
+		{
+			name: "unknown restart behavior",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Restart = "always"
+			},
+			wantErr: "unknown restart behavior",
+		},
+		{
+			name: "restart without crash",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Restart = DockerRestartOnFailure
+			},
+			wantErr: "requires log and a non-zero exit_code",
+		},
+		{
+			name: "restart with successful exit",
+			mutate: func(item *Mission) {
+				exitCode := 0
+				item.Docker.Containers[1].Log = "complete"
+				item.Docker.Containers[1].ExitCode = &exitCode
+				item.Docker.Containers[1].Restart = DockerRestartOnFailure
+			},
+			wantErr: "requires log and a non-zero exit_code",
+		},
+		{
+			name: "crash loop declared stopped",
+			mutate: func(item *Mission) {
+				exitCode := 1
+				item.Docker.Containers[0].Log = "FATAL"
+				item.Docker.Containers[0].ExitCode = &exitCode
+				item.Docker.Containers[0].Restart = DockerRestartOnFailure
+			},
+			wantErr: "crash-loop fixture must use running state",
+		},
+		{
+			name: "unknown absent validation container",
+			mutate: func(item *Mission) {
+				item.Validation.All[0] = Condition{Type: ConditionDockerContainerAbsent, Container: "missing"}
+			},
+			wantErr: "unknown docker container",
+		},
+		{
+			name: "absent condition with count",
+			mutate: func(item *Mission) {
+				count := 1
+				item.Validation.All[0] = Condition{Type: ConditionDockerContainerAbsent, Container: "api", Count: &count}
+			},
+			wantErr: "does not support count",
 		},
 		{
 			name: "diagnostic exit code outside range",
@@ -389,15 +493,35 @@ func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 	}
 }
 
+func TestMissionValidationAcceptsDockerFixtureBehaviors(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("docker-container-census")
+	failure := 3
+	item.Docker.Containers = []DockerContainerSpec{
+		{Name: "api", Image: "fixture", State: DockerStateStopped, Log: "INFO ready", Health: DockerHealthHealthy},
+		{Name: "metrics", Image: "fixture", State: DockerStateRunning, Health: DockerHealthUnhealthy},
+		{Name: "payments", Image: "fixture", State: DockerStateRunning, Log: "FATAL key missing", ExitCode: &failure, Restart: DockerRestartOnFailure},
+	}
+	item.Validation.All = append(item.Validation.All, Condition{Type: ConditionDockerContainerAbsent, Container: "payments"})
+	if err := validateMission(item); err != nil {
+		t.Fatalf("validateMission() error = %v", err)
+	}
+}
+
 func TestMissionValidationRejectsDockerConditionOnSimulatedMission(t *testing.T) {
 	catalog, err := LoadCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
 	item, _ := catalog.Find("linux-orientation")
-	item.Validation.All = []Condition{{Type: "docker_container_running", Container: "api"}}
-	if err := validateMission(item); err == nil || !strings.Contains(err.Error(), "requires a docker environment") {
-		t.Fatalf("validateMission() error = %v", err)
+	for _, conditionType := range []ConditionType{ConditionDockerContainerRunning, ConditionDockerContainerAbsent} {
+		item.Validation.All = []Condition{{Type: conditionType, Container: "api"}}
+		if err := validateMission(item); err == nil || !strings.Contains(err.Error(), "requires a docker environment") {
+			t.Fatalf("validateMission(%s) error = %v", conditionType, err)
+		}
 	}
 }
 
@@ -623,6 +747,14 @@ func TestCatalogTrackBoundariesAndAdjacency(t *testing.T) {
 	last, found := catalog.LastInTrack(TrackLinux)
 	if !found || last.Number != 29 {
 		t.Fatalf("LastInTrack(linux) = %#v, %v", last, found)
+	}
+	lastDocker, found := catalog.LastInTrack(TrackDocker)
+	if !found || lastDocker.ID != "docker-postmortem-triage" || lastDocker.Number != 34 {
+		t.Fatalf("LastInTrack(docker) = %#v, %v", lastDocker, found)
+	}
+	crossWorld, found := catalog.AdjacentInTrack("docker-shift-handoff", 1)
+	if !found || crossWorld.ID != "docker-janitor-duty" {
+		t.Fatalf("AdjacentInTrack(after Docker 25) = %#v, %v", crossWorld, found)
 	}
 	next, found := catalog.AdjacentInTrack("linux-production-friday", 1)
 	if !found || next.ID != "linux-runbook-runner" {

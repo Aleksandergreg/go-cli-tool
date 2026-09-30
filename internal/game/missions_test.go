@@ -3,6 +3,7 @@ package game
 import (
 	"context"
 	"fmt"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -40,13 +41,23 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 			"chmod 750 /deploy/app/deploy.sh",
 			"kill 9001",
 		},
-		"docker-container-census":    {"docker ps -a", "docker start api"},
-		"docker-last-broadcast":      {"docker logs checkout"},
-		"docker-exit-code-detective": {"docker inspect seed", "docker inspect migrate"},
-		"docker-quiet-worker":        {"docker ps", "docker stop worker"},
-		"docker-recovery-pair":       {"docker ps -a", "docker start frontend", "docker start backend"},
-		"docker-shift-handoff":       {"docker ps -a", "docker start standby", "docker stop retiring"},
-		"linux-runbook-runner":       {"sh publish-health.sh"},
+		"docker-container-census":     {"docker ps -a", "docker start api"},
+		"docker-last-broadcast":       {"docker logs checkout"},
+		"docker-exit-code-detective":  {"docker inspect seed", "docker inspect migrate"},
+		"docker-quiet-worker":         {"docker ps", "docker stop worker"},
+		"docker-recovery-pair":        {"docker ps -a", "docker start frontend", "docker start backend"},
+		"docker-shift-handoff":        {"docker ps -a", "docker start standby", "docker stop retiring"},
+		"docker-janitor-duty":         {"docker ps --filter status=exited", "docker rm backup-0914", "docker rm backup-0915", "docker rm report-weekly"},
+		"docker-tail-end":             {"docker logs --tail 3 ledger"},
+		"docker-running-isnt-healthy": {"docker ps", "docker stop web-b", "docker start web-c"},
+		"docker-crash-loop":           {"docker ps", "docker stop payments", "docker logs payments"},
+		"docker-postmortem-triage": {
+			"docker ps -a",
+			"docker stop api-canary",
+			"docker rm sync-orders",
+			"docker rm sync-users",
+		},
+		"linux-runbook-runner": {"sh publish-health.sh"},
 		"linux-vi-first-aid": {
 			`printf 'SERVICE=checkout\nLOG_LEVEL=info\n' > release.env`,
 		},
@@ -136,18 +147,24 @@ func canonicalMissionEnvironment(item mission.Mission) (Environment, error) {
 type missionDockerEnvironment struct {
 	aliases   []string
 	running   map[string]bool
+	removed   map[string]bool
 	logs      map[string]string
 	exitCodes map[string]int
 	oneShot   map[string]bool
+	crashLoop map[string]bool
+	health    map[string]string
 	count     int
 }
 
 func newMissionDockerEnvironment(item mission.Mission) *missionDockerEnvironment {
 	environment := &missionDockerEnvironment{
 		running:   make(map[string]bool),
+		removed:   make(map[string]bool),
 		logs:      make(map[string]string),
 		exitCodes: make(map[string]int),
 		oneShot:   make(map[string]bool),
+		crashLoop: make(map[string]bool),
+		health:    make(map[string]string),
 	}
 	if item.Docker == nil {
 		return environment
@@ -156,9 +173,15 @@ func newMissionDockerEnvironment(item mission.Mission) *missionDockerEnvironment
 		environment.aliases = append(environment.aliases, container.Name)
 		environment.running[container.Name] = container.State == mission.DockerStateRunning
 		environment.logs[container.Name] = container.Log
+		environment.health[container.Name] = container.Health
 		if container.ExitCode != nil {
 			environment.exitCodes[container.Name] = *container.ExitCode
 			environment.oneShot[container.Name] = true
+		}
+		if container.Restart == mission.DockerRestartOnFailure {
+			environment.crashLoop[container.Name] = true
+			// Setup waits for a visible loop before play begins.
+			environment.logs[container.Name] = strings.Repeat(container.Log+"\n", 3)
 		}
 	}
 	environment.count = len(item.Docker.Containers)
@@ -166,6 +189,19 @@ func newMissionDockerEnvironment(item mission.Mission) *missionDockerEnvironment
 }
 
 func (e *missionDockerEnvironment) PromptLabel() string { return "docker" }
+
+func (e *missionDockerEnvironment) status(alias string) string {
+	switch {
+	case e.running[alias] && e.crashLoop[alias]:
+		return "restarting"
+	case e.running[alias] && e.health[alias] != "":
+		return "running (" + e.health[alias] + ")"
+	case e.running[alias]:
+		return "running"
+	default:
+		return "exited"
+	}
+}
 
 func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Execution, error) {
 	fields := strings.Fields(line)
@@ -178,23 +214,50 @@ func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Exec
 	}
 	result := Execution{PracticedCommands: []string{"docker"}, PipelineWidth: 1}
 	if len(fields) >= 1 && (fields[0] == "ps" || fields[0] == "ls") {
-		all := len(fields) == 2 && (fields[1] == "-a" || fields[1] == "--all")
-		if len(fields) > 2 || len(fields) == 2 && !all {
-			return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
+		all := false
+		filters := make(map[string]string)
+		for index := 1; index < len(fields); index++ {
+			switch fields[index] {
+			case "-a", "--all":
+				all = true
+			case "-f", "--filter":
+				if index+1 >= len(fields) {
+					return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
+				}
+				index++
+				key, value, _ := strings.Cut(fields[index], "=")
+				filters[key] = value
+			default:
+				return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
+			}
 		}
 		var output strings.Builder
 		for _, alias := range e.aliases {
-			if !all && !e.running[alias] {
+			if e.removed[alias] {
 				continue
 			}
-			status := "stopped"
-			if e.running[alias] {
-				status = "running"
+			if want, filtered := filters["status"]; filtered && !strings.HasPrefix(e.status(alias), want) {
+				continue
 			}
-			fmt.Fprintf(&output, "%s %s\n", alias, status)
+			if want, filtered := filters["health"]; filtered && (!e.running[alias] || e.health[alias] != want) {
+				continue
+			}
+			if !all && filters["status"] == "" && !e.running[alias] {
+				continue
+			}
+			fmt.Fprintf(&output, "%s %s\n", alias, e.status(alias))
 		}
 		result.Output = output.String()
 		return result, nil
+	}
+	tail := -1
+	if len(fields) == 4 && fields[0] == "logs" && (fields[1] == "--tail" || fields[1] == "-n") {
+		parsed, err := strconv.Atoi(fields[2])
+		if err != nil {
+			return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
+		}
+		tail = parsed
+		fields = []string{"logs", fields[3]}
 	}
 	if len(fields) != 2 {
 		return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
@@ -203,21 +266,31 @@ func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Exec
 	if _, exists := e.running[alias]; !exists {
 		return Execution{}, fmt.Errorf("unknown fake Docker alias %q", alias)
 	}
+	if e.removed[alias] {
+		return Execution{}, fmt.Errorf("docker: container %q has been removed", alias)
+	}
 	switch action {
 	case "start", "restart":
-		e.running[alias] = !e.oneShot[alias]
+		e.running[alias] = !e.oneShot[alias] || e.crashLoop[alias]
 		result.Output = alias + "\n"
 	case "stop":
 		e.running[alias] = false
 		result.Output = alias + "\n"
-	case "logs":
-		result.Output = e.logs[alias] + "\n"
-	case "inspect":
-		status := "exited"
+	case "rm":
 		if e.running[alias] {
-			status = "running"
+			return Execution{}, fmt.Errorf("docker: cannot remove running container %q; stop it first", alias)
 		}
-		result.Output = fmt.Sprintf("{\n  \"Name\": %q,\n  \"State\": {\n    \"Running\": %t,\n    \"Status\": %q,\n    \"ExitCode\": %d\n  }\n}\n", alias, e.running[alias], status, e.exitCodes[alias])
+		e.removed[alias] = true
+		e.count--
+		result.Output = alias + "\n"
+	case "logs":
+		lines := strings.Split(strings.TrimSuffix(e.logs[alias], "\n"), "\n")
+		if tail >= 0 && tail < len(lines) {
+			lines = lines[len(lines)-tail:]
+		}
+		result.Output = strings.Join(lines, "\n") + "\n"
+	case "inspect":
+		result.Output = fmt.Sprintf("{\n  \"Name\": %q,\n  \"State\": {\n    \"Running\": %t,\n    \"Status\": %q,\n    \"ExitCode\": %d\n  }\n}\n", alias, e.running[alias], e.status(alias), e.exitCodes[alias])
 	default:
 		return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
 	}
@@ -227,10 +300,12 @@ func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Exec
 func (e *missionDockerEnvironment) Observe(_ context.Context, condition mission.Condition) (bool, error) {
 	switch condition.Type {
 	case mission.ConditionDockerContainerRunning:
-		return e.running[condition.Container], nil
+		return !e.removed[condition.Container] && e.running[condition.Container], nil
 	case mission.ConditionDockerContainerStopped:
 		_, exists := e.running[condition.Container]
-		return exists && !e.running[condition.Container], nil
+		return exists && !e.removed[condition.Container] && !e.running[condition.Container], nil
+	case mission.ConditionDockerContainerAbsent:
+		return e.removed[condition.Container], nil
 	case mission.ConditionDockerContainerCountEqual:
 		return condition.Count != nil && e.count == *condition.Count, nil
 	default:
@@ -302,6 +377,16 @@ func TestNewDockerMissionsAcceptAlternativesAndRejectIncompleteOutcomes(t *testi
 		{id: "docker-quiet-worker", alternative: []string{"docker container stop worker"}, incomplete: []string{"docker stop metrics"}},
 		{id: "docker-recovery-pair", alternative: []string{"docker container start backend", "docker container start frontend"}, incomplete: []string{"docker start frontend"}},
 		{id: "docker-shift-handoff", alternative: []string{"docker container stop retiring", "docker container start standby"}, incomplete: []string{"docker start standby"}},
+		{id: "docker-janitor-duty", alternative: []string{"docker container rm report-weekly", "docker container rm backup-0915", "docker container rm backup-0914"}, incomplete: []string{"docker rm backup-0914", "docker rm backup-0915"}},
+		{id: "docker-janitor-duty", alternative: []string{"docker rm backup-0914", "docker rm backup-0915", "docker rm report-weekly", "docker ps -a"}, incomplete: []string{"docker stop worker", "docker rm worker", "docker rm backup-0914", "docker rm backup-0915", "docker rm report-weekly"}},
+		{id: "docker-tail-end", alternative: []string{"docker container logs -n 3 ledger"}, incomplete: []string{"docker logs ledger"}},
+		{id: "docker-tail-end", alternative: []string{"docker logs ledger", "docker logs --tail 3 ledger"}, incomplete: []string{"docker logs --tail 4 ledger"}},
+		{id: "docker-running-isnt-healthy", alternative: []string{"docker ps --filter health=unhealthy", "docker container start web-c", "docker container stop web-b"}, incomplete: []string{"docker stop web-a", "docker start web-c"}},
+		{id: "docker-running-isnt-healthy", alternative: []string{"docker stop web-b", "docker start web-c", "docker ps"}, incomplete: []string{"docker stop web-b", "docker rm web-b", "docker start web-c"}},
+		{id: "docker-crash-loop", alternative: []string{"docker inspect payments", "docker container stop payments", "docker logs --tail 1 payments"}, incomplete: []string{"docker logs payments"}},
+		{id: "docker-crash-loop", alternative: []string{"docker stop payments", "docker ps -a", "docker container logs payments"}, incomplete: []string{"docker stop payments", "docker logs payments", "docker rm payments"}},
+		{id: "docker-postmortem-triage", alternative: []string{"docker ps --filter status=exited", "docker rm sync-users", "docker container rm sync-orders", "docker ps --filter health=unhealthy", "docker container stop api-canary"}, incomplete: []string{"docker stop api-canary", "docker rm sync-orders", "docker rm sync-users", "docker rm sync-invoices"}},
+		{id: "docker-postmortem-triage", alternative: []string{"docker stop api-canary", "docker rm sync-orders", "docker rm sync-users", "docker logs sync-invoices"}, incomplete: []string{"docker stop api-canary", "docker rm api-canary", "docker rm sync-orders", "docker rm sync-users"}},
 	}
 	for _, test := range tests {
 		item, found := catalog.Find(test.id)

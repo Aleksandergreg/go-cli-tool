@@ -18,6 +18,11 @@ const (
 
 	DockerStateRunning = "running"
 	DockerStateStopped = "stopped"
+
+	DockerHealthHealthy   = "healthy"
+	DockerHealthUnhealthy = "unhealthy"
+
+	DockerRestartOnFailure = "on-failure"
 )
 
 // ConditionType identifies one observable outcome supported by a mission
@@ -45,6 +50,7 @@ const (
 	ConditionDockerContainerRunning    ConditionType = "docker_container_running"
 	ConditionDockerContainerStopped    ConditionType = "docker_container_stopped"
 	ConditionDockerContainerCountEqual ConditionType = "docker_container_count_equals"
+	ConditionDockerContainerAbsent     ConditionType = "docker_container_absent"
 )
 
 // Mission is a declarative OpsQuest exercise. Setup describes the isolated
@@ -137,12 +143,17 @@ type DockerImageSpec struct {
 	Reference string `json:"reference"`
 }
 
+// DockerContainerSpec is one logical fixture. Log, ExitCode, Health, and
+// Restart select fixed fixture behaviors implemented by the Docker adapter;
+// mission content never supplies an executable command.
 type DockerContainerSpec struct {
 	Name     string `json:"name"`
 	Image    string `json:"image"`
 	State    string `json:"state"`
 	Log      string `json:"log,omitempty"`
 	ExitCode *int   `json:"exit_code,omitempty"`
+	Health   string `json:"health,omitempty"`
+	Restart  string `json:"restart,omitempty"`
 }
 
 type Validation struct {
