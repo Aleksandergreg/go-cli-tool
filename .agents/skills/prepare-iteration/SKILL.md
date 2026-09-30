@@ -10,7 +10,7 @@ Use [references/iteration-template.md](references/iteration-template.md) for the
 ## Workflow
 
 1. Establish the milestone boundary.
-   - Read the reports in `project/history/iterations/`, README, `internal/cli/app.go`, and the milestone request.
+   - Read the reports in `project/history/iterations/`, README, the command files in `internal/cli/`, and the milestone request.
    - Identify the next iteration number and intended version. Do not change version strings or roadmap claims unless the milestone requires it.
 
 2. Review the complete change set.

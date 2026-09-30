@@ -83,6 +83,12 @@ type dockerAction struct {
 	network string
 }
 
+// aliasActions maps single-alias container subcommands to their actions.
+var aliasActions = map[string]actionKind{"start": actionStart, "restart": actionRestart, "stop": actionStop, "inspect": actionInspect}
+
+// networkActions maps single-network subcommands to their actions.
+var networkActions = map[string]actionKind{"create": actionNetworkCreate, "rm": actionNetworkRemove, "remove": actionNetworkRemove, "inspect": actionNetworkInspect}
+
 var listFilterValues = map[string]map[string]bool{
 	"status": {"created": true, "running": true, "restarting": true, "exited": true},
 	"health": {"starting": true, "healthy": true, "unhealthy": true, "none": true},
@@ -140,15 +146,7 @@ func parseAction(line string) (dockerAction, error) {
 		if len(fields) != 2 || !mission.ValidDockerLogicalName(fields[1]) {
 			return dockerAction{}, fmt.Errorf("usage: docker %s ALIAS", fields[0])
 		}
-		kind := actionStart
-		if fields[0] == "restart" {
-			kind = actionRestart
-		} else if fields[0] == "stop" {
-			kind = actionStop
-		} else if fields[0] == "inspect" {
-			kind = actionInspect
-		}
-		return dockerAction{kind: kind, alias: fields[1]}, nil
+		return dockerAction{kind: aliasActions[fields[0]], alias: fields[1]}, nil
 	default:
 		return dockerAction{}, fmt.Errorf("docker %s is outside this mission's teaching subset; type help", fields[0])
 	}
@@ -189,8 +187,7 @@ func parseNetwork(fields []string) (dockerAction, error) {
 		if err := name(fields[1]); err != nil {
 			return dockerAction{}, err
 		}
-		kind := map[string]actionKind{"create": actionNetworkCreate, "rm": actionNetworkRemove, "remove": actionNetworkRemove, "inspect": actionNetworkInspect}[fields[0]]
-		return dockerAction{kind: kind, network: fields[1]}, nil
+		return dockerAction{kind: networkActions[fields[0]], network: fields[1]}, nil
 	case "connect", "disconnect":
 		if len(fields) != 3 {
 			return dockerAction{}, fmt.Errorf("usage: docker network %s NETWORK ALIAS", fields[0])

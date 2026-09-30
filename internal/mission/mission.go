@@ -1,10 +1,5 @@
 package mission
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
 const (
 	TrackLinux  = "linux"
 	TrackDocker = "docker"
@@ -185,35 +180,6 @@ type Condition struct {
 	Network    string        `json:"network,omitempty"`
 	Containers []string      `json:"containers,omitempty"`
 	present    conditionFields
-}
-
-// UnmarshalJSON retains field presence so validation can reject an unsupported
-// field even when its explicit JSON value is empty or zero. Condition owns a
-// custom decoder, so it also preserves the catalog's unknown-field rejection.
-func (c *Condition) UnmarshalJSON(data []byte) error {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	present := conditionFields(0)
-	for name := range fields {
-		if name == "type" {
-			continue
-		}
-		flag, known := conditionFieldFlags[name]
-		if !known {
-			return fmt.Errorf("json: unknown field %q", name)
-		}
-		present |= flag
-	}
-	type wireCondition Condition
-	var decoded wireCondition
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*c = Condition(decoded)
-	c.present = present
-	return nil
 }
 
 type Rewards struct {

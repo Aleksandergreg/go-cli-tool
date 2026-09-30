@@ -10,7 +10,7 @@ Read [references/shell-semantics.md](references/shell-semantics.md) before chang
 ## Workflow
 
 1. Map the existing behavior.
-   - Inspect `internal/sandbox/shell.go`, `sandbox.go`, `filesystem.go`, the relevant `commands_*.go`, and `shell_test.go`.
+   - Inspect `internal/sandbox/shell.go` (execution stages), `lexer.go`, `command_line.go`, `dispatch.go` (command registration), `manuals.go` (help), `sandbox.go`, `filesystem*.go`, the relevant `commands_*.go`, and `shell_test.go`.
    - Trace lexing, parsing, word expansion, stage execution, dispatcher registration, virtual path resolution, and error wrapping.
    - Compare a semantically similar command and read its focused manual entry. Check missions and canonical solutions that already depend on the affected behavior.
 
@@ -28,7 +28,7 @@ Read [references/shell-semantics.md](references/shell-semantics.md) before chang
    - Put command behavior in the closest `commands_*.go` file or a narrowly named new file.
    - Register the command in `Sandbox.run` and in the no-argument command list.
    - Add or update its `commandManuals` entry so `help COMMAND` and `man COMMAND` describe the actual subset.
-   - Keep reusable virtual-filesystem behavior in `filesystem.go`; do not bypass it inside a command handler.
+   - Keep reusable virtual-filesystem behavior in `filesystem*.go`; do not bypass it inside a command handler.
 
 5. Add tests before relying on the command in content.
    - Cover successful direct use and stdin/pipeline use where applicable.
