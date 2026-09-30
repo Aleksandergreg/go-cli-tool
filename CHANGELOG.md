@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.0...v0.8.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **docker:** treat only reference-specific errors as missing networks ([#35](https://github.com/Aleksandergreg/go-cli-tool/issues/35)) ([1fa140c](https://github.com/Aleksandergreg/go-cli-tool/commit/1fa140c41d3ed4dd7720e0a8f89530802bc3f02e))
+
 ## [0.8.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.1...v0.8.0) (2026-09-30)
 
 
