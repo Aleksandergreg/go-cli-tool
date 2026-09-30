@@ -37,6 +37,15 @@ type fakeContainer struct {
 	restartPolicy string
 	restartCount  int
 	healthCmd     string
+	// endpoints maps an attached network's engine name to its ID.
+	endpoints map[string]string
+}
+
+type fakeNetwork struct {
+	labels   map[string]string
+	name     string
+	created  time.Time
+	internal bool
 }
 
 type fakeDockerRunner struct {
@@ -58,11 +67,16 @@ type fakeDockerRunner struct {
 	failNextRemove    map[string]error
 	failManagedList   bool
 	stripHealth       bool
+	networks          map[string]*fakeNetwork
+	networkOrder      []string
+	networkCreates    int
+	failNetworkCreate bool
 }
 
 func newFakeDockerRunner() *fakeDockerRunner {
 	return &fakeDockerRunner{
 		containers:      make(map[string]*fakeContainer),
+		networks:        make(map[string]*fakeNetwork),
 		contextName:     "default",
 		imageAvailable:  true,
 		failNextInspect: make(map[string]error),
@@ -106,8 +120,17 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		name := ""
 		restartPolicy := ""
 		healthCmd := ""
+		endpoints := make(map[string]string)
 		for index := 0; index+1 < len(args); index++ {
 			switch args[index] {
+			case "--network":
+				if args[index+1] == "none" {
+					endpoints["none"] = "none-network-id"
+				} else if network, exists := r.networks[args[index+1]]; exists {
+					endpoints[network.name] = args[index+1]
+				} else {
+					return runResult{stderr: "Error response from daemon: network " + args[index+1] + " not found"}, errors.New("exit status 1")
+				}
 			case "--name":
 				name = args[index+1]
 			case "--label":
@@ -121,7 +144,7 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 				healthCmd = args[index+1]
 			}
 		}
-		container := &fakeContainer{labels: labels, name: name, created: testNow, status: "created", restartPolicy: restartPolicy, healthCmd: healthCmd}
+		container := &fakeContainer{labels: labels, name: name, created: testNow, status: "created", restartPolicy: restartPolicy, healthCmd: healthCmd, endpoints: endpoints}
 		if len(args) >= 3 && args[len(args)-3] == "opsquest-service" {
 			container.log = args[len(args)-2] + "\n"
 		}
@@ -232,6 +255,16 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 		} else {
 			inspection.HostConfig.RestartPolicy.Name = container.restartPolicy
 		}
+		if len(container.endpoints) > 0 {
+			inspection.NetworkSettings.Networks = make(map[string]endpointState)
+			for name, networkID := range container.endpoints {
+				// Docker can leave NetworkID empty before a first start.
+				if container.status == "created" {
+					networkID = ""
+				}
+				inspection.NetworkSettings.Networks[name] = endpointState{NetworkID: networkID}
+			}
+		}
 		if container.healthCmd != "" && container.running && !r.stripHealth {
 			health := "unhealthy"
 			if container.healthCmd == "true" {
@@ -268,6 +301,92 @@ func (r *fakeDockerRunner) run(ctx context.Context, args ...string) (runResult, 
 			output.WriteByte('\n')
 		}
 		return runResult{stdout: output.String()}, nil
+	case hasPrefix(args, "network", "create"):
+		r.networkCreates++
+		if r.failNetworkCreate {
+			return runResult{stderr: "network creation failed"}, errors.New("exit status 1")
+		}
+		network := &fakeNetwork{labels: make(map[string]string), name: args[len(args)-1], created: testNow}
+		for index := 2; index < len(args)-1; index++ {
+			switch args[index] {
+			case "--internal":
+				network.internal = true
+			case "--label":
+				labelName, value, _ := strings.Cut(args[index+1], "=")
+				network.labels[labelName] = value
+				index++
+			case "--driver":
+				index++
+			}
+		}
+		id := fmt.Sprintf("feed%060x", r.networkCreates)
+		r.networks[id] = network
+		r.networkOrder = append(r.networkOrder, id)
+		return runResult{stdout: id + "\n"}, nil
+	case hasPrefix(args, "network", "inspect", "--format"):
+		reference := args[len(args)-1]
+		id := r.resolveNetwork(reference)
+		network, exists := r.networks[id]
+		if !exists {
+			return runResult{stderr: "Error response from daemon: network " + reference + " not found"}, errors.New("exit status 1")
+		}
+		encoded, err := json.Marshal(networkInspection{ID: id, Name: network.name, Created: network.created.Format(time.RFC3339Nano), Driver: "bridge", Internal: network.internal, Labels: cloneStrings(network.labels)})
+		if err != nil {
+			return runResult{}, err
+		}
+		return runResult{stdout: string(encoded) + "\n"}, nil
+	case hasPrefix(args, "network", "ls", "--quiet", "--no-trunc"):
+		filter := strings.TrimPrefix(args[len(args)-1], "label=")
+		name, value, _ := strings.Cut(filter, "=")
+		var output strings.Builder
+		for _, id := range r.networkOrder {
+			if network, exists := r.networks[id]; exists && network.labels[name] == value {
+				output.WriteString(id + "\n")
+			}
+		}
+		return runResult{stdout: output.String()}, nil
+	case hasPrefix(args, "network", "rm"):
+		id := args[len(args)-1]
+		network, exists := r.networks[id]
+		if !exists {
+			return runResult{stderr: "Error response from daemon: network " + id + " not found"}, errors.New("exit status 1")
+		}
+		for _, container := range r.containers {
+			if _, attached := container.endpoints[network.name]; attached && container.running {
+				return runResult{stderr: "Error response from daemon: error while removing network: network " + network.name + " id " + id + " has active endpoints"}, errors.New("exit status 1")
+			}
+		}
+		delete(r.networks, id)
+		return runResult{stdout: id + "\n"}, nil
+	case hasPrefix(args, "network", "connect") || hasPrefix(args, "network", "disconnect"):
+		networkID, containerID := args[len(args)-2], args[len(args)-1]
+		network, exists := r.networks[networkID]
+		if !exists {
+			return runResult{stderr: "Error response from daemon: network " + networkID + " not found"}, errors.New("exit status 1")
+		}
+		container, exists := r.containers[containerID]
+		if !exists {
+			return missingContainerResult(containerID)
+		}
+		_, attached := container.endpoints[network.name]
+		if args[1] == "disconnect" {
+			if !attached {
+				return runResult{stderr: "Error response from daemon: container " + containerID + " is not connected to network " + network.name}, errors.New("exit status 1")
+			}
+			delete(container.endpoints, network.name)
+			return runResult{}, nil
+		}
+		if _, disabled := container.endpoints["none"]; disabled {
+			return runResult{stderr: "Error response from daemon: container cannot be connected to multiple networks with one of the networks in private (none) mode"}, errors.New("exit status 1")
+		}
+		if attached {
+			return runResult{stderr: "Error response from daemon: endpoint with name " + container.name + " already exists in network " + network.name}, errors.New("exit status 1")
+		}
+		if container.endpoints == nil {
+			container.endpoints = make(map[string]string)
+		}
+		container.endpoints[network.name] = networkID
+		return runResult{}, nil
 	case len(args) == 3 && hasPrefix(args, "container", "rm"):
 		id := args[len(args)-1]
 		container, exists := r.containers[id]
@@ -305,6 +424,38 @@ func (r *fakeDockerRunner) resolveContainer(reference string) string {
 		}
 	}
 	return reference
+}
+
+func (r *fakeDockerRunner) resolveNetwork(reference string) string {
+	if _, exists := r.networks[reference]; exists {
+		return reference
+	}
+	for id, network := range r.networks {
+		if network.name == reference {
+			return id
+		}
+	}
+	return reference
+}
+
+func (r *fakeDockerRunner) seedNetwork(id string, network *fakeNetwork) {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	r.networks[id] = network
+	r.networkOrder = append(r.networkOrder, id)
+}
+
+func (r *fakeDockerRunner) hasNetwork(id string) bool {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	_, exists := r.networks[id]
+	return exists
+}
+
+func (r *fakeDockerRunner) networkCount() int {
+	r.mutex.Lock()
+	defer r.mutex.Unlock()
+	return len(r.networks)
 }
 
 func labelsMatch(labels, filters map[string]string) bool {

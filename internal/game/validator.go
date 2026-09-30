@@ -112,6 +112,18 @@ func describeCondition(condition mission.Condition) string {
 		return "The required number of mission containers exist"
 	case mission.ConditionDockerContainerAbsent:
 		return fmt.Sprintf("Container %s has been removed", condition.Container)
+	case mission.ConditionDockerNetworkShared:
+		if len(condition.Containers) == 2 {
+			return fmt.Sprintf("Containers %s and %s share a network", condition.Containers[0], condition.Containers[1])
+		}
+		return "The required containers share a network"
+	case mission.ConditionDockerNetworkIsolated:
+		if len(condition.Containers) == 2 {
+			return fmt.Sprintf("Containers %s and %s share no network", condition.Containers[0], condition.Containers[1])
+		}
+		return "The required containers share no network"
+	case mission.ConditionDockerNetworkAbsent:
+		return fmt.Sprintf("Network %s has been removed", condition.Network)
 	default:
 		return fmt.Sprintf("Outcome condition %s is satisfied", condition.Type)
 	}

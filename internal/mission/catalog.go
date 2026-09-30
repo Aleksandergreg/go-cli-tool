@@ -107,7 +107,26 @@ const (
 	maxDockerImagesPerMission     = 16
 	maxDockerContainersPerMission = 32
 	maxDockerFixtureLogBytes      = 8 * 1024
+	maxDockerNetworksPerMission   = 8
+	maxDockerNetworksPerContainer = 4
 )
+
+// reservedDockerNetworkNames are Docker's built-in network names. Lab
+// networks cannot use them, so a logical name never suggests host or default
+// bridge networking.
+var reservedDockerNetworkNames = map[string]bool{"bridge": true, "default": true, "host": true, "none": true}
+
+// ValidDockerNetworkName reports whether value is a safe logical network name
+// that does not shadow one of Docker's built-in networks.
+func ValidDockerNetworkName(value string) bool {
+	return ValidDockerLogicalName(value) && !reservedDockerNetworkNames[value]
+}
+
+// ReservedDockerNetworkName reports whether value names a built-in Docker
+// network that labs never expose.
+func ReservedDockerNetworkName(value string) bool {
+	return reservedDockerNetworkNames[value]
+}
 
 // ValidDockerLogicalName reports whether value is safe to use as a stable
 // mission alias. Runtime adapters use this same rule so catalog-valid content
@@ -215,6 +234,14 @@ func validateMission(item Mission) error {
 		if condition.Container != "" && !dockerSetupHasContainer(item.Docker, condition.Container) {
 			return fmt.Errorf("validation condition %d: unknown docker container %q", index+1, condition.Container)
 		}
+		for _, container := range condition.Containers {
+			if !dockerSetupHasContainer(item.Docker, container) {
+				return fmt.Errorf("validation condition %d: unknown docker container %q", index+1, container)
+			}
+		}
+		if condition.Network != "" && !dockerSetupHasNetwork(item.Docker, condition.Network) {
+			return fmt.Errorf("validation condition %d: unknown docker network %q", index+1, condition.Network)
+		}
 	}
 	return nil
 }
@@ -238,6 +265,19 @@ func ValidateDockerSetup(setup DockerSetup) error {
 	}
 	if len(setup.Containers) > maxDockerContainersPerMission {
 		return fmt.Errorf("docker setup exceeds the %d-container limit", maxDockerContainersPerMission)
+	}
+	if len(setup.Networks) > maxDockerNetworksPerMission {
+		return fmt.Errorf("docker setup exceeds the %d-network limit", maxDockerNetworksPerMission)
+	}
+	networks := make(map[string]bool, len(setup.Networks))
+	for _, network := range setup.Networks {
+		if !ValidDockerNetworkName(network.Name) {
+			return fmt.Errorf("docker network name %q must be a lowercase logical name other than bridge, default, host, or none", network.Name)
+		}
+		if networks[network.Name] {
+			return fmt.Errorf("duplicate docker network name %q", network.Name)
+		}
+		networks[network.Name] = true
 	}
 	images := make(map[string]bool, len(setup.Images))
 	for _, image := range setup.Images {
@@ -276,6 +316,19 @@ func ValidateDockerSetup(setup DockerSetup) error {
 		}
 		if err := validateDockerFixtureBehavior(container); err != nil {
 			return err
+		}
+		if len(container.Networks) > maxDockerNetworksPerContainer {
+			return fmt.Errorf("docker container %q exceeds the %d-network limit", container.Name, maxDockerNetworksPerContainer)
+		}
+		joined := make(map[string]bool, len(container.Networks))
+		for _, network := range container.Networks {
+			if !networks[network] {
+				return fmt.Errorf("docker container %q references unknown network %q", container.Name, network)
+			}
+			if joined[network] {
+				return fmt.Errorf("docker container %q joins network %q twice", container.Name, network)
+			}
+			joined[network] = true
 		}
 		containers[container.Name] = true
 	}
@@ -324,6 +377,18 @@ func validateDockerFixtureBehavior(container DockerContainerSpec) error {
 		return fmt.Errorf("docker container %q diagnostic fixture must use stopped state", container.Name)
 	}
 	return nil
+}
+
+func dockerSetupHasNetwork(setup *DockerSetup, name string) bool {
+	if setup == nil {
+		return false
+	}
+	for _, network := range setup.Networks {
+		if network.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 func dockerSetupHasContainer(setup *DockerSetup, name string) bool {
@@ -444,6 +509,8 @@ const (
 	conditionPID
 	conditionContainer
 	conditionCount
+	conditionNetwork
+	conditionContainers
 )
 
 var allowedConditionFields = map[ConditionType]conditionFields{
@@ -467,15 +534,20 @@ var allowedConditionFields = map[ConditionType]conditionFields{
 	ConditionDockerContainerStopped:    conditionContainer,
 	ConditionDockerContainerCountEqual: conditionCount,
 	ConditionDockerContainerAbsent:     conditionContainer,
+	ConditionDockerNetworkShared:       conditionContainers,
+	ConditionDockerNetworkIsolated:     conditionContainers,
+	ConditionDockerNetworkAbsent:       conditionNetwork,
 }
 
 var conditionFieldFlags = map[string]conditionFields{
-	"path":      conditionPath,
-	"value":     conditionValue,
-	"values":    conditionValues,
-	"pid":       conditionPID,
-	"container": conditionContainer,
-	"count":     conditionCount,
+	"path":       conditionPath,
+	"value":      conditionValue,
+	"values":     conditionValues,
+	"pid":        conditionPID,
+	"container":  conditionContainer,
+	"count":      conditionCount,
+	"network":    conditionNetwork,
+	"containers": conditionContainers,
 }
 
 func validateCondition(condition Condition, environment string) error {
@@ -495,6 +567,8 @@ func validateCondition(condition Condition, environment string) error {
 		{name: "pid", present: condition.PID != 0, flag: conditionPID},
 		{name: "container", present: condition.Container != "", flag: conditionContainer},
 		{name: "count", present: condition.Count != nil, flag: conditionCount},
+		{name: "network", present: condition.Network != "", flag: conditionNetwork},
+		{name: "containers", present: len(condition.Containers) != 0, flag: conditionContainers},
 	} {
 		if field.present {
 			present |= field.flag
@@ -568,6 +642,25 @@ func validateCondition(condition Condition, environment string) error {
 		}
 		if !ValidDockerLogicalName(condition.Container) {
 			return fmt.Errorf("container %q must be a lowercase logical name", condition.Container)
+		}
+	case ConditionDockerNetworkShared, ConditionDockerNetworkIsolated:
+		if environment != EnvironmentDocker {
+			return fmt.Errorf("%s requires a docker environment", condition.Type)
+		}
+		if len(condition.Containers) != 2 || condition.Containers[0] == condition.Containers[1] {
+			return fmt.Errorf("containers must name exactly two different containers")
+		}
+		for _, container := range condition.Containers {
+			if !ValidDockerLogicalName(container) {
+				return fmt.Errorf("container %q must be a lowercase logical name", container)
+			}
+		}
+	case ConditionDockerNetworkAbsent:
+		if environment != EnvironmentDocker {
+			return fmt.Errorf("%s requires a docker environment", condition.Type)
+		}
+		if !ValidDockerNetworkName(condition.Network) {
+			return fmt.Errorf("network %q must be a lowercase logical name other than bridge, default, host, or none", condition.Network)
 		}
 	case ConditionDockerContainerCountEqual:
 		if environment != EnvironmentDocker {
@@ -717,8 +810,10 @@ func cloneMission(item Mission) Mission {
 	if item.Docker != nil {
 		dockerSetup := *item.Docker
 		dockerSetup.Images = slices.Clone(item.Docker.Images)
+		dockerSetup.Networks = slices.Clone(item.Docker.Networks)
 		dockerSetup.Containers = slices.Clone(item.Docker.Containers)
 		for index, container := range dockerSetup.Containers {
+			dockerSetup.Containers[index].Networks = slices.Clone(container.Networks)
 			if container.ExitCode != nil {
 				exitCode := *container.ExitCode
 				dockerSetup.Containers[index].ExitCode = &exitCode
@@ -730,6 +825,7 @@ func cloneMission(item Mission) Mission {
 	for index, condition := range item.Validation.All {
 		cloned.Validation.All[index] = condition
 		cloned.Validation.All[index].Values = slices.Clone(condition.Values)
+		cloned.Validation.All[index].Containers = slices.Clone(condition.Containers)
 		if condition.Count != nil {
 			count := *condition.Count
 			cloned.Validation.All[index].Count = &count

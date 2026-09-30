@@ -912,9 +912,11 @@ func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
 		"Container Census",
 		"Shift Handoff",
 		"docker-container-census",
-		"WORLD 2/2 · Container Triage",
+		"WORLD 2/3 · Container Triage",
 		"Postmortem Triage",
-		"0/11 missions complete",
+		"WORLD 3/3 · Network Plumbing",
+		"Segmentation",
+		"0/16 missions complete",
 		"Continue: opsquest play --track docker",
 		"Jump: opsquest play --track docker --world N",
 		"IDs: opsquest map --track docker --ids",
@@ -1087,7 +1089,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"doctor"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "34 missions (23 Linux, 11 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
+	if !strings.Contains(out.String(), "39 missions (23 Linux, 16 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
 		t.Fatalf("doctor output = %s", out.String())
 	}
 }
@@ -1165,7 +1167,7 @@ func TestListCampaignFilterUsesCampaignTotal(t *testing.T) {
 	if !strings.Contains(out.String(), "0/6 missions complete") {
 		t.Fatalf("campaign-filtered total missing:\n%s", out.String())
 	}
-	if strings.Contains(out.String(), "0/34 missions complete") || strings.Contains(out.String(), "Production Friday") {
+	if strings.Contains(out.String(), "0/39 missions complete") || strings.Contains(out.String(), "Production Friday") {
 		t.Fatalf("campaign filter used catalog-wide scope:\n%s", out.String())
 	}
 }
@@ -1408,7 +1410,7 @@ func TestDoctorReportsAndCleansOrphanedDockerLabs(t *testing.T) {
 	t.Run("plain doctor is read-only", func(t *testing.T) {
 		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "Docker is ready for this mission."}, orphans: 2}
 		output, err := run(t, factory)
-		if err != nil || !strings.Contains(output, "docker cleanup: 2 orphaned lab containers from exited OpsQuest processes; run 'opsquest doctor --cleanup'") {
+		if err != nil || !strings.Contains(output, "docker cleanup: 2 orphaned lab resources from exited OpsQuest processes; run 'opsquest doctor --cleanup'") {
 			t.Fatalf("doctor output = %s, error = %v", output, err)
 		}
 		if factory.checks != 1 || factory.removeCalls != 0 {
@@ -1419,7 +1421,7 @@ func TestDoctorReportsAndCleansOrphanedDockerLabs(t *testing.T) {
 	t.Run("clean engine", func(t *testing.T) {
 		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}}
 		output, err := run(t, factory)
-		if err != nil || !strings.Contains(output, "docker cleanup: no orphaned lab containers") {
+		if err != nil || !strings.Contains(output, "docker cleanup: no orphaned lab resources") {
 			t.Fatalf("doctor output = %s, error = %v", output, err)
 		}
 	})
@@ -1427,7 +1429,7 @@ func TestDoctorReportsAndCleansOrphanedDockerLabs(t *testing.T) {
 	t.Run("check failure is a warning", func(t *testing.T) {
 		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}, checkErr: fmt.Errorf("list failed")}
 		output, err := run(t, factory)
-		if err != nil || !strings.Contains(output, "could not check for orphaned lab containers · list failed") {
+		if err != nil || !strings.Contains(output, "could not check for orphaned lab resources · list failed") {
 			t.Fatalf("doctor output = %s, error = %v", output, err)
 		}
 	})
@@ -1443,7 +1445,7 @@ func TestDoctorReportsAndCleansOrphanedDockerLabs(t *testing.T) {
 	t.Run("cleanup removes orphans", func(t *testing.T) {
 		factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "ready"}, orphans: 1}
 		output, err := run(t, factory, "--cleanup")
-		if err != nil || !strings.Contains(output, "docker cleanup: removed 1 orphaned lab container\n") || factory.removeCalls != 1 {
+		if err != nil || !strings.Contains(output, "docker cleanup: removed 1 orphaned lab resource\n") || factory.removeCalls != 1 {
 			t.Fatalf("doctor output = %s, error = %v, removals = %d", output, err, factory.removeCalls)
 		}
 	})

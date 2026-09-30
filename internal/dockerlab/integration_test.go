@@ -265,3 +265,108 @@ func TestIntegrationRealDockerOrphanSweep(t *testing.T) {
 		}
 	}
 }
+
+func TestIntegrationRealDockerNetworks(t *testing.T) {
+	if os.Getenv("OPSQUEST_DOCKER_TEST") != "1" {
+		t.Skip("set OPSQUEST_DOCKER_TEST=1 to run the disposable Docker integration test")
+	}
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	factory := NewFactory(game.SandboxFactory{})
+	run := func(t *testing.T, created game.Environment, line string) string {
+		t.Helper()
+		result, err := created.Execute(context.Background(), line)
+		if err != nil {
+			t.Fatalf("Execute(%q) error = %v", line, err)
+		}
+		return result.Output
+	}
+	assertStateOutcomes := func(t *testing.T, created game.Environment, item mission.Mission) {
+		t.Helper()
+		for _, outcome := range item.Validation.All {
+			if satisfied, err := created.Observe(context.Background(), outcome); err != nil || !satisfied {
+				t.Fatalf("outcome %#v = %v, %v", outcome, satisfied, err)
+			}
+		}
+	}
+
+	t.Run("connect and internal isolation", func(t *testing.T) {
+		item, _ := catalog.Find("docker-cant-reach-the-db")
+		created := createRealDockerEnvironment(t, factory, item)
+		lab := created.(*environment)
+		inspected := run(t, created, "docker network inspect db-net")
+		if !strings.Contains(inspected, `"Internal": true`) || !strings.Contains(inspected, `"db"`) || strings.Contains(inspected, `"api"`) {
+			t.Fatalf("db-net inspection:\n%s", inspected)
+		}
+		run(t, created, "docker network connect db-net api")
+		if apiInspection := run(t, created, "docker inspect api"); !strings.Contains(apiInspection, `"db-net"`) || !strings.Contains(apiInspection, `"web-net"`) {
+			t.Fatalf("api networks after connect:\n%s", apiInspection)
+		}
+		assertStateOutcomes(t, created, item)
+		networks := lab.snapshotNetworks()
+		if err := created.Close(); err != nil {
+			t.Fatal(err)
+		}
+		for _, network := range networks {
+			if _, exists, err := inspectNetworkReference(context.Background(), lab.runner, network.id); err != nil || exists {
+				t.Fatalf("network %s after cleanup exists = %v, error = %v", network.name, exists, err)
+			}
+		}
+	})
+
+	t.Run("segmentation", func(t *testing.T) {
+		item, _ := catalog.Find("docker-segmentation")
+		created := createRealDockerEnvironment(t, factory, item)
+		if _, err := created.Execute(context.Background(), "docker network rm legacy-net"); err == nil || !strings.Contains(err.Error(), "old-cron") {
+			t.Fatalf("network rm with stopped container attached error = %v", err)
+		}
+		for _, line := range []string{
+			"docker network create db-net",
+			"docker network connect db-net api",
+			"docker network connect db-net db",
+			"docker network disconnect flat-net db",
+			"docker rm old-cron",
+			"docker network rm legacy-net",
+		} {
+			run(t, created, line)
+		}
+		assertStateOutcomes(t, created, item)
+		if _, err := created.Execute(context.Background(), "docker restart db"); err != nil {
+			t.Fatalf("db did not restart on its remaining network: %v", err)
+		}
+	})
+}
+
+func TestIntegrationRealDockerOrphanedNetworkSweep(t *testing.T) {
+	if os.Getenv("OPSQUEST_DOCKER_TEST") != "1" {
+		t.Skip("set OPSQUEST_DOCKER_TEST=1 to run the disposable Docker integration test")
+	}
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("docker-need-to-know")
+	deadPID := 0
+	for candidate := 4_000_000; candidate > 3_000_000; candidate-- {
+		if !processAlive(candidate) {
+			deadPID = candidate
+			break
+		}
+	}
+	if deadPID == 0 {
+		t.Skip("no unused PID found to simulate an exited owner")
+	}
+	crashed := NewFactory(game.SandboxFactory{})
+	crashed.owner.pid = deadPID
+	abandoned := createRealDockerEnvironment(t, crashed, item).(*environment)
+
+	janitor := NewFactory(game.SandboxFactory{})
+	createRealDockerEnvironment(t, janitor, item)
+	for _, network := range abandoned.snapshotNetworks() {
+		if _, exists, err := inspectNetworkReference(context.Background(), abandoned.runner, network.id); err != nil || exists {
+			t.Fatalf("setup did not sweep abandoned network %s: exists = %v, error = %v", network.name, exists, err)
+		}
+	}
+}

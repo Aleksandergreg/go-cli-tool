@@ -125,14 +125,20 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 	_, _ = f.removeOrphans(ctx)
 
 	environment := &environment{
-		runner:       f.runner,
-		sessionID:    sessionID,
-		missionID:    item.ID,
-		ownerPID:     f.owner.pid,
-		ownerHost:    f.owner.host,
-		pollInterval: f.pollInterval,
-		readyTimeout: f.readyTimeout,
-		byAlias:      make(map[string]*trackedContainer),
+		runner:        f.runner,
+		sessionID:     sessionID,
+		missionID:     item.ID,
+		ownerPID:      f.owner.pid,
+		ownerHost:     f.owner.host,
+		pollInterval:  f.pollInterval,
+		readyTimeout:  f.readyTimeout,
+		byAlias:       make(map[string]*trackedContainer),
+		networkByName: make(map[string]*trackedNetwork),
+	}
+	for _, network := range item.Docker.Networks {
+		if _, err := environment.createNetwork(ctx, network.Name, false); err != nil {
+			return environment, joinSetupCleanupError(err, environment.Close())
+		}
 	}
 	images := make(map[string]string, len(item.Docker.Images))
 	for _, image := range item.Docker.Images {

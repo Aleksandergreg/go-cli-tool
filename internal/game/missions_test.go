@@ -2,7 +2,9 @@ package game
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"sort"
 	"strconv"
 	"strings"
 	"testing"
@@ -56,6 +58,24 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 			"docker stop api-canary",
 			"docker rm sync-orders",
 			"docker rm sync-users",
+		},
+		"docker-network-census":    {"docker inspect api", "docker network inspect cache-net"},
+		"docker-cant-reach-the-db": {"docker inspect api", "docker network connect db-net api"},
+		"docker-need-to-know":      {"docker network inspect payments-net", "docker network disconnect payments-net batch"},
+		"docker-private-channel": {
+			"docker network create metrics-net",
+			"docker network connect metrics-net exporter",
+			"docker network connect metrics-net collector",
+			"docker network disconnect app-net exporter",
+			"docker network disconnect app-net collector",
+		},
+		"docker-segmentation": {
+			"docker network create db-net",
+			"docker network connect db-net api",
+			"docker network connect db-net db",
+			"docker network disconnect flat-net db",
+			"docker rm old-cron",
+			"docker network rm legacy-net",
 		},
 		"linux-runbook-runner": {"sh publish-health.sh"},
 		"linux-vi-first-aid": {
@@ -154,6 +174,9 @@ type missionDockerEnvironment struct {
 	crashLoop map[string]bool
 	health    map[string]string
 	count     int
+	networks  map[string]bool
+	endpoints map[string]map[string]bool
+	disabled  map[string]bool
 }
 
 func newMissionDockerEnvironment(item mission.Mission) *missionDockerEnvironment {
@@ -165,15 +188,26 @@ func newMissionDockerEnvironment(item mission.Mission) *missionDockerEnvironment
 		oneShot:   make(map[string]bool),
 		crashLoop: make(map[string]bool),
 		health:    make(map[string]string),
+		networks:  make(map[string]bool),
+		endpoints: make(map[string]map[string]bool),
+		disabled:  make(map[string]bool),
 	}
 	if item.Docker == nil {
 		return environment
+	}
+	for _, network := range item.Docker.Networks {
+		environment.networks[network.Name] = true
 	}
 	for _, container := range item.Docker.Containers {
 		environment.aliases = append(environment.aliases, container.Name)
 		environment.running[container.Name] = container.State == mission.DockerStateRunning
 		environment.logs[container.Name] = container.Log
 		environment.health[container.Name] = container.Health
+		environment.endpoints[container.Name] = make(map[string]bool)
+		for _, network := range container.Networks {
+			environment.endpoints[container.Name][network] = true
+		}
+		environment.disabled[container.Name] = len(container.Networks) == 0
 		if container.ExitCode != nil {
 			environment.exitCodes[container.Name] = *container.ExitCode
 			environment.oneShot[container.Name] = true
@@ -209,6 +243,9 @@ func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Exec
 		return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
 	}
 	fields = fields[1:]
+	if fields[0] == "network" {
+		return e.executeNetwork(line, fields[1:])
+	}
 	if fields[0] == "container" {
 		fields = fields[1:]
 	}
@@ -297,8 +334,101 @@ func (e *missionDockerEnvironment) Execute(_ context.Context, line string) (Exec
 	return result, nil
 }
 
+func (e *missionDockerEnvironment) executeNetwork(line string, fields []string) (Execution, error) {
+	result := Execution{PracticedCommands: []string{"docker"}, PipelineWidth: 1}
+	attached := func(network string) []string {
+		var aliases []string
+		for _, alias := range e.aliases {
+			if !e.removed[alias] && e.endpoints[alias][network] {
+				aliases = append(aliases, alias)
+			}
+		}
+		sort.Strings(aliases)
+		return aliases
+	}
+	switch {
+	case len(fields) == 1 && fields[0] == "ls":
+		var names []string
+		for name, exists := range e.networks {
+			if exists {
+				names = append(names, name)
+			}
+		}
+		sort.Strings(names)
+		result.Output = strings.Join(names, "\n") + "\n"
+	case len(fields) == 2 && fields[0] == "inspect":
+		if !e.networks[fields[1]] {
+			return Execution{}, fmt.Errorf("docker: network %q no longer exists", fields[1])
+		}
+		encoded, err := json.MarshalIndent(struct {
+			Name       string   `json:"Name"`
+			Containers []string `json:"Containers"`
+		}{Name: fields[1], Containers: attached(fields[1])}, "", "  ")
+		if err != nil {
+			return Execution{}, err
+		}
+		result.Output = string(encoded) + "\n"
+	case len(fields) == 2 && fields[0] == "create":
+		if e.networks[fields[1]] {
+			return Execution{}, fmt.Errorf("docker: network %q already exists", fields[1])
+		}
+		e.networks[fields[1]] = true
+		result.Output = fields[1] + "\n"
+	case len(fields) == 2 && fields[0] == "rm":
+		if !e.networks[fields[1]] {
+			return Execution{}, fmt.Errorf("docker: network %q has already been removed", fields[1])
+		}
+		if users := attached(fields[1]); len(users) > 0 {
+			return Execution{}, fmt.Errorf("docker: network %q still has containers attached (%s)", fields[1], strings.Join(users, ", "))
+		}
+		e.networks[fields[1]] = false
+		result.Output = fields[1] + "\n"
+	case len(fields) == 3 && (fields[0] == "connect" || fields[0] == "disconnect"):
+		network, alias := fields[1], fields[2]
+		if !e.networks[network] {
+			return Execution{}, fmt.Errorf("docker: network %q has been removed", network)
+		}
+		if _, exists := e.running[alias]; !exists || e.removed[alias] {
+			return Execution{}, fmt.Errorf("docker: container %q is not available", alias)
+		}
+		if fields[0] == "connect" {
+			if e.disabled[alias] || e.endpoints[alias][network] {
+				return Execution{}, fmt.Errorf("docker: cannot connect %q to %q", alias, network)
+			}
+			e.endpoints[alias][network] = true
+		} else {
+			if !e.endpoints[alias][network] {
+				return Execution{}, fmt.Errorf("docker: container %q is not connected to network %q", alias, network)
+			}
+			delete(e.endpoints[alias], network)
+		}
+	default:
+		return Execution{}, fmt.Errorf("unsupported fake Docker command %q", line)
+	}
+	return result, nil
+}
+
+func (e *missionDockerEnvironment) shareNetwork(first, second string) (shared, bothExist bool) {
+	for _, alias := range []string{first, second} {
+		if _, exists := e.running[alias]; !exists || e.removed[alias] {
+			return false, false
+		}
+	}
+	for network := range e.endpoints[first] {
+		if e.networks[network] && e.endpoints[second][network] {
+			return true, true
+		}
+	}
+	return false, true
+}
+
 func (e *missionDockerEnvironment) Observe(_ context.Context, condition mission.Condition) (bool, error) {
 	switch condition.Type {
+	case mission.ConditionDockerNetworkShared, mission.ConditionDockerNetworkIsolated:
+		shared, bothExist := e.shareNetwork(condition.Containers[0], condition.Containers[1])
+		return bothExist && shared == (condition.Type == mission.ConditionDockerNetworkShared), nil
+	case mission.ConditionDockerNetworkAbsent:
+		return !e.networks[condition.Network], nil
 	case mission.ConditionDockerContainerRunning:
 		return !e.removed[condition.Container] && e.running[condition.Container], nil
 	case mission.ConditionDockerContainerStopped:
@@ -387,6 +517,16 @@ func TestNewDockerMissionsAcceptAlternativesAndRejectIncompleteOutcomes(t *testi
 		{id: "docker-crash-loop", alternative: []string{"docker stop payments", "docker ps -a", "docker container logs payments"}, incomplete: []string{"docker stop payments", "docker logs payments", "docker rm payments"}},
 		{id: "docker-postmortem-triage", alternative: []string{"docker ps --filter status=exited", "docker rm sync-users", "docker container rm sync-orders", "docker ps --filter health=unhealthy", "docker container stop api-canary"}, incomplete: []string{"docker stop api-canary", "docker rm sync-orders", "docker rm sync-users", "docker rm sync-invoices"}},
 		{id: "docker-postmortem-triage", alternative: []string{"docker stop api-canary", "docker rm sync-orders", "docker rm sync-users", "docker logs sync-invoices"}, incomplete: []string{"docker stop api-canary", "docker rm api-canary", "docker rm sync-orders", "docker rm sync-users"}},
+		{id: "docker-network-census", alternative: []string{"docker network ls", "docker network inspect cache-net"}, incomplete: []string{"docker network inspect web-net"}},
+		{id: "docker-network-census", alternative: []string{"docker network inspect db-net", "docker network inspect cache-net"}, incomplete: []string{"docker network inspect cache-net", "docker inspect api"}},
+		{id: "docker-cant-reach-the-db", alternative: []string{"docker network create api-db", "docker network connect api-db api", "docker network connect api-db db"}, incomplete: []string{"docker network connect web-net db"}},
+		{id: "docker-cant-reach-the-db", alternative: []string{"docker network connect db-net api", "docker network inspect db-net"}, incomplete: []string{"docker network disconnect web-net api", "docker network connect db-net api"}},
+		{id: "docker-need-to-know", alternative: []string{"docker stop batch", "docker network disconnect payments-net batch", "docker start batch"}, incomplete: []string{"docker network disconnect payments-net ledger-db"}},
+		{id: "docker-need-to-know", alternative: []string{"docker network inspect app-net", "docker network disconnect payments-net batch"}, incomplete: []string{"docker network disconnect app-net batch"}},
+		{id: "docker-private-channel", alternative: []string{"docker network create edge-net", "docker network connect edge-net gateway", "docker network connect edge-net api", "docker network disconnect app-net gateway", "docker network disconnect app-net api"}, incomplete: []string{"docker network create metrics-net", "docker network connect metrics-net exporter", "docker network connect metrics-net collector"}},
+		{id: "docker-private-channel", alternative: []string{"docker network create metrics-net", "docker network connect metrics-net collector", "docker network connect metrics-net exporter", "docker network disconnect app-net collector", "docker network disconnect app-net exporter"}, incomplete: []string{"docker network create metrics-net", "docker network connect metrics-net exporter", "docker network connect metrics-net collector", "docker network disconnect app-net exporter", "docker network disconnect app-net collector", "docker network disconnect app-net gateway"}},
+		{id: "docker-segmentation", alternative: []string{"docker network create web-net", "docker network connect web-net web", "docker network connect web-net api", "docker network disconnect flat-net web", "docker network disconnect legacy-net old-cron", "docker network rm legacy-net", "docker rm old-cron"}, incomplete: []string{"docker network create db-net", "docker network connect db-net api", "docker network connect db-net db", "docker network disconnect flat-net db", "docker rm old-cron"}},
+		{id: "docker-segmentation", alternative: []string{"docker network ls", "docker rm old-cron", "docker network rm legacy-net", "docker network create db-net", "docker network connect db-net db", "docker network connect db-net api", "docker network disconnect flat-net db"}, incomplete: []string{"docker network disconnect flat-net db", "docker rm old-cron", "docker network rm legacy-net"}},
 	}
 	for _, test := range tests {
 		item, found := catalog.Find(test.id)

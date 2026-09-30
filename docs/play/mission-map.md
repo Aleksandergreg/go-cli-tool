@@ -17,9 +17,9 @@ Editable source: [`learning-journey.excalidraw`](diagrams/learning-journey.excal
 The curriculum has two independent tracks:
 
 - **Linux:** 23 missions across four ordered worlds. Bare `opsquest play` follows this track.
-- **Docker:** 11 optional missions across two worlds: Foundations, then Container Triage. Docker readiness never blocks Linux play.
+- **Docker:** 16 optional missions across three worlds: Foundations, Container Triage, then Network Plumbing. Docker readiness never blocks Linux play.
 
-Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, and Docker World 2 continues at Mission 30. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
+Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, Docker World 2 continues at Mission 30, and Docker World 3 at Mission 35. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
 
 The [learning philosophy](../game/learning-philosophy.md) explains the incident
 loop and feedback model. [Mission authoring](../technical/mission-authoring.md)
@@ -80,6 +80,11 @@ The “tools” column records suggested commands, not a mandatory solution. Out
 | 32 | Docker W2.3 | Intermediate | Replace a running but unhealthy replica with its standby | `docker` | Unhealthy target stopped; healthy and standby running; count equals |
 | 33 | Docker W2.4 | Intermediate | Stop a restart-policy crash loop and surface its fault | `docker` | Target stopped; service running; count equals; output contains fault |
 | 34 | Docker W2.5 | Advanced | Triage health and exit codes while preserving evidence | `docker` | Canary and failed job stopped; successful jobs absent; api running; count equals |
+| 35 | Docker W3.1 | Beginner | Map which containers share which networks | `docker` | Output contains network name and members |
+| 36 | Docker W3.2 | Beginner | Connect a container to a second network | `docker` | Required pairs share a network; web isolated from db; count equals |
+| 37 | Docker W3.3 | Intermediate | Remove an unnecessary network path | `docker` | Batch isolated from ledger; required pairs still share networks; count equals |
+| 38 | Docker W3.4 | Intermediate | Move a pair of services onto a private network | `docker` | Pair shares a network; both isolated from api; gateway and api connected |
+| 39 | Docker W3.5 | Advanced | Segment a flat network and retire a stale one | `docker` | Tier pairs share networks; web isolated from db; legacy network and cron absent; services running |
 
 ## World progression
 
@@ -107,9 +112,13 @@ Docker Foundations progresses through listing, logs, sanitized exit status, targ
 
 Container Triage separates evidence from clutter. It adds removal of stopped containers, log tails, health probes, and restart policies, then combines them in an advanced boss where the player must decide what to stop, what to remove, and what to keep for the postmortem.
 
+### Docker World 3: Network Plumbing
+
+Network Plumbing teaches that containers can only reach each other over a network they share. It moves from reading network membership, through connecting and disconnecting existing containers, to creating a private network, and ends with an advanced boss that segments a flat network and retires a stale one. Every lab network is internal and owned by the attempt.
+
 ## Curriculum evolution
 
-The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, beginner Docker lifecycle, and Docker triage gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
+The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, beginner Docker lifecycle, Docker triage, and container networking gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
 
 Read [Missions, hints, and progress](missions-and-progress.md) for route,
 reward, and persistence behavior, and [Mission authoring](../technical/mission-authoring.md)

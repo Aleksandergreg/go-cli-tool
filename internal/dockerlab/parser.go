@@ -35,6 +35,14 @@ const dockerHelp = `Docker lab commands:
   docker logs ALIAS                 Read a mission container's logs
   docker logs --tail N ALIAS        Read only the last N log lines
   docker container logs ALIAS       Read a mission container's logs
+  docker network ls                 List mission networks
+  docker network inspect NETWORK    Inspect a network and its containers
+  docker network create NETWORK     Create an internal mission network
+  docker network rm NETWORK         Remove a network no container uses
+  docker network connect NETWORK ALIAS
+                                    Attach a container to a network
+  docker network disconnect NETWORK ALIAS
+                                    Detach a container from a network
   help                              Show this help
 `
 
@@ -49,6 +57,12 @@ const (
 	actionRemove
 	actionInspect
 	actionLogs
+	actionNetworkList
+	actionNetworkCreate
+	actionNetworkRemove
+	actionNetworkInspect
+	actionNetworkConnect
+	actionNetworkDisconnect
 )
 
 // listFilter is one parsed docker ps filter. Filters are evaluated in Go over
@@ -65,6 +79,8 @@ type dockerAction struct {
 	filters []listFilter
 	// tail is the number of trailing log lines to show; negative means all.
 	tail int
+	// network is the logical network name for docker network actions.
+	network string
 }
 
 var listFilterValues = map[string]map[string]bool{
@@ -96,6 +112,9 @@ func parseAction(line string) (dockerAction, error) {
 		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all] | docker start ALIAS | docker stop ALIAS | docker rm ALIAS | docker inspect ALIAS | docker logs ALIAS")
 	}
 
+	if fields[0] == "network" {
+		return parseNetwork(fields[1:])
+	}
 	if fields[0] == "container" {
 		fields = fields[1:]
 		if len(fields) == 0 {
@@ -132,6 +151,63 @@ func parseAction(line string) (dockerAction, error) {
 		return dockerAction{kind: kind, alias: fields[1]}, nil
 	default:
 		return dockerAction{}, fmt.Errorf("docker %s is outside this mission's teaching subset; type help", fields[0])
+	}
+}
+
+func parseNetwork(fields []string) (dockerAction, error) {
+	const usage = "usage: docker network ls | inspect NETWORK | create NETWORK | rm NETWORK | connect NETWORK ALIAS | disconnect NETWORK ALIAS"
+	if len(fields) == 0 {
+		return dockerAction{}, errors.New(usage)
+	}
+	for _, field := range fields[1:] {
+		if strings.HasPrefix(field, "-") {
+			if fields[0] == "create" {
+				return dockerAction{}, fmt.Errorf("docker network create options are fixed in this lab: every network OpsQuest creates is internal")
+			}
+			return dockerAction{}, fmt.Errorf("docker network %s options are outside this teaching subset", fields[0])
+		}
+	}
+	name := func(value string) error {
+		if mission.ReservedDockerNetworkName(value) {
+			return fmt.Errorf("the built-in %q network is outside this lab", value)
+		}
+		if !mission.ValidDockerNetworkName(value) {
+			return fmt.Errorf("network name %q must be a lowercase logical name", value)
+		}
+		return nil
+	}
+	switch fields[0] {
+	case "ls", "list":
+		if len(fields) != 1 {
+			return dockerAction{}, fmt.Errorf("usage: docker network ls")
+		}
+		return dockerAction{kind: actionNetworkList}, nil
+	case "create", "rm", "remove", "inspect":
+		if len(fields) != 2 {
+			return dockerAction{}, fmt.Errorf("usage: docker network %s NETWORK", fields[0])
+		}
+		if err := name(fields[1]); err != nil {
+			return dockerAction{}, err
+		}
+		kind := map[string]actionKind{"create": actionNetworkCreate, "rm": actionNetworkRemove, "remove": actionNetworkRemove, "inspect": actionNetworkInspect}[fields[0]]
+		return dockerAction{kind: kind, network: fields[1]}, nil
+	case "connect", "disconnect":
+		if len(fields) != 3 {
+			return dockerAction{}, fmt.Errorf("usage: docker network %s NETWORK ALIAS", fields[0])
+		}
+		if err := name(fields[1]); err != nil {
+			return dockerAction{}, err
+		}
+		if !mission.ValidDockerLogicalName(fields[2]) {
+			return dockerAction{}, fmt.Errorf("usage: docker network %s NETWORK ALIAS", fields[0])
+		}
+		kind := actionNetworkConnect
+		if fields[0] == "disconnect" {
+			kind = actionNetworkDisconnect
+		}
+		return dockerAction{kind: kind, network: fields[1], alias: fields[2]}, nil
+	default:
+		return dockerAction{}, fmt.Errorf("docker network %s is outside this mission's teaching subset; type help", fields[0])
 	}
 }
 

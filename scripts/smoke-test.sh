@@ -127,7 +127,8 @@ assert_no_ansi "docker list" "${docker_list_output}"
 assert_contains "docker list" "${docker_list_output}" "DOCKER LABS"
 assert_contains "docker list" "${docker_list_output}" "Container Census"
 assert_contains "docker list" "${docker_list_output}" "Container Triage"
-assert_contains "docker list" "${docker_list_output}" "0/11 missions complete"
+assert_contains "docker list" "${docker_list_output}" "Network Plumbing"
+assert_contains "docker list" "${docker_list_output}" "0/16 missions complete"
 assert_contains "docker list" "${docker_list_output}" "Continue: opsquest play --track docker"
 assert_contains "docker list" "${docker_list_output}" "Jump: opsquest play --track docker --world N"
 
@@ -153,7 +154,7 @@ assert_contains "profile initialization" "${profile_output}" "Operator: Smoke Op
 
 doctor_output="$(run_opsquest doctor)"
 assert_no_ansi "doctor" "${doctor_output}"
-assert_contains "doctor" "${doctor_output}" "embedded catalog: 34 missions (23 Linux, 11 Docker)"
+assert_contains "doctor" "${doctor_output}" "embedded catalog: 39 missions (23 Linux, 16 Docker)"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
 assert_contains "doctor" "${doctor_output}" "Linux labs: in-memory; no host shell or filesystem access"
 assert_contains "doctor" "${doctor_output}" "docker labs:"

@@ -793,7 +793,7 @@ func (a *App) reportOrphanedLabs(cleanup, dockerReady bool) error {
 			}
 			return fmt.Errorf("docker cleanup failed: %w", err)
 		}
-		fmt.Fprintf(a.out, "  %s docker cleanup: removed %d orphaned lab %s\n", check, removed, plural(removed, "container", "containers"))
+		fmt.Fprintf(a.out, "  %s docker cleanup: removed %d orphaned lab %s\n", check, removed, plural(removed, "resource", "resources"))
 		return nil
 	}
 	if !dockerReady {
@@ -802,11 +802,11 @@ func (a *App) reportOrphanedLabs(cleanup, dockerReady bool) error {
 	count, err := janitor.OrphanedResources(a.ctx)
 	switch {
 	case err != nil:
-		fmt.Fprintf(a.out, "  %s docker cleanup: could not check for orphaned lab containers · %v\n", warning, err)
+		fmt.Fprintf(a.out, "  %s docker cleanup: could not check for orphaned lab resources · %v\n", warning, err)
 	case count > 0:
-		fmt.Fprintf(a.out, "  %s docker cleanup: %d orphaned lab %s from exited OpsQuest processes; run 'opsquest doctor --cleanup'\n", warning, count, plural(count, "container", "containers"))
+		fmt.Fprintf(a.out, "  %s docker cleanup: %d orphaned lab %s from exited OpsQuest processes; run 'opsquest doctor --cleanup'\n", warning, count, plural(count, "resource", "resources"))
 	default:
-		fmt.Fprintf(a.out, "  %s docker cleanup: no orphaned lab containers\n", check)
+		fmt.Fprintf(a.out, "  %s docker cleanup: no orphaned lab resources\n", check)
 	}
 	return nil
 }
