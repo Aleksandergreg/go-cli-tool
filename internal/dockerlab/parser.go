@@ -1,27 +1,39 @@
 package dockerlab
 
 import (
+	"errors"
 	"fmt"
+	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
 
-const maxDockerCommandLineBytes = 64 * 1024
+const (
+	maxDockerCommandLineBytes = 64 * 1024
+	maxLogTailLines           = 10000
+	maxListFilters            = 4
+)
 
 const dockerHelp = `Docker lab commands:
   docker ps [-a|--all]              List mission containers
-  docker container ls [-a|--all]    List mission containers
+  docker ps --filter KEY=VALUE      Filter by status=created|running|restarting|exited
+                                    or health=starting|healthy|unhealthy|none
+  docker container ls [OPTIONS]     List mission containers
   docker start ALIAS                Start a mission container
   docker container start ALIAS      Start a mission container
   docker restart ALIAS              Restart a mission container
   docker container restart ALIAS    Restart a mission container
   docker stop ALIAS                 Stop a mission container
   docker container stop ALIAS       Stop a mission container
+  docker rm ALIAS                   Remove a stopped mission container
+  docker container rm ALIAS         Remove a stopped mission container
   docker inspect ALIAS              Inspect logical container state
   docker container inspect ALIAS    Inspect logical container state
   docker logs ALIAS                 Read a mission container's logs
+  docker logs --tail N ALIAS        Read only the last N log lines
   docker container logs ALIAS       Read a mission container's logs
   help                              Show this help
 `
@@ -34,14 +46,30 @@ const (
 	actionStart
 	actionRestart
 	actionStop
+	actionRemove
 	actionInspect
 	actionLogs
 )
 
+// listFilter is one parsed docker ps filter. Filters are evaluated in Go over
+// sanitized inspection data and are never forwarded to the Docker CLI.
+type listFilter struct {
+	key   string
+	value string
+}
+
 type dockerAction struct {
-	kind  actionKind
-	alias string
-	all   bool
+	kind    actionKind
+	alias   string
+	all     bool
+	filters []listFilter
+	// tail is the number of trailing log lines to show; negative means all.
+	tail int
+}
+
+var listFilterValues = map[string]map[string]bool{
+	"status": {"created": true, "running": true, "restarting": true, "exited": true},
+	"health": {"starting": true, "healthy": true, "unhealthy": true, "none": true},
 }
 
 func parseAction(line string) (dockerAction, error) {
@@ -65,25 +93,31 @@ func parseAction(line string) (dockerAction, error) {
 	}
 	fields = fields[1:]
 	if len(fields) == 0 {
-		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all] | docker start ALIAS | docker stop ALIAS | docker inspect ALIAS | docker logs ALIAS")
+		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all] | docker start ALIAS | docker stop ALIAS | docker rm ALIAS | docker inspect ALIAS | docker logs ALIAS")
 	}
 
 	if fields[0] == "container" {
 		fields = fields[1:]
 		if len(fields) == 0 {
-			return dockerAction{}, fmt.Errorf("usage: docker container ls [-a|--all] | docker container start ALIAS | docker container stop ALIAS | docker container inspect ALIAS | docker container logs ALIAS")
+			return dockerAction{}, fmt.Errorf("usage: docker container ls [-a|--all] | docker container start ALIAS | docker container stop ALIAS | docker container rm ALIAS | docker container inspect ALIAS | docker container logs ALIAS")
 		}
 	}
 	switch fields[0] {
 	case "ps", "ls":
-		if len(fields) == 1 {
-			return dockerAction{kind: actionList}, nil
+		return parseList(fields[1:])
+	case "logs":
+		return parseLogs(fields[1:])
+	case "rm":
+		for _, field := range fields[1:] {
+			if field == "-f" || field == "--force" {
+				return dockerAction{}, fmt.Errorf("docker rm --force is outside this teaching subset; stop the container first, then remove it")
+			}
 		}
-		if len(fields) == 2 && (fields[1] == "-a" || fields[1] == "--all") {
-			return dockerAction{kind: actionList, all: true}, nil
+		if len(fields) != 2 || !mission.ValidDockerLogicalName(fields[1]) {
+			return dockerAction{}, fmt.Errorf("usage: docker rm ALIAS")
 		}
-		return dockerAction{}, fmt.Errorf("usage: docker ps [-a|--all]")
-	case "start", "restart", "stop", "inspect", "logs":
+		return dockerAction{kind: actionRemove, alias: fields[1]}, nil
+	case "start", "restart", "stop", "inspect":
 		if len(fields) != 2 || !mission.ValidDockerLogicalName(fields[1]) {
 			return dockerAction{}, fmt.Errorf("usage: docker %s ALIAS", fields[0])
 		}
@@ -94,11 +128,116 @@ func parseAction(line string) (dockerAction, error) {
 			kind = actionStop
 		} else if fields[0] == "inspect" {
 			kind = actionInspect
-		} else if fields[0] == "logs" {
-			kind = actionLogs
 		}
 		return dockerAction{kind: kind, alias: fields[1]}, nil
 	default:
 		return dockerAction{}, fmt.Errorf("docker %s is outside this mission's teaching subset; type help", fields[0])
 	}
+}
+
+func parseList(fields []string) (dockerAction, error) {
+	const usage = "usage: docker ps [-a|--all] [--filter status=VALUE|health=VALUE]"
+	action := dockerAction{kind: actionList}
+	for index := 0; index < len(fields); index++ {
+		field := fields[index]
+		var filter string
+		switch {
+		case field == "-a" || field == "--all":
+			if action.all {
+				return dockerAction{}, errors.New(usage)
+			}
+			action.all = true
+			continue
+		case field == "-f" || field == "--filter":
+			if index+1 >= len(fields) {
+				return dockerAction{}, fmt.Errorf("docker ps %s requires KEY=VALUE", field)
+			}
+			index++
+			filter = fields[index]
+		case strings.HasPrefix(field, "--filter="):
+			filter = strings.TrimPrefix(field, "--filter=")
+		default:
+			return dockerAction{}, errors.New(usage)
+		}
+		parsed, err := parseListFilter(filter)
+		if err != nil {
+			return dockerAction{}, err
+		}
+		if len(action.filters) == maxListFilters {
+			return dockerAction{}, fmt.Errorf("docker ps accepts at most %d filters in this lab", maxListFilters)
+		}
+		action.filters = append(action.filters, parsed)
+	}
+	return action, nil
+}
+
+func parseListFilter(value string) (listFilter, error) {
+	key, filterValue, found := strings.Cut(value, "=")
+	allowed, knownKey := listFilterValues[key]
+	if !found || !knownKey {
+		return listFilter{}, fmt.Errorf("docker ps filter %q is outside this teaching subset; use status=VALUE or health=VALUE", value)
+	}
+	if !allowed[filterValue] {
+		return listFilter{}, fmt.Errorf("docker ps filter %s accepts %s", key, strings.Join(sortedKeys(allowed), ", "))
+	}
+	return listFilter{key: key, value: filterValue}, nil
+}
+
+func parseLogs(fields []string) (dockerAction, error) {
+	const usage = "usage: docker logs [--tail N] ALIAS"
+	action := dockerAction{kind: actionLogs, tail: -1}
+	tailSet := false
+	for len(fields) > 1 {
+		var value string
+		switch field := fields[0]; {
+		case field == "--tail" || field == "-n":
+			if len(fields) < 3 {
+				return dockerAction{}, errors.New(usage)
+			}
+			value = fields[1]
+			fields = fields[2:]
+		case strings.HasPrefix(field, "--tail="):
+			value = strings.TrimPrefix(field, "--tail=")
+			fields = fields[1:]
+		default:
+			return dockerAction{}, errors.New(usage)
+		}
+		if tailSet {
+			return dockerAction{}, errors.New(usage)
+		}
+		tail, err := parseTail(value)
+		if err != nil {
+			return dockerAction{}, err
+		}
+		action.tail = tail
+		tailSet = true
+	}
+	if len(fields) != 1 || !mission.ValidDockerLogicalName(fields[0]) {
+		return dockerAction{}, errors.New(usage)
+	}
+	action.alias = fields[0]
+	return action, nil
+}
+
+func parseTail(value string) (int, error) {
+	if value == "all" {
+		return -1, nil
+	}
+	if value == "" || strings.TrimLeft(value, "0123456789") != "" {
+		return 0, fmt.Errorf("docker logs --tail requires a whole number or all")
+	}
+	tail, err := strconv.Atoi(value)
+	if err != nil || tail > maxLogTailLines {
+		return 0, fmt.Errorf("docker logs --tail accepts at most %d lines in this lab", maxLogTailLines)
+	}
+	return tail, nil
+}
+
+func sortedKeys(values map[string]bool) []string {
+	keys := make([]string, 0, len(values))
+	for key := range values {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
 }

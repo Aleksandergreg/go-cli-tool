@@ -9,6 +9,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
@@ -20,6 +21,24 @@ const (
 	sessionLabel = "com.opsquest.session"
 	missionLabel = "com.opsquest.mission"
 	aliasLabel   = "com.opsquest.alias"
+	// Owner labels let a later process recognize fixtures whose OpsQuest
+	// process exited without cleanup. They are advisory: removal still
+	// requires every ownership label above to match.
+	ownerPIDLabel  = "com.opsquest.owner-pid"
+	ownerHostLabel = "com.opsquest.owner-host"
+
+	// fixtureLifetime bounds every long-lived fixture process, so a fixture
+	// orphaned by an abnormal exit stops consuming resources within a day.
+	fixtureLifetime = 24 * time.Hour
+	// crashLoopMaxRetries bounds a crash-loop fixture's restart policy. With
+	// Docker's capped exponential backoff it keeps looping for roughly 40
+	// minutes, which comfortably covers a mission attempt.
+	crashLoopMaxRetries = 50
+	// crashLoopReadyRestarts is how many restarts setup waits for, so the
+	// player's first logs and inspection already show a loop.
+	crashLoopReadyRestarts = 2
+	fixtureReadyTimeout    = 10 * time.Second
+	fixtureReadyInterval   = 100 * time.Millisecond
 )
 
 type trackedContainer struct {
@@ -31,11 +50,15 @@ type trackedContainer struct {
 }
 
 type environment struct {
-	runner     runner
-	sessionID  string
-	missionID  string
-	containers []*trackedContainer
-	byAlias    map[string]*trackedContainer
+	runner       runner
+	sessionID    string
+	missionID    string
+	ownerPID     int
+	ownerHost    string
+	pollInterval time.Duration
+	readyTimeout time.Duration
+	containers   []*trackedContainer
+	byAlias      map[string]*trackedContainer
 
 	cleanupMutex   sync.Mutex
 	mutex          sync.RWMutex
@@ -71,7 +94,7 @@ func (e *environment) Execute(ctx context.Context, line string) (game.Execution,
 		result.Output = dockerHelp
 		result.PracticedCommands = []string{"help"}
 	case actionList:
-		result.Output, err = e.listContainers(ctx, action.all)
+		result.Output, err = e.listContainers(ctx, action.all, action.filters)
 		result.PracticedCommands = []string{"docker"}
 	case actionStart:
 		err = e.startContainer(ctx, action.alias)
@@ -91,11 +114,17 @@ func (e *environment) Execute(ctx context.Context, line string) (game.Execution,
 			result.Output = action.alias + "\n"
 		}
 		result.PracticedCommands = []string{"docker"}
+	case actionRemove:
+		err = e.removeContainer(ctx, action.alias)
+		if err == nil {
+			result.Output = action.alias + "\n"
+		}
+		result.PracticedCommands = []string{"docker"}
 	case actionInspect:
 		result.Output, err = e.logicalInspect(ctx, action.alias)
 		result.PracticedCommands = []string{"docker"}
 	case actionLogs:
-		result.Output, err = e.containerLogs(ctx, action.alias)
+		result.Output, err = e.containerLogs(ctx, action.alias, action.tail)
 		result.PracticedCommands = []string{"docker"}
 	default:
 		err = fmt.Errorf("unsupported Docker action")
@@ -122,6 +151,13 @@ func (e *environment) Observe(ctx context.Context, condition mission.Condition) 
 		}
 		inspection, exists, err := e.inspect(ctx, tracked.id)
 		return exists && !inspection.State.Running, err
+	case mission.ConditionDockerContainerAbsent:
+		tracked, exists := e.container(condition.Container)
+		if !exists {
+			return false, nil
+		}
+		_, exists, err := e.inspect(ctx, tracked.id)
+		return err == nil && !exists, err
 	case mission.ConditionDockerContainerCountEqual:
 		if condition.Count == nil {
 			return false, fmt.Errorf("docker_container_count_equals requires count")
@@ -218,6 +254,18 @@ func (e *environment) createContainer(ctx context.Context, index int, fixture mi
 		"--label", sessionLabel + "=" + e.sessionID,
 		"--label", missionLabel + "=" + e.missionID,
 		"--label", aliasLabel + "=" + fixture.Name,
+	}
+	if e.ownerHost != "" && e.ownerPID > 0 {
+		args = append(args,
+			"--label", ownerPIDLabel+"="+strconv.Itoa(e.ownerPID),
+			"--label", ownerHostLabel+"="+e.ownerHost,
+		)
+	}
+	restartPolicy := "no"
+	if fixture.Restart == mission.DockerRestartOnFailure {
+		restartPolicy = fmt.Sprintf("on-failure:%d", crashLoopMaxRetries)
+	}
+	args = append(args,
 		"--network", "none",
 		"--read-only",
 		"--tmpfs", "/tmp:rw,noexec,nosuid,nodev,size=8m",
@@ -229,21 +277,40 @@ func (e *environment) createContainer(ctx context.Context, index int, fixture mi
 		"--memory-swap", "128m",
 		"--cpus", "0.5",
 		"--ulimit", "nofile=256:256",
-		"--restart", "no",
+		"--restart", restartPolicy,
 		"--stop-timeout", "1",
+	)
+	if probe, configured := healthProbes[fixture.Health]; configured {
+		// The probe is a fixed BusyBox applet selected by a validated enum;
+		// mission content and player input never supply the probe command.
+		args = append(args,
+			"--health-cmd", probe,
+			"--health-interval", "1s",
+			"--health-timeout", "1s",
+			"--health-retries", "1",
+		)
 	}
-	if fixture.ExitCode != nil {
+	lifetime := strconv.Itoa(int(fixtureLifetime / time.Second))
+	switch {
+	case fixture.ExitCode != nil:
 		args = append(args,
 			"--entrypoint", "/bin/sh",
 			reference,
 			"-c", `printf '%s\n' "$1"; exit "$2"`,
 			"opsquest-diagnostic", fixture.Log, strconv.Itoa(*fixture.ExitCode),
 		)
-	} else {
+	case fixture.Log != "":
+		args = append(args,
+			"--entrypoint", "/bin/sh",
+			reference,
+			"-c", `printf '%s\n' "$1"; exec sleep "$2"`,
+			"opsquest-service", fixture.Log, lifetime,
+		)
+	default:
 		args = append(args,
 			"--entrypoint", "/bin/sleep",
 			reference,
-			"86400",
+			lifetime,
 		)
 	}
 	result, err := e.run(ctx, args...)
@@ -291,39 +358,70 @@ func (e *environment) reconcileAmbiguousCreate(tracked *trackedContainer, create
 	return tracked, createErr
 }
 
+// healthProbes maps a fixture health enum to a fixed probe command.
+var healthProbes = map[string]string{
+	mission.DockerHealthHealthy:   "true",
+	mission.DockerHealthUnhealthy: "false",
+}
+
 func (e *environment) startContainer(ctx context.Context, alias string) error {
-	tracked, exists := e.container(alias)
-	if !exists {
-		return fmt.Errorf("docker: container %q is not part of this mission", alias)
-	}
-	_, err := e.run(ctx, "container", "start", tracked.id)
+	_, err := e.runOnAlias(ctx, alias, "container", "start")
 	return err
 }
 
 func (e *environment) restartContainer(ctx context.Context, alias string) error {
-	tracked, exists := e.container(alias)
-	if !exists {
-		return fmt.Errorf("docker: container %q is not part of this mission", alias)
-	}
-	_, err := e.run(ctx, "container", "restart", tracked.id)
+	_, err := e.runOnAlias(ctx, alias, "container", "restart")
 	return err
 }
 
 func (e *environment) stopContainer(ctx context.Context, alias string) error {
-	tracked, exists := e.container(alias)
-	if !exists {
-		return fmt.Errorf("docker: container %q is not part of this mission", alias)
-	}
-	_, err := e.run(ctx, "container", "stop", tracked.id)
+	_, err := e.runOnAlias(ctx, alias, "container", "stop")
 	return err
 }
 
-func (e *environment) waitContainer(ctx context.Context, alias string, expectedExitCode int) error {
+// removeContainer deletes one stopped mission container. Running containers
+// are refused rather than forced so the lesson keeps stop and remove distinct.
+func (e *environment) removeContainer(ctx context.Context, alias string) error {
 	tracked, exists := e.container(alias)
 	if !exists {
 		return fmt.Errorf("docker: container %q is not part of this mission", alias)
 	}
-	result, err := e.run(ctx, "container", "wait", tracked.id)
+	inspection, exists, err := e.inspect(ctx, tracked.id)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		return fmt.Errorf("docker: container %q has already been removed", alias)
+	}
+	if inspection.State.Running {
+		return fmt.Errorf("docker: cannot remove running container %q; stop it first", alias)
+	}
+	_, err = e.runOnAlias(ctx, alias, "container", "rm")
+	return err
+}
+
+// runOnAlias runs one fixed Docker action against the exact container ID
+// behind alias. Engine errors about a missing container are translated so
+// removed fixtures never reveal their real container ID.
+func (e *environment) runOnAlias(ctx context.Context, alias string, args ...string) (runResult, error) {
+	tracked, exists := e.container(alias)
+	if !exists {
+		return runResult{}, fmt.Errorf("docker: container %q is not part of this mission", alias)
+	}
+	operationCtx, cancel := context.WithTimeout(ctx, dockerOperationTimeout)
+	defer cancel()
+	result, err := e.runner.run(operationCtx, append(args, tracked.id)...)
+	if err != nil {
+		if isMissingContainer(result) {
+			return result, fmt.Errorf("docker: container %q has been removed", alias)
+		}
+		return result, fmt.Errorf("Docker command failed%s", redactIdentifiers(dockerFailureDetail(result, err), tracked))
+	}
+	return result, nil
+}
+
+func (e *environment) waitContainer(ctx context.Context, alias string, expectedExitCode int) error {
+	result, err := e.runOnAlias(ctx, alias, "container", "wait")
 	if err != nil {
 		return err
 	}
@@ -334,40 +432,149 @@ func (e *environment) waitContainer(ctx context.Context, alias string, expectedE
 	return nil
 }
 
-func (e *environment) containerLogs(ctx context.Context, alias string) (string, error) {
+// waitForFixture polls sanitized inspection until ready reports true. Setup
+// uses it for fixtures whose teaching state (a health verdict or a visible
+// crash loop) appears shortly after start.
+func (e *environment) waitForFixture(ctx context.Context, alias string, ready func(containerInspection) bool) error {
 	tracked, exists := e.container(alias)
 	if !exists {
-		return "", fmt.Errorf("docker: container %q is not part of this mission", alias)
+		return fmt.Errorf("docker: container %q is not part of this mission", alias)
 	}
-	result, err := e.run(ctx, "container", "logs", tracked.id)
+	interval := e.pollInterval
+	if interval <= 0 {
+		interval = fixtureReadyInterval
+	}
+	timeout := e.readyTimeout
+	if timeout <= 0 {
+		timeout = fixtureReadyTimeout
+	}
+	deadline := time.NewTimer(timeout)
+	defer deadline.Stop()
+	for {
+		inspection, exists, err := e.inspect(ctx, tracked.id)
+		if err != nil {
+			return err
+		}
+		if !exists {
+			return fmt.Errorf("Docker fixture %s disappeared during setup", alias)
+		}
+		if ready(inspection) {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-deadline.C:
+			return fmt.Errorf("Docker fixture %s did not reach its teaching state within %s", alias, timeout)
+		case <-time.After(interval):
+		}
+	}
+}
+
+func (e *environment) containerLogs(ctx context.Context, alias string, tail int) (string, error) {
+	args := []string{"container", "logs"}
+	if tail >= 0 {
+		args = append(args, "--tail", strconv.Itoa(tail))
+	}
+	result, err := e.runOnAlias(ctx, alias, args...)
 	if err != nil {
 		return "", err
 	}
 	return result.stdout, nil
 }
 
-func (e *environment) listContainers(ctx context.Context, all bool) (string, error) {
-	var output strings.Builder
-	output.WriteString("CONTAINER ID  IMAGE     STATUS   NAMES\n")
+func (e *environment) listContainers(ctx context.Context, all bool, filters []listFilter) (string, error) {
+	type row struct {
+		logicalID string
+		image     string
+		status    string
+		alias     string
+	}
+	rows := make([]row, 0, len(e.containers))
+	statusWidth := len("STATUS")
 	for _, tracked := range e.snapshotContainers() {
 		inspection, exists, err := e.inspect(ctx, tracked.id)
 		if err != nil {
 			return "", err
 		}
-		if !exists || !all && !inspection.State.Running {
+		// A status filter selects stopped containers even without --all,
+		// matching docker ps.
+		if !exists || !all && !hasFilterKey(filters, "status") && !inspection.State.Running || !matchesFilters(inspection, filters) {
 			continue
 		}
-		status := inspection.State.Status
-		if status == "" {
-			if inspection.State.Running {
-				status = "running"
-			} else {
-				status = "stopped"
-			}
-		}
-		fmt.Fprintf(&output, "%-13s %-9s %-8s %s\n", tracked.logicalID, tracked.imageAlias, status, tracked.alias)
+		status := displayStatus(inspection)
+		statusWidth = max(statusWidth, len(status))
+		rows = append(rows, row{logicalID: tracked.logicalID, image: tracked.imageAlias, status: status, alias: tracked.alias})
+	}
+	var output strings.Builder
+	fmt.Fprintf(&output, "%-13s %-9s %-*s %s\n", "CONTAINER ID", "IMAGE", statusWidth, "STATUS", "NAMES")
+	for _, item := range rows {
+		fmt.Fprintf(&output, "%-13s %-9s %-*s %s\n", item.logicalID, item.image, statusWidth, item.status, item.alias)
 	}
 	return output.String(), nil
+}
+
+func displayStatus(inspection containerInspection) string {
+	status := inspection.State.Status
+	if status == "" {
+		if inspection.State.Running {
+			status = "running"
+		} else {
+			status = "stopped"
+		}
+	}
+	if health := healthStatus(inspection); inspection.State.Running && health != "none" {
+		status += " (" + health + ")"
+	}
+	return status
+}
+
+// healthStatus reports the probe verdict, or none for a fixture without a
+// health probe. Like docker ps, listings only show it for running containers.
+func healthStatus(inspection containerInspection) string {
+	if inspection.State.Health == nil || inspection.State.Health.Status == "" {
+		return "none"
+	}
+	return inspection.State.Health.Status
+}
+
+func hasFilterKey(filters []listFilter, key string) bool {
+	for _, filter := range filters {
+		if filter.key == key {
+			return true
+		}
+	}
+	return false
+}
+
+// matchesFilters follows docker ps semantics: values for one key are
+// alternatives, and different keys must all match.
+func matchesFilters(inspection containerInspection, filters []listFilter) bool {
+	matched := make(map[string]bool, len(filters))
+	for _, filter := range filters {
+		if _, seen := matched[filter.key]; !seen {
+			matched[filter.key] = false
+		}
+		var actual string
+		switch filter.key {
+		case "status":
+			actual = inspection.State.Status
+		case "health":
+			actual = "none"
+			if inspection.State.Running {
+				actual = healthStatus(inspection)
+			}
+		}
+		if actual == filter.value {
+			matched[filter.key] = true
+		}
+	}
+	for _, ok := range matched {
+		if !ok {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *environment) logicalInspect(ctx context.Context, alias string) (string, error) {
@@ -382,19 +589,36 @@ func (e *environment) logicalInspect(ctx context.Context, alias string) (string,
 	if !exists {
 		return "", fmt.Errorf("docker: container %q no longer exists", alias)
 	}
+	type logicalHealth struct {
+		Status string `json:"Status"`
+	}
 	logical := struct {
-		ID    string `json:"Id"`
-		Name  string `json:"Name"`
-		Image string `json:"Image"`
-		State struct {
-			Running  bool   `json:"Running"`
-			Status   string `json:"Status"`
-			ExitCode int    `json:"ExitCode"`
+		ID           string `json:"Id"`
+		Name         string `json:"Name"`
+		Image        string `json:"Image"`
+		RestartCount int    `json:"RestartCount"`
+		State        struct {
+			Running    bool           `json:"Running"`
+			Restarting bool           `json:"Restarting"`
+			Status     string         `json:"Status"`
+			ExitCode   int            `json:"ExitCode"`
+			Health     *logicalHealth `json:"Health,omitempty"`
 		} `json:"State"`
-	}{ID: tracked.logicalID, Name: tracked.alias, Image: tracked.imageAlias}
+		HostConfig struct {
+			RestartPolicy restartPolicy `json:"RestartPolicy"`
+		} `json:"HostConfig"`
+	}{ID: tracked.logicalID, Name: tracked.alias, Image: tracked.imageAlias, RestartCount: inspection.RestartCount}
 	logical.State.Running = inspection.State.Running
+	logical.State.Restarting = inspection.State.Restarting
 	logical.State.Status = inspection.State.Status
 	logical.State.ExitCode = inspection.State.ExitCode
+	if health := healthStatus(inspection); health != "none" {
+		logical.State.Health = &logicalHealth{Status: health}
+	}
+	logical.HostConfig.RestartPolicy = inspection.HostConfig.RestartPolicy
+	if logical.HostConfig.RestartPolicy.Name == "" {
+		logical.HostConfig.RestartPolicy.Name = "no"
+	}
 	encoded, err := json.MarshalIndent(logical, "", "  ")
 	if err != nil {
 		return "", err
@@ -402,15 +626,32 @@ func (e *environment) logicalInspect(ctx context.Context, alias string) (string,
 	return string(encoded) + "\n", nil
 }
 
+type restartPolicy struct {
+	Name              string `json:"Name"`
+	MaximumRetryCount int    `json:"MaximumRetryCount"`
+}
+
+type healthState struct {
+	Status string `json:"Status"`
+}
+
 type containerInspection struct {
-	ID     string `json:"Id"`
-	Config struct {
+	ID           string `json:"Id"`
+	Name         string `json:"Name"`
+	Created      string `json:"Created"`
+	RestartCount int    `json:"RestartCount"`
+	Config       struct {
 		Labels map[string]string `json:"Labels"`
 	} `json:"Config"`
+	HostConfig struct {
+		RestartPolicy restartPolicy `json:"RestartPolicy"`
+	} `json:"HostConfig"`
 	State struct {
-		Running  bool   `json:"Running"`
-		Status   string `json:"Status"`
-		ExitCode int    `json:"ExitCode"`
+		Running    bool         `json:"Running"`
+		Restarting bool         `json:"Restarting"`
+		Status     string       `json:"Status"`
+		ExitCode   int          `json:"ExitCode"`
+		Health     *healthState `json:"Health"`
 	} `json:"State"`
 }
 
@@ -433,7 +674,13 @@ func (e *environment) inspectUnchecked(ctx context.Context, id string) (containe
 }
 
 func (e *environment) inspectReferenceUnchecked(ctx context.Context, reference string) (containerInspection, bool, error) {
-	result, err := e.run(ctx, "container", "inspect", "--format", "{{json .}}", reference)
+	return inspectReference(ctx, e.runner, reference)
+}
+
+// inspectReference inspects one exact container ID or generated name. It is
+// shared by attempt environments and the orphan janitor.
+func inspectReference(ctx context.Context, commandRunner runner, reference string) (containerInspection, bool, error) {
+	result, err := runDocker(ctx, commandRunner, "container", "inspect", "--format", "{{json .}}", reference)
 	if err != nil {
 		if isMissingContainer(result) {
 			return containerInspection{}, false, nil
@@ -477,13 +724,31 @@ func (e *environment) countOwnedContainers(ctx context.Context) (int, error) {
 }
 
 func (e *environment) run(ctx context.Context, args ...string) (runResult, error) {
+	return runDocker(ctx, e.runner, args...)
+}
+
+// runDocker runs one fixed Docker invocation with the standard operation
+// timeout and a bounded error summary.
+func runDocker(ctx context.Context, commandRunner runner, args ...string) (runResult, error) {
 	operationCtx, cancel := context.WithTimeout(ctx, dockerOperationTimeout)
 	defer cancel()
-	result, err := e.runner.run(operationCtx, args...)
+	result, err := commandRunner.run(operationCtx, args...)
 	if err != nil {
 		return result, fmt.Errorf("Docker command failed%s", dockerFailureDetail(result, err))
 	}
 	return result, nil
+}
+
+// redactIdentifiers replaces a tracked container's engine ID and generated
+// name in player-visible error text with its logical identity.
+func redactIdentifiers(message string, tracked *trackedContainer) string {
+	if tracked.id != "" {
+		message = strings.ReplaceAll(message, tracked.id, tracked.logicalID)
+		if len(tracked.id) >= 12 {
+			message = strings.ReplaceAll(message, tracked.id[:12], tracked.logicalID)
+		}
+	}
+	return strings.ReplaceAll(message, tracked.actualName, tracked.alias)
 }
 
 func (e *environment) ready(ctx context.Context) error {
@@ -525,7 +790,7 @@ func (dockerCompletion) CommandNames() []string {
 }
 
 func (c dockerCompletion) PathCandidates(prefix string) []game.CompletionCandidate {
-	values := []string{"--all", "-a", "container", "inspect", "logs", "ls", "ps", "restart", "start", "stop"}
+	values := []string{"--all", "--filter", "--tail", "-a", "container", "inspect", "logs", "ls", "ps", "restart", "rm", "start", "stop"}
 	for _, tracked := range c.environment.snapshotContainers() {
 		values = append(values, tracked.alias)
 	}

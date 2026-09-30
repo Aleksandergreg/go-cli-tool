@@ -276,19 +276,85 @@ func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 			wantErr: "unknown state",
 		},
 		{
-			name: "diagnostic log without exit code",
-			mutate: func(item *Mission) {
-				item.Docker.Containers[0].Log = "diagnostic"
-			},
-			wantErr: "requires both log and exit_code",
-		},
-		{
 			name: "diagnostic exit code without log",
 			mutate: func(item *Mission) {
 				exitCode := 1
 				item.Docker.Containers[0].ExitCode = &exitCode
 			},
-			wantErr: "requires both log and exit_code",
+			wantErr: "exit_code requires a log",
+		},
+		{
+			name: "service log too large",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Log = strings.Repeat("x", maxDockerFixtureLogBytes+1)
+			},
+			wantErr: "log exceeds",
+		},
+		{
+			name: "unknown health",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Health = "starting"
+			},
+			wantErr: "unknown health",
+		},
+		{
+			name: "health on exiting fixture",
+			mutate: func(item *Mission) {
+				exitCode := 0
+				item.Docker.Containers[0].Log = "complete"
+				item.Docker.Containers[0].ExitCode = &exitCode
+				item.Docker.Containers[0].Health = DockerHealthHealthy
+			},
+			wantErr: "cannot declare health",
+		},
+		{
+			name: "unknown restart behavior",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Restart = "always"
+			},
+			wantErr: "unknown restart behavior",
+		},
+		{
+			name: "restart without crash",
+			mutate: func(item *Mission) {
+				item.Docker.Containers[1].Restart = DockerRestartOnFailure
+			},
+			wantErr: "requires log and a non-zero exit_code",
+		},
+		{
+			name: "restart with successful exit",
+			mutate: func(item *Mission) {
+				exitCode := 0
+				item.Docker.Containers[1].Log = "complete"
+				item.Docker.Containers[1].ExitCode = &exitCode
+				item.Docker.Containers[1].Restart = DockerRestartOnFailure
+			},
+			wantErr: "requires log and a non-zero exit_code",
+		},
+		{
+			name: "crash loop declared stopped",
+			mutate: func(item *Mission) {
+				exitCode := 1
+				item.Docker.Containers[0].Log = "FATAL"
+				item.Docker.Containers[0].ExitCode = &exitCode
+				item.Docker.Containers[0].Restart = DockerRestartOnFailure
+			},
+			wantErr: "crash-loop fixture must use running state",
+		},
+		{
+			name: "unknown absent validation container",
+			mutate: func(item *Mission) {
+				item.Validation.All[0] = Condition{Type: ConditionDockerContainerAbsent, Container: "missing"}
+			},
+			wantErr: "unknown docker container",
+		},
+		{
+			name: "absent condition with count",
+			mutate: func(item *Mission) {
+				count := 1
+				item.Validation.All[0] = Condition{Type: ConditionDockerContainerAbsent, Container: "api", Count: &count}
+			},
+			wantErr: "does not support count",
 		},
 		{
 			name: "diagnostic exit code outside range",
@@ -389,15 +455,35 @@ func TestMissionValidationRejectsInvalidDockerDefinitions(t *testing.T) {
 	}
 }
 
+func TestMissionValidationAcceptsDockerFixtureBehaviors(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("docker-container-census")
+	failure := 3
+	item.Docker.Containers = []DockerContainerSpec{
+		{Name: "api", Image: "fixture", State: DockerStateStopped, Log: "INFO ready", Health: DockerHealthHealthy},
+		{Name: "metrics", Image: "fixture", State: DockerStateRunning, Health: DockerHealthUnhealthy},
+		{Name: "payments", Image: "fixture", State: DockerStateRunning, Log: "FATAL key missing", ExitCode: &failure, Restart: DockerRestartOnFailure},
+	}
+	item.Validation.All = append(item.Validation.All, Condition{Type: ConditionDockerContainerAbsent, Container: "payments"})
+	if err := validateMission(item); err != nil {
+		t.Fatalf("validateMission() error = %v", err)
+	}
+}
+
 func TestMissionValidationRejectsDockerConditionOnSimulatedMission(t *testing.T) {
 	catalog, err := LoadCatalog()
 	if err != nil {
 		t.Fatal(err)
 	}
 	item, _ := catalog.Find("linux-orientation")
-	item.Validation.All = []Condition{{Type: "docker_container_running", Container: "api"}}
-	if err := validateMission(item); err == nil || !strings.Contains(err.Error(), "requires a docker environment") {
-		t.Fatalf("validateMission() error = %v", err)
+	for _, conditionType := range []ConditionType{ConditionDockerContainerRunning, ConditionDockerContainerAbsent} {
+		item.Validation.All = []Condition{{Type: conditionType, Container: "api"}}
+		if err := validateMission(item); err == nil || !strings.Contains(err.Error(), "requires a docker environment") {
+			t.Fatalf("validateMission(%s) error = %v", conditionType, err)
+		}
 	}
 }
 

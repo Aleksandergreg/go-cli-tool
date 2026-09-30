@@ -79,6 +79,15 @@ type AvailabilityChecker interface {
 	Availability(context.Context, mission.Mission) Availability
 }
 
+// ResourceJanitor is implemented by factories whose attempt resources can
+// outlive an OpsQuest process that exits without cleanup. Orphans are only
+// resources whose owning process is provably gone or whose lifetime has
+// expired; live attempts are never reported or removed.
+type ResourceJanitor interface {
+	OrphanedResources(context.Context) (int, error)
+	RemoveOrphanedResources(context.Context) (int, error)
+}
+
 // EnvironmentAvailability reports ready by default so simple test factories
 // and the simulated environment do not need boilerplate capability checks.
 func EnvironmentAvailability(ctx context.Context, factory Factory, item mission.Mission) Availability {

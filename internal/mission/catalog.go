@@ -212,7 +212,7 @@ func validateMission(item Mission) error {
 		if err := validateCondition(condition, environment); err != nil {
 			return fmt.Errorf("validation condition %d: %w", index+1, err)
 		}
-		if (condition.Type == ConditionDockerContainerRunning || condition.Type == ConditionDockerContainerStopped) && !dockerSetupHasContainer(item.Docker, condition.Container) {
+		if condition.Container != "" && !dockerSetupHasContainer(item.Docker, condition.Container) {
 			return fmt.Errorf("validation condition %d: unknown docker container %q", index+1, condition.Container)
 		}
 	}
@@ -268,25 +268,60 @@ func ValidateDockerSetup(setup DockerSetup) error {
 		default:
 			return fmt.Errorf("docker container %q has unknown state %q", container.Name, container.State)
 		}
-		hasDiagnostic := container.Log != "" || container.ExitCode != nil
-		if hasDiagnostic {
-			if container.Log == "" || container.ExitCode == nil {
-				return fmt.Errorf("docker container %q diagnostic fixture requires both log and exit_code", container.Name)
-			}
-			if len(container.Log) > maxDockerFixtureLogBytes {
-				return fmt.Errorf("docker container %q log exceeds the %d-byte limit", container.Name, maxDockerFixtureLogBytes)
-			}
-			if strings.ContainsRune(container.Log, 0) {
-				return fmt.Errorf("docker container %q log cannot contain NUL", container.Name)
-			}
-			if *container.ExitCode < 0 || *container.ExitCode > 255 {
-				return fmt.Errorf("docker container %q exit_code must be between 0 and 255", container.Name)
-			}
-			if container.State != DockerStateStopped {
-				return fmt.Errorf("docker container %q diagnostic fixture must use stopped state", container.Name)
-			}
+		if len(container.Log) > maxDockerFixtureLogBytes {
+			return fmt.Errorf("docker container %q log exceeds the %d-byte limit", container.Name, maxDockerFixtureLogBytes)
+		}
+		if strings.ContainsRune(container.Log, 0) {
+			return fmt.Errorf("docker container %q log cannot contain NUL", container.Name)
+		}
+		if err := validateDockerFixtureBehavior(container); err != nil {
+			return err
 		}
 		containers[container.Name] = true
+	}
+	return nil
+}
+
+// validateDockerFixtureBehavior accepts only the fixed fixture behaviors the
+// Docker adapter implements: a long-lived service with optional startup log
+// and health probe, a one-shot diagnostic job, or a bounded crash loop.
+func validateDockerFixtureBehavior(container DockerContainerSpec) error {
+	switch container.Health {
+	case "", DockerHealthHealthy, DockerHealthUnhealthy:
+	default:
+		return fmt.Errorf("docker container %q has unknown health %q", container.Name, container.Health)
+	}
+	switch container.Restart {
+	case "", DockerRestartOnFailure:
+	default:
+		return fmt.Errorf("docker container %q has unknown restart behavior %q", container.Name, container.Restart)
+	}
+	if container.ExitCode == nil {
+		if container.Restart != "" {
+			return fmt.Errorf("docker container %q restart behavior requires log and a non-zero exit_code", container.Name)
+		}
+		return nil
+	}
+	if container.Log == "" {
+		return fmt.Errorf("docker container %q exit_code requires a log", container.Name)
+	}
+	if *container.ExitCode < 0 || *container.ExitCode > 255 {
+		return fmt.Errorf("docker container %q exit_code must be between 0 and 255", container.Name)
+	}
+	if container.Health != "" {
+		return fmt.Errorf("docker container %q exiting fixture cannot declare health", container.Name)
+	}
+	if container.Restart == DockerRestartOnFailure {
+		if *container.ExitCode == 0 {
+			return fmt.Errorf("docker container %q restart behavior requires log and a non-zero exit_code", container.Name)
+		}
+		if container.State != DockerStateRunning {
+			return fmt.Errorf("docker container %q crash-loop fixture must use running state", container.Name)
+		}
+		return nil
+	}
+	if container.State != DockerStateStopped {
+		return fmt.Errorf("docker container %q diagnostic fixture must use stopped state", container.Name)
 	}
 	return nil
 }
@@ -431,6 +466,7 @@ var allowedConditionFields = map[ConditionType]conditionFields{
 	ConditionDockerContainerRunning:    conditionContainer,
 	ConditionDockerContainerStopped:    conditionContainer,
 	ConditionDockerContainerCountEqual: conditionCount,
+	ConditionDockerContainerAbsent:     conditionContainer,
 }
 
 var conditionFieldFlags = map[string]conditionFields{
@@ -526,7 +562,7 @@ func validateCondition(condition Condition, environment string) error {
 		if !found || !variablePattern.MatchString(name) {
 			return fmt.Errorf("value must be NAME=value")
 		}
-	case ConditionDockerContainerRunning, ConditionDockerContainerStopped:
+	case ConditionDockerContainerRunning, ConditionDockerContainerStopped, ConditionDockerContainerAbsent:
 		if environment != EnvironmentDocker {
 			return fmt.Errorf("%s requires a docker environment", condition.Type)
 		}

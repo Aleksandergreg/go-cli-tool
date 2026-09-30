@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"regexp"
 	"strings"
@@ -32,11 +33,34 @@ type Factory struct {
 	runner     runner
 	lookupErr  error
 	newSession func() (string, error)
+	owner      processOwner
+	// pollInterval and readyTimeout override fixture readiness polling in
+	// tests.
+	pollInterval time.Duration
+	readyTimeout time.Duration
+}
+
+// processOwner identifies the current OpsQuest process for orphan detection
+// and decides whether another recorded owner process is still alive.
+type processOwner struct {
+	pid   int
+	host  string
+	alive func(int) bool
+	now   func() time.Time
+}
+
+func currentProcessOwner() processOwner {
+	host, err := os.Hostname()
+	if err != nil {
+		host = ""
+	}
+	return processOwner{pid: os.Getpid(), host: host, alive: processAlive, now: time.Now}
 }
 
 var (
 	_ game.Factory             = (*Factory)(nil)
 	_ game.AvailabilityChecker = (*Factory)(nil)
+	_ game.ResourceJanitor     = (*Factory)(nil)
 )
 
 // NewFactory creates a combined environment factory. Docker remains optional:
@@ -56,6 +80,7 @@ func NewFactory(fallback game.Factory) *Factory {
 		runner:     commandRunner,
 		lookupErr:  err,
 		newSession: randomSessionID,
+		owner:      currentProcessOwner(),
 	}
 }
 
@@ -66,7 +91,7 @@ func newFactory(fallback game.Factory, commandRunner runner, lookupErr error, ne
 	if newSession == nil {
 		newSession = randomSessionID
 	}
-	return &Factory{fallback: fallback, runner: commandRunner, lookupErr: lookupErr, newSession: newSession}
+	return &Factory{fallback: fallback, runner: commandRunner, lookupErr: lookupErr, newSession: newSession, owner: currentProcessOwner()}
 }
 
 func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Environment, error) {
@@ -94,11 +119,20 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 		return nil, fmt.Errorf("create Docker session ID: generated value is invalid")
 	}
 
+	// Reclaim fixtures abandoned by earlier crashed processes before adding
+	// new ones. This is best effort: a failed sweep must not block play, and
+	// the same cleanup is available explicitly through opsquest doctor.
+	_, _ = f.removeOrphans(ctx)
+
 	environment := &environment{
-		runner:    f.runner,
-		sessionID: sessionID,
-		missionID: item.ID,
-		byAlias:   make(map[string]*trackedContainer),
+		runner:       f.runner,
+		sessionID:    sessionID,
+		missionID:    item.ID,
+		ownerPID:     f.owner.pid,
+		ownerHost:    f.owner.host,
+		pollInterval: f.pollInterval,
+		readyTimeout: f.readyTimeout,
+		byAlias:      make(map[string]*trackedContainer),
 	}
 	images := make(map[string]string, len(item.Docker.Images))
 	for _, image := range item.Docker.Images {
@@ -115,6 +149,18 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 		}
 	}
 	for _, fixture := range item.Docker.Containers {
+		if fixture.Restart == mission.DockerRestartOnFailure {
+			if err := environment.startContainer(ctx, fixture.Name); err != nil {
+				return environment, joinSetupCleanupError(fmt.Errorf("start crash-loop Docker fixture %s: %w", fixture.Name, err), environment.Close())
+			}
+			looping := func(inspection containerInspection) bool {
+				return inspection.RestartCount >= crashLoopReadyRestarts
+			}
+			if err := environment.waitForFixture(ctx, fixture.Name, looping); err != nil {
+				return environment, joinSetupCleanupError(fmt.Errorf("wait for crash-loop Docker fixture %s: %w", fixture.Name, err), environment.Close())
+			}
+			continue
+		}
 		if fixture.ExitCode != nil {
 			if err := environment.startContainer(ctx, fixture.Name); err != nil {
 				return environment, joinSetupCleanupError(fmt.Errorf("start diagnostic Docker fixture %s: %w", fixture.Name, err), environment.Close())
@@ -129,6 +175,15 @@ func (f *Factory) Create(ctx context.Context, item mission.Mission) (game.Enviro
 		}
 		if err := environment.startContainer(ctx, fixture.Name); err != nil {
 			return environment, joinSetupCleanupError(fmt.Errorf("start Docker fixture %s: %w", fixture.Name, err), environment.Close())
+		}
+		if fixture.Health != "" {
+			expected := fixture.Health
+			settled := func(inspection containerInspection) bool {
+				return healthStatus(inspection) == expected
+			}
+			if err := environment.waitForFixture(ctx, fixture.Name, settled); err != nil {
+				return environment, joinSetupCleanupError(fmt.Errorf("wait for Docker fixture %s health: %w", fixture.Name, err), environment.Close())
+			}
 		}
 	}
 	return environment, nil
