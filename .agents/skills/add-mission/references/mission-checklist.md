@@ -2,7 +2,7 @@
 
 ## Current content model
 
-Missions are embedded JSON files under `internal/mission/data/`. `internal/mission/catalog.go` decodes them with unknown fields rejected, validates each item, sorts by `number`, and requires a contiguous catalog beginning at 1. `internal/mission/world.go` derives track-local worlds from contiguous campaign runs; a campaign cannot disappear and later reappear in the same track.
+Missions are embedded JSON files under `internal/mission/data/`. `internal/mission/catalog.go` decodes them with unknown fields rejected, validates each item through `validate.go`, `conditions.go`, and `docker_rules.go`, sorts by `number`, and requires a contiguous catalog beginning at 1. `internal/mission/world.go` derives track-local worlds from contiguous campaign runs; a campaign cannot disappear and later reappear in the same track.
 
 Every mission supplies:
 

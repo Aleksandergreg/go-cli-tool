@@ -12,7 +12,7 @@ Read [references/mission-checklist.md](references/mission-checklist.md) before e
 1. Inspect the current state.
    - Read `git status` and preserve unrelated changes.
    - Read the missions immediately before and after the intended catalog position in `internal/mission/data/`.
-   - Read `internal/mission/mission.go`, `internal/mission/catalog.go`, `internal/game/validator.go`, `internal/mission/catalog_test.go`, and `internal/game/missions_test.go`.
+   - Read `internal/mission/mission.go`, `validate.go`, `conditions.go`, `docker_rules.go`, `internal/game/validator.go`, the matching `internal/mission/*_test.go`, and `internal/game/missions_test.go` with the Linux or Docker route tests.
    - Check the track-local world/campaign order, stage placement, difficulty and XP progression, existing validators, and test patterns before choosing an implementation.
 
 2. State the learning objective before writing JSON.

@@ -67,3 +67,9 @@ func ReconcileCommandAchievements(player *profile.Profile, now time.Time) []prof
 	}
 	return []profile.Achievement{achievement}
 }
+
+// AdjustedReward returns the XP still available after hints while preserving
+// the mission's minimum quarter-reward floor.
+func AdjustedReward(item mission.Mission, hintsUsed int) int {
+	return max(item.Rewards.XP-hintsUsed*item.Rewards.HintPenalty, item.Rewards.XP/4)
+}
