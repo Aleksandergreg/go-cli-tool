@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.7.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.0...v0.7.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **webapp:** close unsued connections so companion shutdown is prompt ([#30](https://github.com/Aleksandergreg/go-cli-tool/issues/30)) ([a2503d0](https://github.com/Aleksandergreg/go-cli-tool/commit/a2503d01a6c418294c25f17fa7389e19d895c8c5))
+* **webapp:** close unused connections so companion shutdown is prompt ([a2503d0](https://github.com/Aleksandergreg/go-cli-tool/commit/a2503d01a6c418294c25f17fa7389e19d895c8c5))
+
+## [0.7.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.6.0...v0.7.0) (2026-08-24)
+
+
+### Features
+
+* 5 more new docker missions and 6 linux missions ([#24](https://github.com/Aleksandergreg/go-cli-tool/issues/24)) ([f14ae0f](https://github.com/Aleksandergreg/go-cli-tool/commit/f14ae0f1890df9d328bcec1bad292d951dfee5eb))
+* Add a web app that shows missions hints and tips and connects t… ([#27](https://github.com/Aleksandergreg/go-cli-tool/issues/27)) ([2d166bf](https://github.com/Aleksandergreg/go-cli-tool/commit/2d166bffaf13fa3e29133c4e86ec9e91a9e85349))
+* add OrbStack support ([#21](https://github.com/Aleksandergreg/go-cli-tool/issues/21)) ([49a6ce0](https://github.com/Aleksandergreg/go-cli-tool/commit/49a6ce00c502ac16efb0aca831011fd2cd3cd27c))
+* change branch protection rules for admins ([b00062b](https://github.com/Aleksandergreg/go-cli-tool/commit/b00062bf03709d143c550da0093509db91c4a2b7))
+
+
+### Bug Fixes
+
+* game stopping ([11a9a71](https://github.com/Aleksandergreg/go-cli-tool/commit/11a9a71fb244d7a9cbf620820460ec68b0e6921b))
+
 ## [0.6.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.5.0...v0.6.0) (2026-07-22)
 
 

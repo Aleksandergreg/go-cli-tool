@@ -101,6 +101,8 @@ Docker input is parsed into a small set of typed teaching actions. OpsQuest cons
 
 The optional web companion binds only to an ephemeral `127.0.0.1` port, uses a one-time pairing URL, and exposes a read-only mission projection. It cannot submit commands, mutate the profile or attempt, address Docker resources, or approve completion.
 
+The optional web companion binds only to an ephemeral `127.0.0.1` port, uses a one-time pairing URL, and exposes a read-only mission projection. It cannot submit commands, mutate the profile or attempt, address Docker resources, or approve completion.
+
 Read [Sandbox and safety](docs/technical/sandbox-and-safety.md) for trust boundaries, quotas, cleanup behavior, and threat controls.
 
 ## Documentation
