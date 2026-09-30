@@ -1,5 +1,14 @@
 # Changelog
 
+## [0.8.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.1...v0.8.0) (2026-09-30)
+
+
+### Features
+
+* **docker:** add Container Triage world and orphaned lab cleanup ([56dbfe2](https://github.com/Aleksandergreg/go-cli-tool/commit/56dbfe20ef7e09398e6120d3865207638968d49a))
+* **docker:** add Container Triage world and orphaned lab cleanup ([#32](https://github.com/Aleksandergreg/go-cli-tool/issues/32)) ([56dbfe2](https://github.com/Aleksandergreg/go-cli-tool/commit/56dbfe20ef7e09398e6120d3865207638968d49a))
+* **docker:** add Network Plumbing world with internal attempt-owned networks ([#34](https://github.com/Aleksandergreg/go-cli-tool/issues/34)) ([b4b1ba9](https://github.com/Aleksandergreg/go-cli-tool/commit/b4b1ba9fe70885e81736f4f77083b4731e808f3a))
+
 ## [0.7.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.0...v0.7.1) (2026-09-24)
 
 
