@@ -145,7 +145,7 @@ func (e *environment) inspectNetworkUnchecked(ctx context.Context, network *trac
 func inspectNetworkReference(ctx context.Context, commandRunner runner, reference string) (networkInspection, bool, error) {
 	result, err := runDocker(ctx, commandRunner, "network", "inspect", "--format", "{{json .}}", reference)
 	if err != nil {
-		if isMissingNetwork(result) {
+		if isMissingNetwork(result, reference) {
 			return networkInspection{}, false, nil
 		}
 		return networkInspection{}, false, err
@@ -157,9 +157,19 @@ func inspectNetworkReference(ctx context.Context, commandRunner runner, referenc
 	return inspection, true, nil
 }
 
-func isMissingNetwork(result runResult) bool {
+// isMissingNetwork reports whether Docker said that exactly reference does
+// not exist. It accepts only the engine's network-specific wording that names
+// the reference, so CLI, context, and transport failures such as
+// `context "x": context not found` propagate as errors instead of looking
+// like a removed network.
+func isMissingNetwork(result runResult, reference string) bool {
+	if reference == "" {
+		return false
+	}
 	message := strings.ToLower(result.stderr + "\n" + result.stdout)
-	return strings.Contains(message, "no such network") || strings.Contains(message, "not found")
+	reference = strings.ToLower(reference)
+	return strings.Contains(message, "network "+reference+" not found") ||
+		strings.Contains(message, "no such network: "+reference)
 }
 
 // attachedTo reports whether a container inspection shows an endpoint on
@@ -477,7 +487,7 @@ func (e *environment) closeNetworks(ctx context.Context, networks []*trackedNetw
 			continue
 		}
 		network.id = inspection.ID
-		if result, err := e.run(ctx, "network", "rm", inspection.ID); err != nil && !isMissingNetwork(result) {
+		if result, err := e.run(ctx, "network", "rm", inspection.ID); err != nil && !isMissingNetwork(result, inspection.ID) {
 			cleanupErrors = append(cleanupErrors, fmt.Errorf("remove Docker network %s: %w", network.name, err))
 			unresolved = append(unresolved, network)
 		}
