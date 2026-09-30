@@ -174,7 +174,7 @@ func TestRemoveOnlyStoppedContainersAndHideRemovedIdentity(t *testing.T) {
 func TestEngineErrorsRedactExactIdentity(t *testing.T) {
 	tracked := &trackedContainer{id: strings.Repeat("c", 64), logicalID: "lab-01", alias: "api", actualName: "opsquest-" + strings.Repeat("a", 24) + "-c01"}
 	message := "Error: cannot start " + tracked.id + " (" + tracked.id[:12] + ") named " + tracked.actualName
-	got := redactIdentifiers(message, tracked)
+	got := redact(message, tracked.identity())
 	if strings.Contains(got, tracked.id[:12]) || strings.Contains(got, tracked.actualName) || !strings.Contains(got, "lab-01") || !strings.Contains(got, "api") {
 		t.Fatalf("redactIdentifiers() = %q", got)
 	}

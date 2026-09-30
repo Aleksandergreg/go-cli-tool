@@ -171,20 +171,20 @@ The Docker-compatible engine remains a powerful external dependency; OpsQuest re
 
 | Threat | Primary controls | Evidence location |
 | --- | --- | --- |
-| Player launches a host command | Closed Go dispatcher; no fallback process lookup; raw line never reaches a shell | `internal/sandbox/shell.go`, hardening tests |
-| Player reads or writes a host path | Independent in-memory root and virtual path resolver | `internal/sandbox/filesystem.go`, regression tests |
+| Player launches a host command | Closed Go dispatcher; no fallback process lookup; raw line never reaches a shell | `internal/sandbox/shell.go`, `dispatch.go`, hardening tests |
+| Player reads or writes a host path | Independent in-memory root and virtual path resolver | `internal/sandbox/filesystem*.go`, regression tests |
 | Expansion exhausts memory | Line, token, argument, output, entry, and aggregate budgets | quota tests in `internal/sandbox` |
 | Archive escapes extraction target | Strict metadata validation and destination containment | archive and hardening tests |
 | Script bypasses shell restrictions | Same parser/dispatcher, bounded nesting and steps, unsupported syntax rejection | `commands_script.go` and tests |
 | Docker input becomes arbitrary CLI flags | Typed parser accepts only exact actions and validated logical aliases | `internal/dockerlab/parser.go` and tests |
-| Cleanup removes another container | Exact ID plus managed/schema/session/mission/alias label verification | `internal/dockerlab/environment.go` and tests |
-| Partial Docker setup leaks resources silently | Factory may return a partial environment; managed cleanup and retryable `Close` | `internal/dockerlab/factory.go`, environment contract tests |
+| Cleanup removes another container | Exact ID plus managed/schema/session/mission/alias label verification | `internal/dockerlab/cleanup.go`, `ownership.go` and tests |
+| Partial Docker setup leaks resources silently | Factory may return a partial environment; managed cleanup and retryable `Close` | `internal/dockerlab/factory.go`, `fixtures.go`, environment contract tests |
 | A killed process leaks running fixtures | 24-hour fixture lifetime; owner-process and age-based sweep with complete label and generated-name proof | `internal/dockerlab/janitor.go` and tests |
 | Orphan sweep removes a live or foreign container | Live same-host owners are never swept; unknown owners only after the fixture lifetime; exact IDs only | `internal/dockerlab/janitor_test.go` |
-| Removed containers leak engine identity | Missing-container errors mapped to the alias; tracked IDs and names redacted from engine errors | `internal/dockerlab/environment.go` and tests |
+| Removed containers leak engine identity | Missing-container errors mapped to the alias; tracked IDs and names redacted from engine errors | `internal/dockerlab/transport.go`, `container_commands.go` and tests |
 | Lab network reaches the host network or internet | Fixed `--internal` bridge networks; no network options; no in-container command execution | `internal/dockerlab/network.go`, `network_test.go` |
-| Player attaches a lab container to a host or foreign network | Built-in names rejected by the parser; only tracked attempt networks resolve; exact IDs only | `internal/dockerlab/parser.go`, `network.go` and tests |
-| Network cleanup strands or removes the wrong network | Containers removed first; label and generated-name verification; retryable unresolved set; janitor sweeps networks after containers | `internal/dockerlab/network.go`, `janitor.go` and tests |
+| Player attaches a lab container to a host or foreign network | Built-in names rejected by the parser; only tracked attempt networks resolve; exact IDs only | `internal/dockerlab/parser.go`, `network_commands.go` and tests |
+| Network cleanup strands or removes the wrong network | Containers removed first; label and generated-name verification; retryable unresolved set; janitor sweeps networks after containers | `internal/dockerlab/cleanup.go`, `janitor.go` and tests |
 | Persisted display text injects terminal controls | Profile names reject non-printable characters and normalize legacy values | `internal/profile/profile.go` and tests |
 | Another site reaches the loopback companion | One-time capability pairing, exact Host/Origin checks, same-site HTTP-only cookie, no permissive CORS | `internal/webapp/server.go` and tests |
 | Browser input reaches a mission environment | Companion exposes only read-only state and SSE routes; `game.Session` has no companion command callback | `internal/webapp`, `internal/game/companion.go` |

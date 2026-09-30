@@ -1,6 +1,10 @@
 package game
 
-import "slices"
+import (
+	"slices"
+
+	"github.com/aleksandergregersen/opsquest/internal/profile"
+)
 
 // AttemptEventType identifies one presentation-safe mission lifecycle update.
 // Companion consumers may render these events, but they never participate in
@@ -93,4 +97,58 @@ func cloneAttemptSnapshot(snapshot AttemptSnapshot) AttemptSnapshot {
 func CloneAttemptEvent(event AttemptEvent) AttemptEvent {
 	event.Snapshot = cloneAttemptSnapshot(event.Snapshot)
 	return event
+}
+
+func (s Session) reportAttempt(eventType AttemptEventType, state string, outcomes []outcomeResult, hintsUsed int, replaying bool, xp int, firstCompletion bool, practiced, discovered []string, unlocked []profile.Achievement) {
+	if s.Reporter == nil {
+		return
+	}
+	placement, _ := s.Catalog.Placement(s.Mission.ID)
+	revealedCount := min(hintsUsed, len(s.Mission.Hints))
+	revealedHints := slices.Clone(s.Mission.Hints[:revealedCount])
+	publicOutcomes := make([]AttemptOutcome, len(outcomes))
+	for index, outcome := range outcomes {
+		publicOutcomes[index] = AttemptOutcome{Description: outcome.Description, Satisfied: outcome.Satisfied}
+	}
+	achievements := make([]string, len(unlocked))
+	for index, achievement := range unlocked {
+		achievements[index] = achievement.Title
+	}
+	explanation := ""
+	if state == AttemptStateCompleted {
+		explanation = s.Mission.Explanation
+	}
+	s.Reporter.ReportAttempt(AttemptEvent{
+		Type: eventType,
+		Snapshot: AttemptSnapshot{
+			MissionID:            s.Mission.ID,
+			Number:               s.Mission.Number,
+			Title:                s.Mission.Title,
+			Track:                s.Mission.EffectiveTrack(),
+			WorldNumber:          placement.WorldNumber,
+			WorldTotal:           placement.WorldTotal,
+			WorldName:            placement.WorldName,
+			StageNumber:          placement.StageNumber,
+			StageTotal:           placement.StageTotal,
+			Difficulty:           s.Mission.Difficulty,
+			Story:                s.Mission.Story,
+			Objective:            s.Mission.Objective,
+			SuggestedCommands:    slices.Clone(s.Mission.SuggestedCommands),
+			RevealedHints:        revealedHints,
+			HintCount:            len(s.Mission.Hints),
+			HintsUsed:            hintsUsed,
+			Outcomes:             publicOutcomes,
+			SatisfiedOutcomes:    satisfiedOutcomeCount(outcomes),
+			RewardAvailable:      AdjustedReward(s.Mission, hintsUsed),
+			BaseReward:           s.Mission.Rewards.XP,
+			Replaying:            replaying,
+			State:                state,
+			Explanation:          explanation,
+			XPAwarded:            xp,
+			FirstCompletion:      firstCompletion,
+			PracticedCommands:    slices.Clone(practiced),
+			DiscoveredCommands:   slices.Clone(discovered),
+			UnlockedAchievements: achievements,
+		},
+	})
 }
