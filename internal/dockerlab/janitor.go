@@ -67,7 +67,7 @@ func (f *Factory) removeOrphans(ctx context.Context) (int, error) {
 	}
 	for _, id := range orphans.networks {
 		result, err := runDocker(ctx, f.runner, "network", "rm", id)
-		if err != nil && !isMissingNetwork(result) {
+		if err != nil && !isMissingNetwork(result, id) {
 			removeErrors = append(removeErrors, fmt.Errorf("remove orphaned Docker network %s: %w", id[:12], err))
 			continue
 		}
