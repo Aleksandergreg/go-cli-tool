@@ -1,6 +1,6 @@
 resource "github_repository" "opsquest" {
   name       = local.repository_name
-  visibility = "private"
+  visibility = "public"
 
   has_discussions = true
   has_issues      = true
