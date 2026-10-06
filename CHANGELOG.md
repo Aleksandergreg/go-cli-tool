@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.8.2](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.1...v0.8.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* Codeql not repo is public ([#38](https://github.com/Aleksandergreg/go-cli-tool/issues/38)) ([914bfc6](https://github.com/Aleksandergreg/go-cli-tool/commit/914bfc633b0d86f1bb491be212af67cb9976b28b))
+* Set repo to public ([#40](https://github.com/Aleksandergreg/go-cli-tool/issues/40)) ([9eb67df](https://github.com/Aleksandergreg/go-cli-tool/commit/9eb67df616831ccf38577345a5b7fa8338ed6fca))
+
 ## [0.8.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.0...v0.8.1) (2026-09-30)
 
 
