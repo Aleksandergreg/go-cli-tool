@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.2...v0.9.0) (2026-10-09)
+
+
+### Features
+
+* New UI ([#41](https://github.com/Aleksandergreg/go-cli-tool/issues/41)) ([efaf5df](https://github.com/Aleksandergreg/go-cli-tool/commit/efaf5df39e5ae4ee846365a3936bf88d93fb80b5))
+
 ## [0.8.2](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.1...v0.8.2) (2026-10-06)
 
 
