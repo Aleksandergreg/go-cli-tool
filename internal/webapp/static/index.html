@@ -7,82 +7,71 @@
   <link rel="stylesheet" href="/app.css">
 </head>
 <body>
-  <div class="ambient ambient-one"></div>
-  <div class="ambient ambient-two"></div>
-  <header class="topbar">
-    <a class="brand" href="/" aria-label="OpsQuest companion home">
-      <span class="brand-mark" aria-hidden="true">OQ</span>
-      <span>
-        <strong>OpsQuest</strong>
-        <small>Mission companion</small>
+  <div class="page">
+    <header class="topbar">
+      <a class="brand" href="/" aria-label="OpsQuest companion home">
+        <span class="brand-mark" aria-hidden="true">Q</span>
+        <b>OpsQuest</b>
+      </a>
+      <span class="location" id="location">mission companion</span>
+      <span class="connection" id="connection" data-state="connecting" role="status">
+        <span id="connection-label">connecting to cli</span>
       </span>
-    </a>
-    <div class="connection" id="connection" data-state="connecting">
-      <span class="connection-dot" aria-hidden="true"></span>
-      <span id="connection-label">Connecting to CLI</span>
-    </div>
-  </header>
+    </header>
 
-  <main class="shell">
-    <section class="waiting panel" id="waiting" aria-live="polite">
-      <div class="terminal-glyph" aria-hidden="true"><span>&gt;_</span></div>
-      <p class="eyebrow">Local session</p>
-      <h1>Waiting for the mission</h1>
-      <p>Keep this page open and return to your terminal. The objective will appear as soon as OpsQuest prepares the isolated lab.</p>
-    </section>
-
-    <div class="mission-layout hidden" id="mission-layout">
-      <section class="hero panel">
-        <div class="mission-kicker">
-          <span class="eyebrow" id="location">Mission</span>
-          <span class="difficulty" id="difficulty">Beginner</span>
-        </div>
-        <div class="hero-title-row">
-          <div>
-            <p class="mission-number" id="mission-number">Mission 00</p>
-            <h1 id="title">Preparing mission</h1>
-          </div>
-          <div class="reward" aria-label="Available experience reward">
-            <span id="reward">0</span>
-            <small>XP available</small>
-          </div>
-        </div>
-        <p class="story" id="story"></p>
+    <main class="content">
+      <section class="waiting" id="waiting" aria-live="polite">
+        <h1>Waiting for the mission</h1>
+        <p>Keep this page open and return to your terminal. The objective will appear here as soon as OpsQuest prepares the isolated lab.</p>
       </section>
 
-      <section class="objective panel panel-accent">
-        <div class="section-heading">
-          <div>
-            <p class="eyebrow">Your objective</p>
-            <h2 id="objective">Complete the observable outcome.</h2>
+      <div class="mission hidden" id="mission-layout">
+        <section class="item">
+          <span class="rank" id="mission-number">0.</span>
+          <div class="item-body">
+            <h1 class="titleline">
+              <span id="title">Preparing mission</span>
+              <span class="difficulty" id="difficulty">(beginner)</span>
+            </h1>
+            <p class="subtext">
+              <span id="reward">0 xp available</span> |
+              <a href="#checks" id="progress-label">0/0 checks</a> |
+              <a href="#hints-section" id="hint-count">0/0 hints</a> |
+              <span id="state-pill" data-state="active">active</span>
+            </p>
+            <p class="story" id="story"></p>
+            <p class="objective"><b>Objective:</b> <span id="objective">Complete the observable outcome.</span></p>
           </div>
-          <span class="state-pill" id="state-pill">Active</span>
-        </div>
-        <div class="progress-summary">
-          <progress class="progress-track" aria-label="Mission outcomes satisfied" max="1" value="0" id="progress-track"></progress>
-          <strong id="progress-label">0 / 0 checks</strong>
-        </div>
-        <ol class="outcomes" id="outcomes"></ol>
-      </section>
+        </section>
 
-      <aside class="sidebar">
-        <section class="panel compact">
-          <p class="eyebrow">Suggested tools</p>
+        <section class="block completion hidden" id="completion" aria-live="polite">
+          <div class="completion-head">
+            <span class="check-box" aria-hidden="true">✓</span>
+            <h2 id="completion-title">Objective confirmed</h2>
+          </div>
+          <p id="explanation"></p>
+          <p class="subtext completion-meta" id="completion-meta"></p>
+        </section>
+
+        <section class="block" id="checks">
+          <h2>Outcome checks</h2>
+          <ol class="outcomes" id="outcomes"></ol>
+        </section>
+
+        <section class="block">
+          <h2>Suggested tools</h2>
           <div class="command-list" id="commands"></div>
           <p class="muted">Use <code>help COMMAND</code> in the terminal for the supported teaching syntax.</p>
         </section>
 
-        <section class="panel compact">
-          <div class="section-heading tight">
-            <p class="eyebrow">Hints</p>
-            <span class="hint-count" id="hint-count">0 / 0</span>
-          </div>
+        <section class="block" id="hints-section">
+          <h2>Hints</h2>
           <div class="hints" id="hints"></div>
-          <p class="muted" id="hint-instruction">Type <code>hint</code> in the terminal to reveal the next hint here.</p>
+          <p class="muted" id="hint-instruction">Type <code>hint</code> in the terminal to reveal the next one here.</p>
         </section>
 
-        <section class="panel compact field-guide">
-          <p class="eyebrow">Field guide</p>
+        <section class="block field-guide">
+          <h2>Field guide</h2>
           <details open>
             <summary>Attempt controls</summary>
             <dl>
@@ -109,27 +98,15 @@
             <summary>Lab command help</summary>
             <p class="guide-copy"><code>help</code> lists the environment's supported teaching subset. <code>help COMMAND</code> or <code>man COMMAND</code> shows its exact syntax.</p>
           </details>
-          <p class="safety-note"><span aria-hidden="true">◇</span> Commands stay in the OpsQuest teaching environment. This page cannot execute them.</p>
         </section>
-      </aside>
+      </div>
+    </main>
 
-      <section class="completion panel hidden" id="completion" aria-live="polite">
-        <div class="completion-mark" aria-hidden="true">✓</div>
-        <div>
-          <p class="eyebrow">Mission complete</p>
-          <h2 id="completion-title">Objective confirmed</h2>
-          <p id="explanation"></p>
-          <div class="completion-meta" id="completion-meta"></div>
-        </div>
-      </section>
-    </div>
-  </main>
-
-  <footer>
-    <span>Browser for guidance</span>
-    <span class="footer-divider" aria-hidden="true"></span>
-    <span>Terminal for truth</span>
-  </footer>
+    <footer>
+      <p>browser for guidance | terminal for truth</p>
+      <p class="safety-note">Commands stay in the OpsQuest teaching environment. This page cannot execute them.</p>
+    </footer>
+  </div>
   <script src="/app.js" defer></script>
 </body>
 </html>
