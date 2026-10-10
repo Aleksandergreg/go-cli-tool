@@ -27,7 +27,7 @@ func TestInteractiveLinesRejectUnsupportedShellSyntaxBeforeRunning(t *testing.T)
 		{name: "numbered input", line: "touch /out/first.txt 0</work/events.log", want: `redirection such as "0<"`},
 		{name: "backticks", line: "touch /out/`pwd`", want: "command substitution"},
 		{name: "dollar substitution", line: "touch /out/$(pwd)", want: "command substitution"},
-		{name: "exit status", line: "touch /out/$?", want: `"$?"`},
+		{name: "process id", line: "touch /out/$$", want: `"$$"`},
 		{name: "braced positional", line: "touch /out/${1}", want: `"${1}"`},
 		{name: "quoted positional", line: `touch "/out/$1"`, want: `"$1"`},
 	}

@@ -40,7 +40,8 @@ func (s *Sandbox) run(context *executionContext, args []string, stdin string) (o
 	case "cd":
 		return s.cmdCD(args[1:])
 	case "ls":
-		return s.cmdLS(args[1:])
+		output, err := s.cmdLS(args[1:])
+		return output, withExitStatus(statusTrouble, err)
 	case "mkdir":
 		return s.cmdMkdir(args[1:])
 	case "touch":
@@ -60,7 +61,8 @@ func (s *Sandbox) run(context *executionContext, args []string, stdin string) (o
 	case "history":
 		return s.cmdHistory(args[1:])
 	case "grep":
-		return s.cmdGrep(args[1:], stdin)
+		output, err := s.cmdGrep(args[1:], stdin)
+		return output, withExitStatus(statusTrouble, err)
 	case "find":
 		return s.cmdFind(context, args[1:])
 	case "sh":
@@ -86,7 +88,8 @@ func (s *Sandbox) run(context *executionContext, args []string, stdin string) (o
 	case "env":
 		return s.cmdEnv(args[1:])
 	case "sort":
-		return s.cmdSort(args[1:], stdin)
+		output, err := s.cmdSort(args[1:], stdin)
+		return output, withExitStatus(statusTrouble, err)
 	case "uniq":
 		return s.cmdUniq(args[1:], stdin)
 	case "wc":
@@ -114,6 +117,6 @@ func (s *Sandbox) run(context *executionContext, args []string, stdin string) (o
 	case "help", "man":
 		return shellHelp(args[1:])
 	default:
-		return "", fmt.Errorf("command not available in this lab; type help to see supported commands")
+		return "", withExitStatus(statusCommandNotFound, fmt.Errorf("command not available in this lab; type help to see supported commands"))
 	}
 }

@@ -20,6 +20,7 @@ func shellHelp(args []string) (string, error) {
 	return "Available lab commands:\n  " + strings.Join(commands, "  ") +
 		"\n\nShell features: pipelines (|), input (<), output (>), and append (>>) redirection." +
 		"\nCommand lists: a; b runs both, a && b runs b only if a succeeds, and a || b only if a fails." +
+		"\necho $? prints the last exit status: 0 success, 1 failure, 2 syntax or ls/grep/sort trouble, 126 cannot run, 127 not found." +
 		"\nNot supported: background jobs (&), 2> and other descriptor redirection, and $(...) substitution." +
 		fmt.Sprintf("\nSandbox limits: %d KiB per command line; %d KiB expanded tokens; %d expanded arguments; %d pipeline stages; %d command dispatches; %d MiB per file and command output; %d MiB filesystem content and %d MiB archive payload; %d filesystem entries and %d archive entries.",
 			maxCommandLineBytes/1024, maxExpandedTokenBytes/1024, maxExpandedArguments, maxPipelineStages, maxExecutionDispatchSteps,

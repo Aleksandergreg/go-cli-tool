@@ -328,7 +328,7 @@ func TestShRejectsUnsupportedShellLanguage(t *testing.T) {
 		{name: "backticks", line: "echo `pwd`", want: "command substitution"},
 		{name: "substitution", line: "echo $(pwd)", want: "command substitution"},
 		{name: "quoted substitution", line: `echo "$(pwd)"`, want: "command substitution"},
-		{name: "special parameter", line: "echo $?", want: "special parameters"},
+		{name: "special parameter", line: "echo $$", want: "special parameters"},
 		{name: "positional parameter", line: "echo ${1}", want: "special parameters"},
 		{name: "if keyword", line: "if echo yes", want: "keyword"},
 		{name: "for keyword", line: "for item", want: "keyword"},

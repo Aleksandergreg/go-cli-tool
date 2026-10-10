@@ -2,6 +2,7 @@ package sandbox
 
 import (
 	"fmt"
+	"strconv"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -15,7 +16,9 @@ type token struct {
 	glob  bool
 }
 
-func lex(line string, env map[string]string) ([]token, error) {
+// lex splits one pipeline into tokens, expanding variables from env and $?
+// from status.
+func lex(line string, env map[string]string, status int) ([]token, error) {
 	var tokens []token
 	var current strings.Builder
 	var quote rune
@@ -101,7 +104,7 @@ func lex(line string, env map[string]string) ([]token, error) {
 				}
 				continue
 			case char == '$':
-				value, consumed := expandVariable(runes[i:], env)
+				value, consumed := expandVariable(runes[i:], env, status)
 				if err := writeString(value); err != nil {
 					return nil, err
 				}
@@ -143,7 +146,7 @@ func lex(line string, env map[string]string) ([]token, error) {
 			continue
 		}
 		if quote == '"' && char == '$' {
-			value, consumed := expandVariable(runes[i:], env)
+			value, consumed := expandVariable(runes[i:], env, status)
 			if err := writeString(value); err != nil {
 				return nil, err
 			}
@@ -161,13 +164,19 @@ func lex(line string, env map[string]string) ([]token, error) {
 	return tokens, nil
 }
 
-func expandVariable(input []rune, env map[string]string) (string, int) {
+func expandVariable(input []rune, env map[string]string, status int) (string, int) {
 	if len(input) < 2 {
 		return "$", 0
+	}
+	if input[1] == '?' {
+		return strconv.Itoa(status), 1
 	}
 	if input[1] == '{' {
 		for i := 2; i < len(input); i++ {
 			if input[i] == '}' {
+				if name := string(input[2:i]); name == "?" {
+					return strconv.Itoa(status), i
+				}
 				return env[string(input[2:i])], i
 			}
 		}

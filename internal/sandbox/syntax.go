@@ -117,10 +117,11 @@ func isUnsupportedShellParameter(input []rune) bool {
 	if len(input) == 0 {
 		return false
 	}
-	if unicode.IsDigit(input[0]) || strings.ContainsRune("?$!#*@-", input[0]) {
+	// $? is supported; the lexer expands it to the last exit status.
+	if unicode.IsDigit(input[0]) || strings.ContainsRune("$!#*@-", input[0]) {
 		return true
 	}
-	return len(input) > 1 && input[0] == '{' && (unicode.IsDigit(input[1]) || strings.ContainsRune("?$!#*@-", input[1]))
+	return len(input) > 1 && input[0] == '{' && (unicode.IsDigit(input[1]) || strings.ContainsRune("$!#*@-", input[1]))
 }
 
 func unsupportedParameterError(input []rune) error {

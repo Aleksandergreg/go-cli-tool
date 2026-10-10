@@ -46,7 +46,9 @@ Command lists join commands on one line, as in `sh`:
 
 Output redirection with `>` empties its file before the command runs, so `sort notes.txt > notes.txt` leaves an empty file, just as on Linux. If the command fails, the file is put back. Wildcards skip hidden names unless the pattern starts with a dot: `*` ignores `.env`, while `.*` matches it.
 
-Background jobs (`&`), subshells, command substitution, special parameters such as `$?`, and file-descriptor redirection such as `2>` are rejected with an explanation before anything runs. Quote or escape these characters to use them as data.
+`$?` holds the exit status of the last command, as on Linux: `ls /missing; echo $?` prints `2`. The lab reports `0` for success, `1` for most failures (including `grep` without a match and `false`), `2` for shell syntax errors and `ls`, `grep`, or `sort` trouble, `126` for a script that exists but cannot run, and `127` for a command the lab does not provide. A blank line keeps the previous status, and each script starts at `0`.
+
+Background jobs (`&`), subshells, command substitution, other special parameters such as `$1` or `$$`, and file-descriptor redirection such as `2>` are rejected with an explanation before anything runs. Quote or escape these characters to use them as data.
 
 ## Mission navigation
 

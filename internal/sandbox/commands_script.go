@@ -49,22 +49,27 @@ func (s *Sandbox) cmdExecutableScript(context *executionContext, args []string, 
 	resolved := s.Resolve(args[0])
 	entry, exists := s.FS.Entry(resolved)
 	if !exists {
-		return "", fmt.Errorf("%s: no such file or directory", args[0])
+		return "", withExitStatus(statusCommandNotFound, fmt.Errorf("%s: no such file or directory", args[0]))
 	}
 	if entry.Kind != Regular {
-		return "", fmt.Errorf("%s: is a directory", args[0])
+		return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: is a directory", args[0]))
 	}
 	if entry.Mode&0o111 == 0 {
-		return "", fmt.Errorf("%s: permission denied; set an executable mode with chmod", args[0])
+		return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: permission denied; set an executable mode with chmod", args[0]))
 	}
 	return s.executeScript(context, resolved, true)
 }
 
 func (s *Sandbox) executeScript(context *executionContext, scriptPath string, requireShebang bool) (string, error) {
-	content, err := s.FS.ReadFile(scriptPath)
-	if err != nil {
-		return "", err
+	// As in sh, a missing script exits 127 and one that cannot run exits 126.
+	entry, exists := s.FS.Entry(scriptPath)
+	if !exists {
+		return "", withExitStatus(statusCommandNotFound, fmt.Errorf("%s: no such file", scriptPath))
 	}
+	if entry.Kind != Regular {
+		return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: is a directory", scriptPath))
+	}
+	content := entry.Content
 	if len(content) > maxScriptBytes {
 		return "", fmt.Errorf("%s: script exceeds the %d KiB limit", scriptPath, maxScriptBytes/1024)
 	}
@@ -75,7 +80,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	if requireShebang {
 		firstLine := strings.TrimSuffix(lines[0], "\r")
 		if firstLine != "#!/bin/sh" && firstLine != "#!/usr/bin/env sh" {
-			return "", fmt.Errorf("%s: executable scripts require #!/bin/sh or #!/usr/bin/env sh", scriptPath)
+			return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: executable scripts require #!/bin/sh or #!/usr/bin/env sh", scriptPath))
 		}
 	}
 	if len(context.scriptStack) >= maxScriptDepth {
@@ -94,6 +99,8 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		s.Env = savedEnv
 	}()
 
+	// A script runs in a new shell, where $? starts at 0.
+	s.lastStatus = 0
 	var output strings.Builder
 	statusFailed := false
 	for index, rawLine := range lines {

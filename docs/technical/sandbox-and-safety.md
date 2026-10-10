@@ -59,7 +59,7 @@ Editable source: [`command-execution-pipeline.mmd`](diagrams/command-execution-p
 
 1. **Bound input:** reject a command line over 64 KiB before adding it to the attempt's 100-entry history.
 2. **Split lists:** separate unquoted `;`, `&&`, and `||` into pipelines and check every pipeline's syntax before the first runs. Each pipeline then passes through the remaining stages only when its turn comes, so expansion sees earlier `cd` and `export` effects.
-3. **Lex:** reject unquoted shell syntax outside the teaching subset (background jobs, subshells, substitutions, special parameters, and file-descriptor redirection), then recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Interactive and script lines share these rules. Expansion reads only the sandbox environment.
+3. **Lex:** reject unquoted shell syntax outside the teaching subset (background jobs, subshells, substitutions, special parameters, and file-descriptor redirection), then recognize words, quotes, escapes, comments, variables, `$?`, pipes, and `<`, `>`, or `>>`. Interactive and script lines share these rules. Expansion reads only the sandbox environment and the attempt's last exit status.
 4. **Parse:** build pipeline stages and attach at most one input and output redirection to each stage.
 5. **Expand:** resolve eligible globs against the virtual filesystem and enforce expanded token and argument budgets.
 6. **Preflight compositions:** reject unsupported interactive-editor or script placement before an earlier pipeline stage can mutate state.
@@ -80,7 +80,7 @@ One `sandbox.Sandbox` owns:
 | --- | --- | --- |
 | Files and directories | Normalized absolute paths to typed entries with content, mode, and owner; the virtual `HOME` directory always exists | Attempt only |
 | Working directory | Virtual absolute path | Attempt only; child scripts restore caller scope |
-| Environment | String map initialized with virtual `HOME` and `USER` | Attempt only; exported child-script values restore on return |
+| Environment | String map initialized with virtual `HOME` and `USER`, plus the last exit status read by `$?` | Attempt only; exported child-script values restore on return, and a script's status becomes its caller's `$?` |
 | Processes | Mission-provided PID map and running flags | Attempt only; no host PID is visible or signalable |
 | Archives | Logical archive metadata and payload entries | Attempt only; kept synchronized with virtual path mutations |
 | History | Last 100 accepted command lines | Attempt only |
