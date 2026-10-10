@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.10.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.9.0...v0.10.0) (2026-10-10)
+
+
+### Features
+
+* Common commands gave wrong answers compared to real Linux ([#43](https://github.com/Aleksandergreg/go-cli-tool/issues/43)) ([87c076f](https://github.com/Aleksandergreg/go-cli-tool/commit/87c076fcc7c338f5af37a801f657ec37c8243368))
+
 ## [0.9.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.2...v0.9.0) (2026-10-09)
 
 
