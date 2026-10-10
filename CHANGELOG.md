@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.10.0...v0.11.0) (2026-10-10)
+
+
+### Features
+
+* Enable || && and ; to function properly inside the shell ([#45](https://github.com/Aleksandergreg/go-cli-tool/issues/45)) ([ce2e4a7](https://github.com/Aleksandergreg/go-cli-tool/commit/ce2e4a7c29ed5bec1b042e47b2c0d2b1aa365985))
+
 ## [0.10.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.9.0...v0.10.0) (2026-10-10)
 
 
