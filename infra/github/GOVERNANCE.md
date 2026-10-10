@@ -10,6 +10,8 @@ operator environment.
 
 The configuration owns the following settings:
 
+- the public About metadata: description, documentation-site homepage, and
+  topics, so changes made in the GitHub settings UI appear as plan drift;
 - squash-only pull-request merges, auto-merge, update-branch suggestions, and
   automatic deletion of merged head branches;
 - a default-branch ruleset that blocks deletion and force pushes, requires a
