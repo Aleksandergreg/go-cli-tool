@@ -104,25 +104,33 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 
 // executePipeline runs one pipeline: validate, lex, parse, expand, open
 // output redirections, and run each stage. statusFailed in the result reports
-// the last stage's silent failing status.
-func (s *Sandbox) executePipeline(line string, context *executionContext, allowInteractive bool) (Result, error) {
+// the last stage's silent failing status, and the pipeline's exit status
+// becomes the next $?. A blank or comment-only line leaves $? unchanged.
+func (s *Sandbox) executePipeline(line string, context *executionContext, allowInteractive bool) (result Result, err error) {
+	ran := true
+	defer func() {
+		if ran {
+			s.lastStatus = exitStatus(err, result.statusFailed)
+		}
+	}()
 	if err := validateShellSyntax(line); err != nil {
-		return Result{}, err
+		return Result{}, withExitStatus(statusTrouble, err)
 	}
-	tokens, err := lex(line, s.Env)
+	tokens, err := lex(line, s.Env, s.lastStatus)
 	if err != nil {
-		return Result{}, err
+		return Result{}, withExitStatus(statusTrouble, err)
 	}
 	parsed, err := parseCommandLine(tokens)
 	if err != nil {
-		return Result{}, err
+		return Result{}, withExitStatus(statusTrouble, err)
 	}
 	if len(parsed.stages) == 0 {
+		ran = false
 		return Result{}, nil
 	}
 	if !allowInteractive {
 		if err := validateScriptCommands(parsed); err != nil {
-			return Result{}, err
+			return Result{}, withExitStatus(statusTrouble, err)
 		}
 	}
 	expanded, err := s.expandCommandLine(parsed)

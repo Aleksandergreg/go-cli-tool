@@ -107,14 +107,16 @@ func splitCommandList(line string) ([]commandListItem, error) {
 // returned error is the last pipeline's failure, if any.
 func (s *Sandbox) executeLine(line string, context *executionContext, allowInteractive bool) (Result, error) {
 	items, err := splitCommandList(line)
+	if err == nil && len(items) > 1 {
+		err = s.preflightCommandList(items, allowInteractive)
+	}
 	if err != nil {
-		return Result{}, err
+		// Like sh, a syntax error runs nothing and sets $? to 2.
+		s.lastStatus = statusTrouble
+		return Result{}, withExitStatus(statusTrouble, err)
 	}
 	if len(items) == 1 {
 		return s.executePipeline(items[0].line, context, allowInteractive)
-	}
-	if err := s.preflightCommandList(items, allowInteractive); err != nil {
-		return Result{}, err
 	}
 
 	result := Result{list: true}
@@ -179,7 +181,7 @@ func (s *Sandbox) preflightCommandList(items []commandListItem, allowInteractive
 		if err := validateShellSyntax(item.line); err != nil {
 			return err
 		}
-		tokens, err := lex(item.line, s.Env)
+		tokens, err := lex(item.line, s.Env, s.lastStatus)
 		if err != nil {
 			return err
 		}

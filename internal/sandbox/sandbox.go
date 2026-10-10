@@ -34,6 +34,9 @@ type Sandbox struct {
 	Processes map[int]*Process
 	Archives  map[string]Archive
 	History   []string
+
+	// lastStatus is the exit status of the last pipeline that ran, read by $?.
+	lastStatus int
 }
 
 func New(setup mission.Setup, startDir string) (*Sandbox, error) {
