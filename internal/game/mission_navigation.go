@@ -178,6 +178,9 @@ func (a *attempt) switchWorld(fields []string) step {
 		fmt.Fprintln(a.Out, a.Style.Accent(message))
 		return step{}
 	}
+	if !a.canSwitchTo(target) {
+		return step{}
+	}
 	if replayingCompletedWorld {
 		fmt.Fprintln(a.Out, a.Style.Accent(fmt.Sprintf("World %d is complete; replaying Stage 1.", worldNumber)))
 	}
@@ -217,6 +220,9 @@ func (a *attempt) switchMission(fields []string) step {
 		fmt.Fprintln(a.Out, a.Style.Accent(fmt.Sprintf("Already playing Mission %02d: %s.", target.Number, target.Title)))
 		return step{}
 	}
+	if !a.canSwitchTo(target) {
+		return step{}
+	}
 	printMissionSwitch(a.Out, target, a.Style)
 	return finish(SessionResult{SwitchMission: target.ID, HintsUsed: a.hintsUsed})
 }
@@ -235,6 +241,22 @@ func (a *attempt) switchAdjacent(fields []string) step {
 		fmt.Fprintln(a.Out, a.Style.Warning(fmt.Sprintf("Mission %02d is already at this end of the catalog.", a.Mission.Number)))
 		return step{}
 	}
+	if !a.canSwitchTo(target) {
+		return step{}
+	}
 	printMissionSwitch(a.Out, target, a.Style)
 	return finish(SessionResult{SwitchMission: target.ID, HintsUsed: a.hintsUsed})
+}
+
+// canSwitchTo checks that target's environment can start before this attempt
+// ends, so an unavailable Docker lab keeps the player in the current mission
+// instead of tearing it down and failing the whole run.
+func (a *attempt) canSwitchTo(target mission.Mission) bool {
+	availability := EnvironmentAvailability(a.ctx, a.factory, target)
+	if availability.Available {
+		return true
+	}
+	detail := strings.TrimSuffix(strings.TrimSpace(availability.Detail), ".")
+	a.fail(fmt.Sprintf("Mission %02d: %s cannot start: %s. You are still in Mission %02d.", target.Number, target.Title, detail, a.Mission.Number))
+	return false
 }

@@ -128,8 +128,8 @@ func (a *App) Run(args []string) error {
 	case "reset":
 		return a.runReset(args[1:])
 	case "version", "--version", "-v":
-		if len(args) > 1 {
-			return fmt.Errorf("version does not accept arguments")
+		if help, err := a.parseNoArgs("version", args[1:]); help || err != nil {
+			return err
 		}
 		fmt.Fprintf(a.out, "%s %s\n", a.style.Header("OpsQuest"), a.style.Accent(buildinfo.Version))
 		return nil

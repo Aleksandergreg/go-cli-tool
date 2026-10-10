@@ -7,6 +7,9 @@ import "fmt"
 func (a *attempt) revealHint() error {
 	if a.hintsUsed >= len(a.Mission.Hints) {
 		fmt.Fprintln(a.Out, a.Style.Warning("No more hints. ByteWorks has exhausted its documentation budget."))
+		if !a.Companion {
+			printRevealedHints(a.Out, a.Mission, a.hintsUsed, a.Style)
+		}
 		return nil
 	}
 	cost := 0

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strconv"
 	"strings"
 	"time"
 
@@ -107,10 +108,11 @@ func (a *App) parsePlayOptions(args []string) (playOptions, bool, error) {
 	worldNumber := flags.Int("world", 0, "start the next incomplete stage in a world")
 	once := flags.Bool("once", false, "return after one completed mission")
 	web := flags.Bool("web", false, "show mission guidance in a local browser companion")
-	if help, err := parseFlags(flags, args); help || err != nil {
+	positionals, help, err := parseInterspersedFlags(flags, args)
+	if help || err != nil {
 		return playOptions{}, help, err
 	}
-	if flags.NArg() > 1 {
+	if len(positionals) > 1 {
 		return playOptions{}, false, fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [--web] [MISSION]")
 	}
 	trackProvided, worldProvided := flagProvided(flags, "track"), flagProvided(flags, "world")
@@ -119,7 +121,9 @@ func (a *App) parsePlayOptions(args []string) (playOptions, bool, error) {
 		worldNumber: *worldNumber,
 		once:        *once,
 		web:         *web,
-		mission:     flags.Arg(0),
+	}
+	if len(positionals) == 1 {
+		options.mission = positionals[0]
 	}
 	if options.track != mission.TrackLinux && options.track != mission.TrackDocker {
 		return playOptions{}, false, fmt.Errorf("unknown track %q; use linux or docker", *track)
@@ -127,7 +131,7 @@ func (a *App) parsePlayOptions(args []string) (playOptions, bool, error) {
 	if worldProvided && options.worldNumber < 1 {
 		return playOptions{}, false, fmt.Errorf("world number must be positive")
 	}
-	if flags.NArg() == 1 && (worldProvided || trackProvided) {
+	if len(positionals) == 1 && (worldProvided || trackProvided) {
 		return playOptions{}, false, fmt.Errorf("MISSION cannot be combined with --track or --world")
 	}
 	return options, false, nil
@@ -156,7 +160,7 @@ func (a *App) startingMission(options playOptions, player profile.Profile) (miss
 	default:
 		item, found := a.catalog.NextInTrack(options.track, player.IsComplete)
 		if !found {
-			fmt.Fprintf(a.out, "%s\n", a.style.Success(fmt.Sprintf("%s track complete! Replay a mission or inspect other worlds with 'opsquest map'.", trackDisplayName(options.track))))
+			fmt.Fprintf(a.out, "%s\n", a.style.Success(fmt.Sprintf("%s track complete! Replay a mission or inspect other worlds with '%s'.", trackDisplayName(options.track), trackCommand("map", options.track))))
 			return mission.Mission{}, playRoute{}, false, nil
 		}
 		return item, playRoute{kind: playRouteRecommended}, true, nil
@@ -207,7 +211,9 @@ func (a *App) newSession(item mission.Mission, player *profile.Profile, reader g
 		Reader:    reader,
 		Catalog:   a.catalog,
 		ListMissions: func(args []string) error {
-			if !hasFlag(args, "--track") {
+			// Default to the current track, but leave a campaign filter free
+			// to find worlds on any track, as the top-level list does.
+			if !hasFlag(args, "track") && !hasFlag(args, "campaign") {
 				args = append([]string{"--track", currentTrack}, args...)
 			}
 			return a.listMissions(args, *player, true)
@@ -268,12 +274,13 @@ func (a *App) printRouteFinished(route playRoute, current mission.Mission, playe
 			fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("World %d complete: %s!", placement.WorldNumber, placement.WorldName)))
 			return
 		}
-		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("Reached the end of World %d; unfinished stages remain. Resume with 'opsquest play --world %d'.", route.worldNumber, route.worldNumber)))
+		resume := trackCommand("play", current.EffectiveTrack(), "--world", strconv.Itoa(route.worldNumber))
+		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("Reached the end of World %d; unfinished stages remain. Resume with '%s'.", route.worldNumber, resume)))
 		return
 	}
 
 	if _, remaining := a.catalog.NextInTrack(current.EffectiveTrack(), player.IsComplete); remaining {
-		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent("Reached the end of the selected route. Resume unfinished missions with 'opsquest play'."))
+		fmt.Fprintf(a.out, "\n%s\n", a.style.Accent(fmt.Sprintf("Reached the end of the selected route. Resume unfinished missions with '%s'.", trackCommand("play", current.EffectiveTrack()))))
 		return
 	}
 	fmt.Fprintf(a.out, "\n%s\n", a.style.Success(fmt.Sprintf("%s track complete!", trackDisplayName(current.EffectiveTrack()))))
@@ -293,5 +300,16 @@ func (a *App) printNextRecommendation(completed mission.Mission, player profile.
 	placement, _ := a.catalog.Placement(next.ID)
 	fmt.Fprintf(a.out, "\n%s\n", a.style.Section("NEXT RECOMMENDED"))
 	fmt.Fprintf(a.out, "Mission %02d: %s · World %d, Stage %d/%d\n", next.Number, next.Title, placement.WorldNumber, placement.StageNumber, placement.StageTotal)
-	fmt.Fprintf(a.out, "Continue with %s, or jump anywhere with %s.\n", a.style.Accent("opsquest play"), a.style.Accent("opsquest map"))
+	track := completed.EffectiveTrack()
+	fmt.Fprintf(a.out, "Continue with %s, or jump anywhere with %s.\n", a.style.Accent(trackCommand("play", track)), a.style.Accent(trackCommand("map", track)))
+}
+
+// trackCommand is the opsquest subcommand that stays on track. Linux is the
+// default track, so only other tracks need an explicit --track flag.
+func trackCommand(subcommand, track string, flags ...string) string {
+	parts := []string{"opsquest", subcommand}
+	if track != mission.TrackLinux {
+		parts = append(parts, "--track", track)
+	}
+	return strings.Join(append(parts, flags...), " ")
 }

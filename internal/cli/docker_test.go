@@ -178,3 +178,40 @@ func TestDockerMissionToolHintsAndOutcomeCompletionPersist(t *testing.T) {
 		t.Fatal("completed Docker mission retained in-progress hints")
 	}
 }
+
+func TestDockerFollowUpCommandsStayOnTheDockerTrack(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, out, errOut := testApp(t, "docker start api\n", store)
+	app.factory = &cliDockerFactory{available: true, detail: "test Docker engine ready"}
+	if err := app.Run([]string{"play", "--once", "20"}); err != nil {
+		t.Fatalf("play Docker mission error = %v; stderr = %s", err, errOut.String())
+	}
+	if want := "Continue with opsquest play --track docker, or jump anywhere with opsquest map --track docker."; !strings.Contains(out.String(), want) {
+		t.Fatalf("Docker recommendation lacks %q:\n%s", want, out.String())
+	}
+
+	tests := []struct {
+		name  string
+		ref   string
+		route playRoute
+		want  string
+	}{
+		{name: "Docker world", ref: "20", route: playRoute{kind: playRouteWorld, worldNumber: 1}, want: "Resume with 'opsquest play --track docker --world 1'."},
+		{name: "Docker sequence", ref: "20", route: playRoute{kind: playRouteSequential}, want: "Resume unfinished missions with 'opsquest play --track docker'."},
+		{name: "Linux world", ref: "1", route: playRoute{kind: playRouteWorld, worldNumber: 1}, want: "Resume with 'opsquest play --world 1'."},
+		{name: "Linux sequence", ref: "1", route: playRoute{kind: playRouteSequential}, want: "Resume unfinished missions with 'opsquest play'."},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			app, out, _ := testApp(t, "", profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex"))
+			item, found := app.catalog.Find(test.ref)
+			if !found {
+				t.Fatalf("mission %s not found", test.ref)
+			}
+			app.printRouteFinished(test.route, item, profile.New("alex"))
+			if !strings.Contains(out.String(), test.want) {
+				t.Fatalf("route end = %q, want %q", out.String(), test.want)
+			}
+		})
+	}
+}

@@ -2,10 +2,12 @@ package cli
 
 import (
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 )
 
@@ -273,6 +275,58 @@ func TestHintPenaltySurvivesAPausedAttempt(t *testing.T) {
 	player, _ = store.Load()
 	if player.MissionHints("linux-orientation") != 0 {
 		t.Fatalf("hint progress was not cleared after completion")
+	}
+}
+
+func TestRevealedHintsCanBeRereadWithoutExtraCost(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	item, _ := catalog.Find("linux-read-handoff")
+	if len(item.Hints) < 2 {
+		t.Fatalf("mission hints = %d, want at least 2 for this test", len(item.Hints))
+	}
+
+	paused, pausedOut, _ := testApp(t, "hint\nquit\n", store)
+	if err := paused.Run([]string{"play", "--once", item.ID}); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(pausedOut.String(), "REVEALED HINTS") {
+		t.Fatalf("fresh attempt listed revealed hints before any were used:\n%s", pausedOut.String())
+	}
+
+	exhaust := strings.Repeat("hint\n", len(item.Hints)) + "hint\nquit\n"
+	resumed, out, errOut := testApp(t, exhaust, store)
+	if err := resumed.Run([]string{"play", "--once", item.ID}); err != nil {
+		t.Fatalf("resumed play error = %v; stderr = %s", err, errOut.String())
+	}
+	banner, afterBanner, found := strings.Cut(out.String(), "Controls:")
+	if !found {
+		t.Fatalf("resumed output lacks mission controls:\n%s", out.String())
+	}
+	if !strings.Contains(banner, "REVEALED HINTS (no extra cost)") || !strings.Contains(banner, "Hint 1/"+strconv.Itoa(len(item.Hints))+": "+item.Hints[0]) {
+		t.Fatalf("resumed banner did not repeat the paid hint:\n%s", banner)
+	}
+	if strings.Contains(banner, item.Hints[1]) {
+		t.Fatalf("resumed banner revealed an unpaid hint:\n%s", banner)
+	}
+	_, exhausted, found := strings.Cut(afterBanner, "No more hints.")
+	if !found {
+		t.Fatalf("exhausted hint request was not reported:\n%s", afterBanner)
+	}
+	for _, hint := range item.Hints {
+		if !strings.Contains(exhausted, hint) {
+			t.Errorf("exhausted hint request did not repeat %q:\n%s", hint, exhausted)
+		}
+	}
+	player, err := store.Load()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := player.MissionHints(item.ID); got != len(item.Hints) {
+		t.Fatalf("saved hints = %d, want %d; rereading must not record extra hints", got, len(item.Hints))
 	}
 }
 

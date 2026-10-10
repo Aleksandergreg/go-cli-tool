@@ -217,12 +217,22 @@ func safeArchivePath(name string) (string, error) {
 }
 
 func (s *Sandbox) cmdGzip(command string, args []string) (string, error) {
+	args, err := operandsOnly(args)
+	if err != nil {
+		return "", err
+	}
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing file operand")
 	}
 	for _, name := range args {
 		source := s.Resolve(name)
+		if s.FS.IsDir(source) {
+			return "", fmt.Errorf("%s: is a directory", name)
+		}
 		target := source + ".gz"
+		if command == "gzip" && strings.HasSuffix(source, ".gz") {
+			return "", fmt.Errorf("%s: already has .gz suffix", name)
+		}
 		if command == "gunzip" {
 			if !strings.HasSuffix(source, ".gz") {
 				return "", fmt.Errorf("%s: filename does not end in .gz", name)

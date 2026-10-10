@@ -308,3 +308,49 @@ func TestDeferredCleanupFailureIsReturnedOnce(t *testing.T) {
 		t.Fatalf("Close() calls = %d, want 1", environment.closeCount)
 	}
 }
+
+func TestSessionStaysInCurrentLabWhenSwitchTargetIsUnavailable(t *testing.T) {
+	catalog, first := seamCatalogMission(t, "1")
+	environment := &seamEnvironment{prompt: "/test"}
+	created := 0
+	factory := unavailableFactory{
+		Factory: FactoryFunc(func(context.Context, mission.Mission) (Environment, error) {
+			created++
+			return environment, nil
+		}),
+		availability: Availability{Detail: "Docker labs unavailable: docker executable not found in PATH."},
+	}
+	errOut := &bytes.Buffer{}
+	player := profile.New("tester")
+	session := Session{
+		Mission: first,
+		Player:  &player,
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Out:     &bytes.Buffer{},
+		ErrOut:  errOut,
+		Reader:  &seamReader{lines: []string{"play docker-container-census", "next", "world 2", "quit"}},
+		Catalog: catalog,
+		Factory: factory,
+	}
+
+	result, err := session.Run()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !result.Quit || result.SwitchMission != "" || result.WorldRoute != 0 {
+		t.Fatalf("result = %#v, want a quit from the original mission", result)
+	}
+	if created != 1 || environment.closeCount != 1 {
+		t.Fatalf("Create() calls = %d, Close() calls = %d; want the original lab kept until quit", created, environment.closeCount)
+	}
+	messages := errOut.String()
+	for _, want := range []string{
+		"Mission 20: Container Census cannot start: Docker labs unavailable: docker executable not found in PATH. You are still in Mission 01.",
+		"Mission 02: Configuration Crawl cannot start",
+		"Mission 07: Permission to Deploy cannot start",
+	} {
+		if !strings.Contains(messages, want) {
+			t.Errorf("error output lacks %q:\n%s", want, messages)
+		}
+	}
+}

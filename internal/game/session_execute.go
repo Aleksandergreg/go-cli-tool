@@ -81,7 +81,10 @@ func (a *attempt) runCommand(line string) (Execution, bool, error) {
 // recordPractice credits the commands a successful execution used, unlocks
 // command achievements, and saves the profile.
 func (a *attempt) recordPractice(result Execution) ([]profile.Achievement, error) {
-	for _, command := range result.PracticedCommands {
+	practiced := slices.DeleteFunc(slices.Clone(result.PracticedCommands), func(command string) bool {
+		return !CountsAsPractice(command)
+	})
+	for _, command := range practiced {
 		if !slices.Contains(a.practiced, command) {
 			a.practiced = append(a.practiced, command)
 		}
@@ -89,7 +92,7 @@ func (a *attempt) recordPractice(result Execution) ([]profile.Achievement, error
 			a.discovered = append(a.discovered, command)
 		}
 	}
-	a.Player.RecordCommands(result.PracticedCommands)
+	a.Player.RecordCommands(practiced)
 	unlocked := make([]profile.Achievement, 0)
 	achievementTime := a.Now()
 	if result.PipelineWidth >= 3 {

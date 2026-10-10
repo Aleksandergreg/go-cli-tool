@@ -33,7 +33,26 @@ func printMission(out io.Writer, item mission.Mission, hintsUsed int, completed 
 	fmt.Fprintf(out, "\n%s\n%s\n\n", style.Section("INCIDENT"), item.Story)
 	fmt.Fprintf(out, "%s\n%s\n\n", style.Section("OBJECTIVE"), item.Objective)
 	fmt.Fprintf(out, "%s\n\n", style.CommandGuide(item.SuggestedCommands))
+	if printRevealedHints(out, item, hintsUsed, style) {
+		fmt.Fprintln(out)
+	}
 	printCompactMissionControls(out, style)
+}
+
+// printRevealedHints repeats hints the player has already paid for, so a
+// resumed or exhausted attempt can reread them without another XP cost. It
+// reports whether anything was printed.
+func printRevealedHints(out io.Writer, item mission.Mission, revealed int, style ui.Style) bool {
+	revealed = min(revealed, len(item.Hints))
+	if revealed <= 0 {
+		return false
+	}
+	fmt.Fprintln(out, style.Section("REVEALED HINTS")+" "+style.Muted("(no extra cost)"))
+	for index := range revealed {
+		label := style.Warning(fmt.Sprintf("Hint %d/%d:", index+1, len(item.Hints)))
+		fmt.Fprintf(out, "  %s %s\n", label, item.Hints[index])
+	}
+	return true
 }
 
 func displayTrackName(track string) string {

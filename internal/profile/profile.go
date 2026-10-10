@@ -50,8 +50,21 @@ func (p *Profile) Normalize() {
 	if p.Version < currentVersion {
 		p.Version = currentVersion
 	}
+	// Counters are never negative in profiles OpsQuest writes; clamp hand-edited
+	// values so levels, ranks, and mastery cannot display below zero.
+	p.XP = max(p.XP, 0)
 	ensureMap(&p.Completed)
+	for missionID, completion := range p.Completed {
+		completion.XP = max(completion.XP, 0)
+		completion.HintsUsed = max(completion.HintsUsed, 0)
+		p.Completed[missionID] = completion
+	}
 	ensureMap(&p.Commands)
+	for command, count := range p.Commands {
+		if count <= 0 {
+			delete(p.Commands, command)
+		}
+	}
 	ensureMap(&p.Hints)
 	for missionID, count := range p.Hints {
 		if count < 0 || p.IsComplete(missionID) {

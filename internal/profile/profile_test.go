@@ -215,6 +215,52 @@ func TestNormalizeRemovesNegativeHintProgress(t *testing.T) {
 	}
 }
 
+func TestNormalizeClampsNegativeCounters(t *testing.T) {
+	player := New("alex")
+	player.XP = -250
+	player.Completed["edited"] = Completion{XP: -40, HintsUsed: -1, CompletedAt: time.Unix(1, 0)}
+	player.Completed["valid"] = Completion{XP: 30, HintsUsed: 1, CompletedAt: time.Unix(1, 0)}
+	player.Commands["ls"] = -3
+	player.Commands["pwd"] = 0
+	player.Commands["cat"] = 2
+
+	player.Normalize()
+
+	if player.XP != 0 || player.Level() != 1 {
+		t.Fatalf("XP = %d, level = %d; want 0 and level 1", player.XP, player.Level())
+	}
+	if got := player.Completed["edited"]; got.XP != 0 || got.HintsUsed != 0 {
+		t.Fatalf("edited completion = %#v, want clamped counters", got)
+	}
+	if got := player.Completed["valid"]; got.XP != 30 || got.HintsUsed != 1 {
+		t.Fatalf("valid completion = %#v, want it unchanged", got)
+	}
+	if len(player.Commands) != 1 || player.Commands["cat"] != 2 {
+		t.Fatalf("commands = %#v, want only positive mastery counts", player.Commands)
+	}
+}
+
+func TestLoadErrorsNameTheProfileAndRecovery(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profile.json")
+	store := NewStore(path, "alex")
+
+	if err := os.WriteFile(path, nil, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err := store.Load()
+	if err == nil || !strings.Contains(err.Error(), "decode profile "+path) || !strings.Contains(err.Error(), "opsquest reset") {
+		t.Fatalf("empty profile error = %v, want the path and a recovery step", err)
+	}
+
+	if err := os.WriteFile(path, []byte(`{"version": 99}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	_, err = store.Load()
+	if err == nil || !strings.Contains(err.Error(), path) || !strings.Contains(err.Error(), "newer than this OpsQuest build") || strings.Contains(err.Error(), "reset") {
+		t.Fatalf("newer profile error = %v, want the path without suggesting a destructive reset", err)
+	}
+}
+
 func TestNormalizeRemovesLegacyHintProgressForCompletedMissions(t *testing.T) {
 	player := New("operator")
 	player.Completed["completed"] = Completion{XP: 25, HintsUsed: 1, CompletedAt: time.Unix(1, 0)}

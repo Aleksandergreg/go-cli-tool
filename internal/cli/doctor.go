@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
@@ -16,14 +17,17 @@ func (a *App) runDoctor(args []string) error {
 	if flags.NArg() > 0 {
 		return fmt.Errorf("doctor does not accept positional arguments")
 	}
-	player, err := a.loadPlayer()
-	if err != nil {
-		return fmt.Errorf("profile check failed: %w", err)
-	}
 	fmt.Fprintln(a.out, a.style.Header("OpsQuest diagnostics"))
 	check := a.style.Success("✓")
 	fmt.Fprintf(a.out, "  %s embedded catalog: %d missions (%d Linux, %d Docker)\n", check, len(a.catalog.All()), len(a.catalog.InTrack(mission.TrackLinux)), len(a.catalog.InTrack(mission.TrackDocker)))
-	fmt.Fprintf(a.out, "  %s profile: version %d, %d completed missions\n", check, player.Version, len(player.Completed))
+	// A broken profile is reported like any other failed check so the
+	// remaining diagnostics still run.
+	player, profileErr := a.loadPlayer()
+	if profileErr != nil {
+		fmt.Fprintf(a.out, "  %s profile: %v\n", a.style.Failure("✗"), profileErr)
+	} else {
+		fmt.Fprintf(a.out, "  %s profile: version %d, %d completed missions\n", check, player.Version, len(player.Completed))
+	}
 	fmt.Fprintf(a.out, "  %s profile path: %s\n", check, a.store.Path())
 	fmt.Fprintf(a.out, "  %s Linux labs: in-memory; no host shell or filesystem access\n", check)
 	dockerReady := false
@@ -36,7 +40,11 @@ func (a *App) runDoctor(args []string) error {
 			fmt.Fprintf(a.out, "  %s docker labs: unavailable · %s\n", a.style.Warning("!"), availability.Detail)
 		}
 	}
-	return a.reportOrphanedLabs(*cleanup, dockerReady)
+	cleanupErr := a.reportOrphanedLabs(*cleanup, dockerReady)
+	if profileErr != nil {
+		return errors.Join(cleanupErr, fmt.Errorf("profile check failed; see the diagnostics above"))
+	}
+	return cleanupErr
 }
 
 // reportOrphanedLabs checks for, or with cleanup removes, lab resources left

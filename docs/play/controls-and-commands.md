@@ -36,6 +36,8 @@ rmdir sed sh sort stat tail tar touch tr uniq vi wc whoami
 
 The shell also supports quote-aware variables and globs, pipelines (`|`), input redirection (`<`), and output redirection (`>` and `>>`). It intentionally implements a teaching subset of each command. Use `help COMMAND` for the exact supported flags and examples.
 
+Enter one command per line. Command lists (`;`, `&&`, `||`), background jobs (`&`), subshells, command substitution, special parameters such as `$?`, and file-descriptor redirection such as `2>` are rejected with an explanation before anything runs. Quote or escape these characters to use them as data.
+
 ## Mission navigation
 
 ```console

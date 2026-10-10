@@ -9,10 +9,11 @@ import (
 
 func (a *App) runShow(args []string) error {
 	flags := a.newFlagSet("show", func() { fmt.Fprintln(a.errOut, "Usage: opsquest show [MISSION]") })
-	if help, err := parseFlags(flags, args); help || err != nil {
+	positionals, help, err := parseInterspersedFlags(flags, args)
+	if help || err != nil {
 		return err
 	}
-	if flags.NArg() > 1 {
+	if len(positionals) > 1 {
 		return fmt.Errorf("usage: opsquest show [MISSION]")
 	}
 	player, err := a.loadPlayer()
@@ -21,10 +22,10 @@ func (a *App) runShow(args []string) error {
 	}
 	var item mission.Mission
 	var found bool
-	if flags.NArg() == 1 {
-		item, found = a.catalog.Find(flags.Arg(0))
+	if len(positionals) == 1 {
+		item, found = a.catalog.Find(positionals[0])
 		if !found {
-			return fmt.Errorf("mission %q not found; run 'opsquest list'", flags.Arg(0))
+			return fmt.Errorf("mission %q not found; run 'opsquest list'", positionals[0])
 		}
 	} else {
 		item, found = a.catalog.NextInTrack(mission.TrackLinux, player.IsComplete)

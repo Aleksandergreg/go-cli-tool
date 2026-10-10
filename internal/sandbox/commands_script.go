@@ -105,9 +105,6 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		if err := validateScriptSyntax(line); err != nil {
-			return "", fmt.Errorf("%s:%d: %w", scriptPath, lineNumber, err)
-		}
 		result, err := s.executeLine(line, context, false)
 		if err != nil {
 			return "", fmt.Errorf("%s:%d: %w", scriptPath, lineNumber, err)
@@ -118,76 +115,6 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		output.WriteString(result.Output)
 	}
 	return output.String(), nil
-}
-
-func validateScriptSyntax(line string) error {
-	runes := []rune(line)
-	var quote rune
-	escaped := false
-	tokenStarted := false
-	for index, char := range runes {
-		if escaped {
-			escaped = false
-			tokenStarted = true
-			continue
-		}
-		if quote == '\'' {
-			if char == quote {
-				quote = 0
-			}
-			continue
-		}
-		if char == '\\' {
-			escaped = true
-			continue
-		}
-		if quote == '"' {
-			if char == quote {
-				quote = 0
-				continue
-			}
-			if char == '`' || char == '$' && index+1 < len(runes) && runes[index+1] == '(' {
-				return fmt.Errorf("command substitution is not supported")
-			}
-			if char == '$' && isUnsupportedScriptParameter(runes[index+1:]) {
-				return fmt.Errorf("positional and special parameters are not supported")
-			}
-			continue
-		}
-
-		if unicode.IsSpace(char) {
-			tokenStarted = false
-			continue
-		}
-		if char == '#' && !tokenStarted {
-			break
-		}
-		if char == '\'' || char == '"' {
-			quote = char
-			tokenStarted = true
-			continue
-		}
-		switch char {
-		case ';', '&', '(', ')':
-			return fmt.Errorf("shell control syntax %q is not supported", char)
-		case '`':
-			return fmt.Errorf("command substitution is not supported")
-		case '|':
-			if index+1 < len(runes) && runes[index+1] == '|' {
-				return fmt.Errorf("control operator || is not supported")
-			}
-		case '$':
-			if index+1 < len(runes) && runes[index+1] == '(' {
-				return fmt.Errorf("command substitution is not supported")
-			}
-			if isUnsupportedScriptParameter(runes[index+1:]) {
-				return fmt.Errorf("positional and special parameters are not supported")
-			}
-		}
-		tokenStarted = true
-	}
-
-	return nil
 }
 
 func validateScriptCommands(parsed commandLine) error {
@@ -207,16 +134,6 @@ var unsupportedScriptKeywords = map[string]struct{}{
 	"if": {}, "then": {}, "elif": {}, "else": {}, "fi": {},
 	"for": {}, "while": {}, "until": {}, "do": {}, "done": {},
 	"case": {}, "esac": {}, "select": {}, "function": {},
-}
-
-func isUnsupportedScriptParameter(input []rune) bool {
-	if len(input) == 0 {
-		return false
-	}
-	if unicode.IsDigit(input[0]) || strings.ContainsRune("?$!#*@-", input[0]) {
-		return true
-	}
-	return len(input) > 1 && input[0] == '{' && (unicode.IsDigit(input[1]) || strings.ContainsRune("?$!#*@-", input[1]))
 }
 
 func validScriptVariableName(name string) bool {

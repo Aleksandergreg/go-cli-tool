@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 )
@@ -79,7 +80,7 @@ func (a *App) runProfile(args []string) error {
 	fmt.Fprintf(a.out, "%s %s %3d%%  %s\n", a.style.Section("Docker"), styledProgressBar(a.style, dockerCompleted, dockerTotal, 20), percentage(dockerCompleted, dockerTotal), dockerState)
 	printWorlds(mission.TrackDocker)
 	fmt.Fprintf(a.out, "%s\n\n", a.style.Muted(fmt.Sprintf("K8s    %s  locked", progressBar(0, 20, 20))))
-	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(player.Commands))
+	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(game.PracticedCommands(player)))
 	fmt.Fprintf(a.out, "Missions completed: %d\n", completed)
 	completedHints, activeHints := player.HintsUsed(), player.ActiveHints()
 	fmt.Fprintf(a.out, "Hints used: %d (completed: %d · active: %d)\n", completedHints+activeHints, completedHints, activeHints)
@@ -99,7 +100,7 @@ func (a *App) runCommands(args []string) error {
 	if err != nil {
 		return err
 	}
-	commands := player.MasteredCommands()
+	commands := game.PracticedCommands(player)
 	if len(commands) == 0 {
 		fmt.Fprintln(a.out, "No commands mastered yet. Start with 'opsquest play'.")
 		return nil

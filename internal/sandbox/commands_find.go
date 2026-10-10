@@ -81,7 +81,7 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 				if caseInsensitive {
 					candidateName, pattern = strings.ToLower(candidateName), strings.ToLower(pattern)
 				}
-				matched, err := path.Match(pattern, candidateName)
+				matched, err := matchShellPattern(pattern, candidateName)
 				if err != nil {
 					return "", fmt.Errorf("invalid name pattern: %w", err)
 				}
