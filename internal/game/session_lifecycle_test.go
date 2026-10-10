@@ -354,3 +354,33 @@ func TestSessionStaysInCurrentLabWhenSwitchTargetIsUnavailable(t *testing.T) {
 		}
 	}
 }
+
+func TestCommandListsPrintInOrderAndStillValidate(t *testing.T) {
+	catalog, item := seamCatalogMission(t, "linux-orientation")
+	terminal := &bytes.Buffer{}
+	player := profile.New("tester")
+	session := Session{
+		Mission: item,
+		Player:  &player,
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Out:     terminal,
+		ErrOut:  terminal,
+		Reader:  &seamReader{lines: []string{"ls /missing; pwd && ls /missing"}},
+		Catalog: catalog,
+	}
+
+	result, err := session.Run()
+	if err != nil || !result.Completed {
+		t.Fatalf("Run() = %#v, %v; want the pwd output to complete the mission", result, err)
+	}
+	transcript := terminal.String()
+	first := strings.Index(transcript, "ls: /missing: no such file or directory")
+	output := strings.Index(transcript, "/home/operator\n")
+	last := strings.LastIndex(transcript, "ls: /missing: no such file or directory")
+	if first < 0 || output < first || last < output {
+		t.Fatalf("list output is out of order:\n%s", transcript)
+	}
+	if player.Commands["pwd"] != 1 || player.Commands["ls"] != 0 {
+		t.Errorf("practice = %#v, want only the successful pwd", player.Commands)
+	}
+}

@@ -11,9 +11,12 @@ func TestInteractiveLinesRejectUnsupportedShellSyntaxBeforeRunning(t *testing.T)
 		line string
 		want string
 	}{
-		{name: "semicolon", line: "touch /out/first.txt; touch /out/second.txt", want: `shell control syntax ";"`},
-		{name: "and list", line: "touch /out/first.txt && touch /out/second.txt", want: `shell control syntax "&&"`},
-		{name: "or list", line: "touch /out/first.txt || touch /out/second.txt", want: "control operator ||"},
+		{name: "empty list item", line: "touch /out/first.txt ;; touch /out/second.txt", want: `syntax error near unexpected ";"`},
+		{name: "leading operator", line: "&& touch /out/first.txt", want: `syntax error near unexpected "&&"`},
+		{name: "dangling or", line: "touch /out/first.txt ||", want: `cannot end with "||"`},
+		{name: "unsupported syntax later in a list", line: "touch /out/first.txt; echo $(pwd)", want: "command substitution"},
+		{name: "parse error later in a list", line: "touch /out/first.txt && | touch /out/second.txt", want: "unexpected pipe"},
+		{name: "editor in a list", line: "touch /out/first.txt; vi events.log", want: "cannot be combined"},
 		{name: "background job", line: "touch /out/first.txt &", want: "background jobs"},
 		{name: "subshell", line: "(touch /out/first.txt)", want: `shell control syntax "("`},
 		{name: "stderr redirection", line: "touch /out/first.txt 2>/out/errors.txt", want: `redirection such as "2>"`},

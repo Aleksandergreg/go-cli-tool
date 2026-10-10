@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -13,7 +14,7 @@ func (s *Sandbox) run(context *executionContext, args []string, stdin string) (o
 		return "", fmt.Errorf("command dispatch limit of %d exceeded", maxExecutionDispatchSteps)
 	}
 	defer func() {
-		if err == nil && len(output) > maxCommandOutputBytes {
+		if (err == nil || errors.Is(err, errFailureStatus)) && len(output) > maxCommandOutputBytes {
 			output = ""
 			err = commandOutputLimitError()
 		}
@@ -30,6 +31,10 @@ func (s *Sandbox) run(context *executionContext, args []string, stdin string) (o
 	}
 	context.commands = append(context.commands, args[0])
 	switch args[0] {
+	case "true":
+		return "", nil
+	case "false":
+		return "", errFailureStatus
 	case "pwd":
 		return s.cmdPwd(args[1:])
 	case "cd":

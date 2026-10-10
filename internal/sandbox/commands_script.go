@@ -95,6 +95,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	}()
 
 	var output strings.Builder
+	statusFailed := false
 	for index, rawLine := range lines {
 		lineNumber := index + 1
 		line := strings.TrimSuffix(rawLine, "\r")
@@ -105,7 +106,21 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
+		stderrBefore := len(context.stderr)
 		result, err := s.executeLine(line, context, false)
+		// Failures that a command list handled (`a || b`), on this line or in a
+		// nested script, still reach the caller's terminal ahead of the
+		// script's output, located like the errors that stop a script.
+		diagnostics := slices.Clone(context.stderr[stderrBefore:])
+		context.stderr = context.stderr[:stderrBefore]
+		for _, chunk := range result.Transcript {
+			if chunk.Error {
+				diagnostics = append(diagnostics, chunk.Text)
+			}
+		}
+		for _, message := range diagnostics {
+			context.stderr = append(context.stderr, fmt.Sprintf("%s:%d: %s", scriptPath, lineNumber, message))
+		}
 		if err != nil {
 			return "", fmt.Errorf("%s:%d: %w", scriptPath, lineNumber, err)
 		}
@@ -113,6 +128,11 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 			return "", fmt.Errorf("%s:%d: script output exceeds the %d KiB limit", scriptPath, lineNumber, maxScriptOutputBytes/1024)
 		}
 		output.WriteString(result.Output)
+		statusFailed = result.statusFailed
+	}
+	if statusFailed {
+		// Like sh, a script's exit status is that of its last command.
+		return output.String(), errFailureStatus
 	}
 	return output.String(), nil
 }

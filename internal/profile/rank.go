@@ -1,5 +1,9 @@
 package profile
 
+// rankThresholds span the whole catalog: Linux alone (1,755 XP) reaches
+// Staff SRE, and the top rank needs most of the Docker track (3,085 XP in
+// total) without requiring a hint-free run. Thresholds up to Senior SRE are
+// unchanged from earlier releases, so no existing profile loses its rank.
 var rankThresholds = []struct {
 	name string
 	xp   int
@@ -10,6 +14,9 @@ var rankThresholds = []struct {
 	{name: "Sysadmin", xp: 450},
 	{name: "SRE", xp: 650},
 	{name: "Senior SRE", xp: 1100},
+	{name: "Staff SRE", xp: 1600},
+	{name: "Principal SRE", xp: 2150},
+	{name: "Distinguished Engineer", xp: 2700},
 }
 
 func (p Profile) Level() int { return p.XP/100 + 1 }

@@ -7,9 +7,10 @@ import (
 )
 
 // validateShellSyntax rejects shell language outside the teaching subset
-// before lexing. Interactive lines and script lines share these rules, so
-// syntax such as `a; b`, `a && b`, or `cmd 2>/dev/null` fails with a clear
-// message instead of silently becoming literal arguments.
+// before one pipeline is lexed. Interactive lines and script lines share these
+// rules, so syntax such as `cmd &` or `cmd 2>/dev/null` fails with a clear
+// message instead of silently becoming literal arguments. Command-list
+// operators (;, &&, ||) are split off earlier by splitCommandList.
 func validateShellSyntax(line string) error {
 	runes := []rune(line)
 	var quote rune
@@ -66,8 +67,6 @@ func validateShellSyntax(line string) error {
 			next = runes[index+1]
 		}
 		switch char {
-		case ';':
-			return fmt.Errorf("shell control syntax %q is not supported; enter each command on its own line", ";")
 		case '&':
 			if index > 0 && (runes[index-1] == '>' || runes[index-1] == '<') {
 				return fdRedirectionError(string(runes[index-1 : index+1]))
@@ -75,18 +74,12 @@ func validateShellSyntax(line string) error {
 			if next == '>' {
 				return fdRedirectionError("&>")
 			}
-			if next == '&' {
-				return fmt.Errorf("shell control syntax %q is not supported; enter each command on its own line", "&&")
-			}
 			return fmt.Errorf("shell control syntax %q is not supported; background jobs are not available", "&")
 		case '(', ')':
 			return fmt.Errorf("shell control syntax %q is not supported", string(char))
 		case '`':
 			return fmt.Errorf("command substitution is not supported")
 		case '|':
-			if next == '|' {
-				return fmt.Errorf("control operator || is not supported; enter each command on its own line")
-			}
 			tokenStarted = false
 			continue
 		case '<', '>':

@@ -288,7 +288,13 @@ func TestRankAndNextRankShareThresholds(t *testing.T) {
 		{xp: 0, rank: "Intern", next: "Operator", needed: 100, hasNext: true},
 		{xp: 100, rank: "Operator", next: "Junior Sysadmin", needed: 150, hasNext: true},
 		{xp: 649, rank: "Sysadmin", next: "SRE", needed: 1, hasNext: true},
-		{xp: 1100, rank: "Senior SRE", hasNext: false},
+		{xp: 1100, rank: "Senior SRE", next: "Staff SRE", needed: 500, hasNext: true},
+		{xp: 1599, rank: "Senior SRE", next: "Staff SRE", needed: 1, hasNext: true},
+		{xp: 1600, rank: "Staff SRE", next: "Principal SRE", needed: 550, hasNext: true},
+		{xp: 2150, rank: "Principal SRE", next: "Distinguished Engineer", needed: 550, hasNext: true},
+		{xp: 2699, rank: "Principal SRE", next: "Distinguished Engineer", needed: 1, hasNext: true},
+		{xp: 2700, rank: "Distinguished Engineer", hasNext: false},
+		{xp: 5000, rank: "Distinguished Engineer", hasNext: false},
 	}
 	for _, test := range tests {
 		player := New("alex")

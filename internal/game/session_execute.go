@@ -16,11 +16,16 @@ func (a *attempt) execute(line string) (step, error) {
 	if err != nil || !ran {
 		return step{}, err
 	}
-	if result.Output != "" {
-		fmt.Fprint(a.Out, result.Output)
-		if !strings.HasSuffix(result.Output, "\n") {
-			fmt.Fprintln(a.Out)
+	if len(result.Transcript) > 0 {
+		for _, entry := range result.Transcript {
+			if entry.Error {
+				a.fail(entry.Text)
+			} else {
+				a.printOutput(entry.Text)
+			}
 		}
+	} else {
+		a.printOutput(result.Output)
 	}
 	a.lastOutput = result.Output
 	unlocked, err := a.recordPractice(result)
@@ -46,6 +51,16 @@ func (a *attempt) execute(line string) (step, error) {
 		return step{}, err
 	}
 	return finish(completed), nil
+}
+
+func (a *attempt) printOutput(output string) {
+	if output == "" {
+		return
+	}
+	fmt.Fprint(a.Out, output)
+	if !strings.HasSuffix(output, "\n") {
+		fmt.Fprintln(a.Out)
+	}
 }
 
 // runCommand executes line and any interactive follow-up. ran is false when

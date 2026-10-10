@@ -9,7 +9,7 @@ import (
 
 func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 	recursive, namesOnly, lineNumbers := false, false, false
-	insensitive, invert, fixed, countOnly, wholeWord, extended := false, false, false, false, false, false
+	insensitive, invert, fixed, countOnly, wholeWord, extended, quiet := false, false, false, false, false, false, false
 	var operands []string
 	optionsDone := false
 	for _, arg := range args {
@@ -38,6 +38,8 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 					wholeWord = true
 				case 'E':
 					extended = true
+				case 'q':
+					quiet = true
 				default:
 					return "", fmt.Errorf("unknown option -%c", option)
 				}
@@ -107,6 +109,7 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 
 	showNames := len(inputs) > 1 || recursive
 	var output commandOutputBuffer
+	selectedAny := false
 	for _, input := range inputs {
 		matchedFile := false
 		matchCount := 0
@@ -119,6 +122,10 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 				continue
 			}
 			matchCount++
+			selectedAny = true
+			if quiet {
+				break
+			}
 			if namesOnly {
 				if input.name != "" && !matchedFile {
 					output.WriteString(input.name + "\n")
@@ -137,12 +144,20 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 			}
 			output.WriteString(line + "\n")
 		}
-		if countOnly && !namesOnly {
+		if quiet && selectedAny {
+			return "", nil
+		}
+		if countOnly && !namesOnly && !quiet {
 			if showNames && input.name != "" {
 				output.WriteString(input.name + ":")
 			}
 			output.WriteString(strconv.Itoa(matchCount) + "\n")
 		}
 	}
-	return output.Result()
+	result, err := output.Result()
+	if err == nil && !selectedAny {
+		// Like grep's exit status 1: nothing matched, which && and || observe.
+		return result, errFailureStatus
+	}
+	return result, err
 }

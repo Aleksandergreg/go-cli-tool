@@ -63,7 +63,7 @@ func (f *FileSystem) Glob(cwd, pattern string) []string {
 	matches := make([]string, 0)
 	for candidate := range f.entries {
 		matched, err := matchShellPattern(absPattern, candidate)
-		if err == nil && matched {
+		if err == nil && matched && !hiddenFromGlob(absPattern, candidate) {
 			if strings.HasPrefix(pattern, "/") {
 				matches = append(matches, candidate)
 			} else {
@@ -77,6 +77,23 @@ func (f *FileSystem) Glob(cwd, pattern string) []string {
 	}
 	sort.Strings(matches)
 	return matches
+}
+
+// hiddenFromGlob reports whether candidate has a dot-prefixed component that
+// the matching pattern component does not spell out. As in sh, `*` skips
+// .env while `.*` and `.e*` match it.
+func hiddenFromGlob(pattern, candidate string) bool {
+	patternParts, candidateParts := strings.Split(pattern, "/"), strings.Split(candidate, "/")
+	if len(patternParts) != len(candidateParts) {
+		return false
+	}
+	for index, part := range candidateParts {
+		explicit := strings.HasPrefix(patternParts[index], ".") || strings.HasPrefix(patternParts[index], `\.`)
+		if strings.HasPrefix(part, ".") && !explicit {
+			return true
+		}
+	}
+	return false
 }
 
 // matchShellPattern is path.Match with the shell's [!...] negated bracket

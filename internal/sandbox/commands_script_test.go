@@ -321,9 +321,9 @@ func TestShRejectsUnsupportedShellLanguage(t *testing.T) {
 		line string
 		want string
 	}{
-		{name: "semicolon", line: "echo one; echo two", want: "control syntax"},
-		{name: "and", line: "echo one && echo two", want: "control syntax"},
-		{name: "or", line: "echo one || echo two", want: "operator ||"},
+		{name: "background job", line: "echo one &", want: "control syntax"},
+		{name: "empty list item", line: "echo one ;; echo two", want: "syntax error near"},
+		{name: "dangling and", line: "echo one &&", want: `cannot end with "&&"`},
 		{name: "parentheses", line: "(echo one)", want: "control syntax"},
 		{name: "backticks", line: "echo `pwd`", want: "command substitution"},
 		{name: "substitution", line: "echo $(pwd)", want: "command substitution"},
