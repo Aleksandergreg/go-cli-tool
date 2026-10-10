@@ -1,6 +1,9 @@
 resource "github_repository" "opsquest" {
-  name       = local.repository_name
-  visibility = "public"
+  name         = local.repository_name
+  description  = "Duolingo meets a terminal sandbox: a Go CLI game that teaches Linux and Docker operations through story-driven incidents in a safe, in-memory shell."
+  homepage_url = "https://aleksandergreg.github.io/go-cli-tool/"
+  topics       = ["go", "cli", "terminal-game", "linux", "docker", "devops", "sre", "education", "learn-linux", "sandbox"]
+  visibility   = "public"
 
   has_discussions = true
   has_issues      = true
