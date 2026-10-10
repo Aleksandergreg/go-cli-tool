@@ -56,9 +56,9 @@ func ReconcileAchievements(player *profile.Profile, catalog mission.Catalog, now
 	return unlocked
 }
 
-// metaCommands explain or tidy the lab rather than practice an operations
-// skill, so they never earn command mastery.
-var metaCommands = map[string]bool{"clear": true, "help": true, "history": true, "man": true}
+// metaCommands explain or tidy the lab, or only set an exit status, rather
+// than practice an operations skill, so they never earn command mastery.
+var metaCommands = map[string]bool{"clear": true, "false": true, "help": true, "history": true, "man": true, "true": true}
 
 // CountsAsPractice reports whether a successful command earns command mastery.
 func CountsAsPractice(command string) bool { return !metaCommands[command] }

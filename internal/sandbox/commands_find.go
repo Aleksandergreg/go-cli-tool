@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 	"path"
 	"slices"
@@ -18,31 +19,55 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 		roots = []string{"."}
 	}
 
-	namePattern := ""
-	caseInsensitive := false
-	entryType := ""
+	// Tests combine with an implicit AND, as in find: every -name, -iname,
+	// and -type must hold for an entry to be printed or passed to -exec.
+	var tests []func(candidate string, entry *Entry) (bool, error)
 	var execArgs []string
 	for index < len(args) {
 		switch args[index] {
 		case "-name", "-iname":
-			caseInsensitive = args[index] == "-iname"
+			caseInsensitive := args[index] == "-iname"
 			if index+1 >= len(args) {
 				return "", fmt.Errorf("%s requires a pattern", args[index])
 			}
 			index++
-			namePattern = args[index]
+			pattern := args[index]
+			if caseInsensitive {
+				pattern = strings.ToLower(pattern)
+			}
+			tests = append(tests, func(candidate string, _ *Entry) (bool, error) {
+				name := path.Base(candidate)
+				if caseInsensitive {
+					name = strings.ToLower(name)
+				}
+				matched, err := matchShellPattern(pattern, name)
+				if err != nil {
+					return false, fmt.Errorf("invalid name pattern: %w", err)
+				}
+				return matched, nil
+			})
 		case "-type":
 			if index+1 >= len(args) {
 				return "", fmt.Errorf("-type requires f or d")
 			}
 			index++
-			entryType = args[index]
-			if entryType != "f" && entryType != "d" {
-				return "", fmt.Errorf("unsupported type %q", entryType)
+			kind := Regular
+			switch args[index] {
+			case "f":
+			case "d":
+				kind = Directory
+			default:
+				return "", fmt.Errorf("unsupported type %q", args[index])
 			}
-		case "-print":
-			// Printing is the default action.
+			tests = append(tests, func(_ string, entry *Entry) (bool, error) {
+				return entry.Kind == kind, nil
+			})
+		case "-a", "-and", "-print":
+			// AND is already implicit, and printing is the default action.
 		case "-exec":
+			if execArgs != nil {
+				return "", fmt.Errorf("this lab supports one -exec action per find")
+			}
 			index++
 			start := index
 			for index < len(args) && args[index] != ";" {
@@ -56,7 +81,7 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 				return "", fmt.Errorf("-exec requires a command")
 			}
 		default:
-			return "", fmt.Errorf("unsupported expression %s", args[index])
+			return "", fmt.Errorf("unsupported expression %s; tests combine with an implicit AND, and -o, !, and parentheses are not supported", args[index])
 		}
 		index++
 	}
@@ -68,25 +93,16 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 		if err != nil {
 			return "", err
 		}
+	candidates:
 		for _, candidate := range items {
 			entry, _ := s.FS.Entry(candidate)
-			if entryType == "f" && entry.Kind != Regular {
-				continue
-			}
-			if entryType == "d" && entry.Kind != Directory {
-				continue
-			}
-			if namePattern != "" {
-				candidateName, pattern := path.Base(candidate), namePattern
-				if caseInsensitive {
-					candidateName, pattern = strings.ToLower(candidateName), strings.ToLower(pattern)
-				}
-				matched, err := matchShellPattern(pattern, candidateName)
+			for _, test := range tests {
+				matched, err := test(candidate, entry)
 				if err != nil {
-					return "", fmt.Errorf("invalid name pattern: %w", err)
+					return "", err
 				}
 				if !matched {
-					continue
+					continue candidates
 				}
 			}
 			display := displayFindPath(root, rootAbs, candidate)
@@ -103,8 +119,10 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 					command[position] = display
 				}
 			}
+			// A failing status (grep without a match) only makes this -exec
+			// test false; find continues with the next entry.
 			result, err := s.run(context, command, "")
-			if err != nil {
+			if err != nil && !errors.Is(err, errFailureStatus) {
 				return "", fmt.Errorf("-exec %s: %w", command[0], err)
 			}
 			output.WriteString(result)

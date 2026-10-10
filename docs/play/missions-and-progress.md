@@ -64,7 +64,7 @@ may unlock achievements. Replays retain the original completion and reward.
 
 Every successful teaching command counts toward command mastery as soon as it
 runs, including during replays. Lab utilities such as `help`, `man`, `clear`,
-and `history` are free to use and do not count.
+`history`, `true`, and `false` are free to use and do not count.
 
 The displayed level is derived from total XP. Ranks progress through:
 
@@ -73,7 +73,10 @@ The displayed level is derived from total XP. Ranks progress through:
 3. Junior Sysadmin
 4. Sysadmin
 5. SRE
-6. Senior SRE
+6. Senior SRE (1,100 XP)
+7. Staff SRE (1,600 XP, about the whole Linux track)
+8. Principal SRE (2,150 XP)
+9. Distinguished Engineer (2,700 XP, most of the Docker track as well)
 
 Achievements recognize the first fix, a three-command pipeline, ten practiced
 commands, five hint-free completions, an advanced incident, and completion of

@@ -1,6 +1,7 @@
 package sandbox
 
 import (
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -16,10 +17,26 @@ const (
 )
 
 type Result struct {
+	// Output is standard output only; output validators compare it.
 	Output        string
 	Commands      []string
 	PipelineWidth int
 	Editor        *EditorRequest
+	// Transcript orders standard output and error messages for display when
+	// one line ran several commands (a; b, a && b, a || b) or a script handled
+	// a failure. Execute then returns a nil error and the last failure, if
+	// any, is the final entry. It is empty for a single command.
+	Transcript []OutputChunk
+
+	list         bool
+	statusFailed bool
+}
+
+// OutputChunk is one piece of a Transcript: command output, or an error
+// message the terminal shows on its error stream.
+type OutputChunk struct {
+	Text  string
+	Error bool
 }
 
 type executionContext struct {
@@ -28,7 +45,15 @@ type executionContext struct {
 	dispatchSteps    int
 	scriptStack      []string
 	scriptSteps      int
+	// stderr collects messages from failures a command list handled inside a
+	// script, for the caller's terminal.
+	stderr []string
 }
+
+// errFailureStatus is a failing exit status without an error message, such
+// as grep finding no match or false. The command's output stays valid; the
+// status matters only to && and || and to a script's own exit status.
+var errFailureStatus = errors.New("command reported a failing status")
 
 const (
 	wordToken tokenKind = iota
@@ -52,10 +77,35 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 	result, err := s.executeLine(line, context, true)
 	result.Commands = slices.Clone(context.commands)
 	result.PipelineWidth = context.maxPipelineWidth
-	return result, err
+	if !result.list && len(context.stderr) == 0 {
+		return result, err
+	}
+	// A command list reports each command's output and error in order rather
+	// than failing as a whole; earlier commands have already changed state.
+	transcript := errorChunks(context.stderr)
+	if result.list {
+		transcript = append(transcript, result.Transcript...)
+	} else if result.Output != "" {
+		transcript = append(transcript, OutputChunk{Text: result.Output})
+	}
+	if err != nil {
+		transcript = append(transcript, OutputChunk{Text: err.Error(), Error: true})
+		if !result.list {
+			// The single command failed as a whole, so none of it is practice.
+			result.Commands = nil
+		}
+	}
+	if transcriptBytes(transcript) > maxCommandOutputBytes {
+		return Result{}, commandOutputLimitError()
+	}
+	result.Transcript = transcript
+	return result, nil
 }
 
-func (s *Sandbox) executeLine(line string, context *executionContext, allowInteractive bool) (Result, error) {
+// executePipeline runs one pipeline: validate, lex, parse, expand, open
+// output redirections, and run each stage. statusFailed in the result reports
+// the last stage's silent failing status.
+func (s *Sandbox) executePipeline(line string, context *executionContext, allowInteractive bool) (Result, error) {
 	if err := validateShellSyntax(line); err != nil {
 		return Result{}, err
 	}
@@ -120,17 +170,39 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 	}
 
 	stdin := ""
+	statusFailed := false
 	for _, stage := range expanded.stages {
-		if stage.inputPath != "" {
-			stdin, err = s.FS.ReadFile(s.Resolve(stage.inputPath))
+		// Like sh, > empties its file before the command runs, so `sort f > f`
+		// reads nothing. If this stage then fails, the destination is restored:
+		// a rejected command never destroys data.
+		restore := func() error { return nil }
+		if stage.outputPath != "" && !stage.append {
+			restore, err = s.truncateRedirectTarget(s.Resolve(stage.outputPath))
 			if err != nil {
 				return Result{}, fmt.Errorf("redirect: %w", err)
 			}
 		}
+		fail := func(err error) (Result, error) {
+			if restoreErr := restore(); restoreErr != nil {
+				err = errors.Join(err, fmt.Errorf("restore %s: %w", stage.outputPath, restoreErr))
+			}
+			return Result{}, err
+		}
+		if stage.inputPath != "" {
+			stdin, err = s.FS.ReadFile(s.Resolve(stage.inputPath))
+			if err != nil {
+				return fail(fmt.Errorf("redirect: %w", err))
+			}
+		}
 		name := stage.args[0]
 		stdin, err = s.run(context, stage.args, stdin)
+		// A pipeline's status is its last stage's, as in sh without pipefail.
+		statusFailed = errors.Is(err, errFailureStatus)
+		if statusFailed {
+			err = nil
+		}
 		if err != nil {
-			return Result{}, fmt.Errorf("%s: %w", name, err)
+			return fail(fmt.Errorf("%s: %w", name, err))
 		}
 		if stage.outputPath != "" {
 			target := s.Resolve(stage.outputPath)
@@ -140,11 +212,63 @@ func (s *Sandbox) executeLine(line string, context *executionContext, allowInter
 				err = s.FS.WriteFile(target, stdin, 0)
 			}
 			if err != nil {
-				return Result{}, fmt.Errorf("redirect: %w", err)
+				return fail(fmt.Errorf("redirect: %w", err))
 			}
 			s.removeArchiveMetadata(target)
 			stdin = ""
 		}
 	}
-	return Result{Output: stdin}, nil
+	return Result{Output: stdin, statusFailed: statusFailed}, nil
+}
+
+// truncateRedirectTarget empties or creates target for > and returns a
+// function that puts back its previous content, mode, owner, and archive
+// metadata, or removes a file the truncation created.
+func (s *Sandbox) truncateRedirectTarget(target string) (func() error, error) {
+	previous, existed := s.FS.Entry(target)
+	var saved Entry
+	if existed {
+		saved = *previous
+	}
+	archive, hadArchive := s.Archives[target]
+	if err := s.FS.WriteFile(target, "", 0); err != nil {
+		return nil, err
+	}
+	s.removeArchiveMetadata(target)
+	return func() error {
+		if !existed {
+			return s.FS.Remove(target, false, true)
+		}
+		if err := s.FS.WriteFile(target, saved.Content, saved.Mode); err != nil {
+			return err
+		}
+		if err := s.FS.Chown(target, saved.Owner); err != nil {
+			return err
+		}
+		if !hadArchive {
+			return nil
+		}
+		archives, err := s.planArchiveReplacement(target, archive)
+		if err != nil {
+			return err
+		}
+		s.Archives = archives
+		return nil
+	}, nil
+}
+
+func errorChunks(messages []string) []OutputChunk {
+	chunks := make([]OutputChunk, 0, len(messages))
+	for _, message := range messages {
+		chunks = append(chunks, OutputChunk{Text: message, Error: true})
+	}
+	return chunks
+}
+
+func transcriptBytes(chunks []OutputChunk) int {
+	total := 0
+	for _, chunk := range chunks {
+		total += len(chunk.Text)
+	}
+	return total
 }

@@ -18,6 +18,17 @@ type Execution struct {
 	PracticedCommands []string
 	PipelineWidth     int
 	Interactive       *InteractiveAction
+	// Transcript orders output and error messages when one line ran several
+	// commands (a; b, a && b, a || b). When it is empty, Output is the whole
+	// display. Output always holds only standard output for validators.
+	Transcript []TranscriptEntry
+}
+
+// TranscriptEntry is command output, or an error message shown on the
+// player's error stream.
+type TranscriptEntry struct {
+	Text  string
+	Error bool
 }
 
 // InteractiveAction lets an environment hand terminal-only work back to the

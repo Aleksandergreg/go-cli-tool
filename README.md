@@ -32,7 +32,7 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 - 23 Linux missions across four ordered learning worlds
 - 16 optional, disposable Docker missions across three worlds: It Works on My Machine, Container Triage, and Network Plumbing
 - An isolated in-memory filesystem, environment, process table, and archives
-- Quote-aware globs and variables, pipelines, redirection, and command history
+- Quote-aware globs and variables, pipelines, redirection, `;`/`&&`/`||` command lists, and command history
 - A compact virtual `vi` and bounded virtual shell scripts
 - Progressive hints, free command guidance, XP, ranks, and six achievements
 - An optional loopback-only web companion for mission guidance and live progress

@@ -64,6 +64,9 @@ func (e *sandboxEnvironment) Execute(ctx context.Context, line string) (Executio
 		PracticedCommands: slices.Clone(result.Commands),
 		PipelineWidth:     result.PipelineWidth,
 	}
+	for _, chunk := range result.Transcript {
+		execution.Transcript = append(execution.Transcript, TranscriptEntry{Text: chunk.Text, Error: chunk.Error})
+	}
 	if result.Editor != nil {
 		request := *result.Editor
 		execution.Interactive = &InteractiveAction{

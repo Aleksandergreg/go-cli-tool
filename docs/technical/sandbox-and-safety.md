@@ -58,18 +58,19 @@ Editable source: [`command-execution-pipeline.mmd`](diagrams/command-execution-p
 [`Sandbox.Execute`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/shell.go) processes a line in explicit stages:
 
 1. **Bound input:** reject a command line over 64 KiB before adding it to the attempt's 100-entry history.
-2. **Lex:** reject unquoted shell syntax outside the teaching subset (command lists, background jobs, subshells, substitutions, special parameters, and file-descriptor redirection), then recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Interactive and script lines share these rules. Expansion reads only the sandbox environment.
-3. **Parse:** build pipeline stages and attach at most one input and output redirection to each stage.
-4. **Expand:** resolve eligible globs against the virtual filesystem and enforce expanded token and argument budgets.
-5. **Preflight compositions:** reject unsupported interactive-editor or script placement before an earlier pipeline stage can mutate state.
-6. **Dispatch:** call a Go method from the supported-command switch. Nested `find -exec` and scripts share dispatch budgets.
-7. **Move virtual data:** pipeline output becomes the next stage's input; redirection reads or writes only virtual files.
-8. **Return learning metadata:** output, successful command names, maximum pipeline width, or a virtual editor request flow back to `game.Session`.
-9. **Observe outcomes:** output validators compare the returned text; state validators query the active environment.
+2. **Split lists:** separate unquoted `;`, `&&`, and `||` into pipelines and check every pipeline's syntax before the first runs. Each pipeline then passes through the remaining stages only when its turn comes, so expansion sees earlier `cd` and `export` effects.
+3. **Lex:** reject unquoted shell syntax outside the teaching subset (background jobs, subshells, substitutions, special parameters, and file-descriptor redirection), then recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Interactive and script lines share these rules. Expansion reads only the sandbox environment.
+4. **Parse:** build pipeline stages and attach at most one input and output redirection to each stage.
+5. **Expand:** resolve eligible globs against the virtual filesystem and enforce expanded token and argument budgets.
+6. **Preflight compositions:** reject unsupported interactive-editor or script placement before an earlier pipeline stage can mutate state.
+7. **Dispatch:** call a Go method from the supported-command switch. Every pipeline of a list, nested `find -exec`, and scripts share one dispatch budget, and a list's combined output shares the 2 MiB output limit.
+8. **Move virtual data:** pipeline output becomes the next stage's input; redirection reads or writes only virtual files. A stage's `>` target is emptied just before it runs and restored if that stage fails.
+9. **Return learning metadata:** output, successful command names, maximum pipeline width, an ordered output-and-error transcript for lists, or a virtual editor request flow back to `game.Session`.
+10. **Observe outcomes:** output validators compare the returned text; state validators query the active environment.
 
 Unsupported commands fail at dispatch. The shell implements a teaching subset, not process lookup, so a name absent from the dispatcher can never fall through to the host.
 
-A full pipeline is not one transaction: an ordinary earlier stage may mutate virtual state before a later stage fails. Safety-sensitive operations preflight their own affected state, and compositions known to be unsupported (`vi` in a pipeline, or a script receiving pipeline/file input) are rejected before any stage runs.
+A full pipeline is not one transaction: an ordinary earlier stage may mutate virtual state before a later stage fails. Safety-sensitive operations preflight their own affected state, a failed stage restores the redirect target it emptied, and compositions known to be unsupported (`vi` in a pipeline or list, or a script receiving pipeline/file input) are rejected before any stage runs. A command list is likewise not a transaction: commands that ran before a failure keep their effects.
 
 ## Virtual state model
 

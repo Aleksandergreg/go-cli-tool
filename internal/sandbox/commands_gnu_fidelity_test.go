@@ -262,3 +262,121 @@ func TestTranslateBasicRegex(t *testing.T) {
 		}
 	}
 }
+
+func TestOutputRedirectionEmptiesItsTargetBeforeTheCommandRuns(t *testing.T) {
+	runGNUFidelityCases(t, []gnuFidelityCase{
+		{name: "sort onto its input", setup: []string{fourLines, "sort /out/four.txt > /out/four.txt"}, line: "wc -c /out/four.txt", want: "0 /out/four.txt\n"},
+		{name: "input redirection from the target", setup: []string{fourLines, "cat < /out/four.txt > /out/four.txt"}, line: "wc -c /out/four.txt", want: "0 /out/four.txt\n"},
+		{name: "append keeps its input", setup: []string{fourLines, "head -n 1 /out/four.txt >> /out/four.txt"}, line: "tail -n 2 /out/four.txt", want: "l4\nh1\n"},
+		{name: "directory target fails before running", line: "touch /out/new.txt > /out", wantErr: "redirect"},
+	})
+
+	box := testSandbox(t)
+	if _, err := box.Execute("touch /out/new.txt > /out"); err == nil || box.FS.Exists("/out/new.txt") {
+		t.Fatalf("a rejected redirection ran its command: err %v", err)
+	}
+}
+
+func TestFailedStageRestoresItsRedirectTarget(t *testing.T) {
+	box := testSandbox(t)
+	if err := box.FS.WriteFile("/out/report", "keep\n", 0o640); err != nil {
+		t.Fatal(err)
+	}
+	if err := box.FS.Chown("/out/report", "reviewer"); err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range []string{
+		"cat missing.log > /out/report",
+		"cat missing.log > /out/created",
+		"grep ERROR < missing.log > /out/report",
+	} {
+		if _, err := box.Execute(line); err == nil {
+			t.Fatalf("Execute(%q) unexpectedly succeeded", line)
+		}
+	}
+	entry, exists := box.FS.Entry("/out/report")
+	if !exists || entry.Content != "keep\n" || entry.Mode != 0o640 || entry.Owner != "reviewer" {
+		t.Errorf("failed command changed its destination: %#v", entry)
+	}
+	if box.FS.Exists("/out/created") {
+		t.Error("failed command left a destination it created")
+	}
+
+	// Earlier stages that finished keep their effects, as before.
+	if _, err := box.Execute("echo kept > /out/first.txt | cat missing.log"); err == nil {
+		t.Fatal("pipeline unexpectedly succeeded")
+	}
+	if content, _ := box.FS.ReadFile("/out/first.txt"); content != "kept\n" {
+		t.Errorf("completed stage output = %q, want kept", content)
+	}
+
+	// Archive metadata comes back with a restored archive.
+	if _, err := box.Execute("tar -cf /out/logs.tar events.log"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := box.Execute("cat missing.log > /out/logs.tar"); err == nil {
+		t.Fatal("failing redirect unexpectedly succeeded")
+	}
+	if result, err := box.Execute("tar -tf /out/logs.tar"); err != nil || !strings.Contains(result.Output, "events.log") {
+		t.Errorf("restored archive listing = %q, %v", result.Output, err)
+	}
+}
+
+func TestListingFollowsGNULayout(t *testing.T) {
+	tree := []string{"mkdir -p /out/d1/d2", "touch /out/d1/f /out/d1/g /out/d1/.env /out/top /out/.hidden"}
+	runGNUFidelityCases(t, []gnuFidelityCase{
+		{name: "file operand keeps its path", setup: tree, line: "ls /out/d1/f", want: "/out/d1/f\n"},
+		{name: "files before directories", setup: tree, line: "ls /out/d1 /out/top", want: "/out/top\n\n/out/d1:\nd2\nf\ng\n"},
+		{name: "directories sorted with headers", setup: tree, line: "ls /out/d1/d2 /out/d1", want: "/out/d1:\nd2\nf\ng\n\n/out/d1/d2:\n"},
+		{name: "single directory has no header", setup: tree, line: "ls /out/d1", want: "d2\nf\ng\n"},
+		{name: "all shows dot entries", setup: tree, line: "ls -a /out/d1", want: ".\n..\n.env\nd2\nf\ng\n"},
+		{name: "named hidden file is shown", setup: tree, line: "ls /out/.hidden", want: "/out/.hidden\n"},
+		{name: "long file operand", setup: tree, line: "ls -l /out/top", want: "-rw-r--r-- operator      0 /out/top\n"},
+	})
+}
+
+func TestGlobsSkipHiddenNamesUnlessTheDotIsExplicit(t *testing.T) {
+	tree := []string{"mkdir -p /out/d", "touch /out/a /out/.env /out/.profile /out/d/b /out/d/.secret"}
+	runGNUFidelityCases(t, []gnuFidelityCase{
+		{name: "star", setup: tree, line: "echo /out/*", want: "/out/a /out/d\n"},
+		{name: "dot star", setup: tree, line: "echo /out/.*", want: "/out/.env /out/.profile\n"},
+		{name: "dot prefix", setup: tree, line: "echo /out/.e*", want: "/out/.env\n"},
+		{name: "nested star", setup: tree, line: "echo /out/*/*", want: "/out/d/b\n"},
+		{name: "question mark", setup: tree, line: "echo /out/?", want: "/out/a /out/d\n"},
+		{name: "rm star keeps hidden files", setup: append(tree, "rm /out/a"), line: "ls -a /out", want: ".\n..\n.env\n.profile\nd\n"},
+		{name: "find still matches hidden names", setup: tree, line: "find /out/d -name '*' -type f", want: "/out/d/.secret\n/out/d/b\n"},
+	})
+}
+
+func TestCutFieldListsAndUndelimitedLines(t *testing.T) {
+	rows := `printf 'a:b:c:d\nplain\n' > /out/rows.txt`
+	runGNUFidelityCases(t, []gnuFidelityCase{
+		{name: "list", setup: []string{rows}, line: "cut -d: -f1,3 /out/rows.txt", want: "a:c\nplain\n"},
+		{name: "open range", setup: []string{rows}, line: "cut -d : -f 3- /out/rows.txt", want: "c:d\nplain\n"},
+		{name: "leading range", setup: []string{rows}, line: "cut -d: -f-2 /out/rows.txt", want: "a:b\nplain\n"},
+		{name: "overlapping ranges keep input order", setup: []string{rows}, line: "cut -d: -f4,1-2,2 /out/rows.txt", want: "a:b:d\nplain\n"},
+		{name: "fields past the end", setup: []string{rows}, line: "cut -d: -f9 /out/rows.txt", want: "\nplain\n"},
+		{name: "huge range", setup: []string{rows}, line: "cut -d: -f2-999999999 /out/rows.txt", want: "b:c:d\nplain\n"},
+		{name: "only delimited", setup: []string{rows}, line: "cut -s -d: -f2 /out/rows.txt", want: "b\n"},
+		{name: "tab default", line: `printf 'x\ty\n' | cut -f2`, want: "y\n"},
+		{name: "multi-character delimiter", setup: []string{rows}, line: "cut -d ', ' -f1 /out/rows.txt", wantErr: "single character"},
+		{name: "zero field", setup: []string{rows}, line: "cut -d: -f0 /out/rows.txt", wantErr: "numbered from 1"},
+		{name: "decreasing range", setup: []string{rows}, line: "cut -d: -f3-1 /out/rows.txt", wantErr: "decreasing range"},
+		{name: "malformed list", setup: []string{rows}, line: "cut -d: -f1,x /out/rows.txt", wantErr: "invalid field list"},
+		{name: "missing list", setup: []string{rows}, line: "cut -d: /out/rows.txt", wantErr: "select fields with -f"},
+	})
+}
+
+func TestFindCombinesTestsWithAnd(t *testing.T) {
+	tree := []string{"mkdir -p /out/logs", "touch /out/logs/app.log /out/logs/api.txt /out/access.log"}
+	runGNUFidelityCases(t, []gnuFidelityCase{
+		{name: "two names", setup: tree, line: "find /out -name 'a*' -name '*.log'", want: "/out/access.log\n/out/logs/app.log\n"},
+		{name: "contradictory types", setup: tree, line: "find /out -type f -type d", want: ""},
+		{name: "explicit and", setup: tree, line: "find /out -type f -a -name '*.txt'", want: "/out/logs/api.txt\n"},
+		{name: "name and iname", setup: tree, line: "find /out -iname 'API*' -name '*.txt'", want: "/out/logs/api.txt\n"},
+		{name: "exec only on matches", setup: tree, line: `find /out -name '*.log' -name 'app*' -exec basename {} \;`, want: "app.log\n"},
+		{name: "exec status does not stop find", line: `find . -type f -exec grep -l ERROR {} \;`, want: "./events.log\n"},
+		{name: "or is rejected", setup: tree, line: "find /out -name a -o -name b", wantErr: "implicit AND"},
+		{name: "second exec is rejected", setup: tree, line: `find /out -exec basename {} \; -exec basename {} \;`, wantErr: "one -exec"},
+	})
+}

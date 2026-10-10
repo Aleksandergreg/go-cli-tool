@@ -3,6 +3,7 @@ package sandbox
 import (
 	"fmt"
 	"path"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -63,38 +64,56 @@ func (s *Sandbox) cmdLS(args []string) (string, error) {
 	if len(names) == 0 {
 		names = []string{"."}
 	}
-	var output commandOutputBuffer
-	for index, name := range names {
-		resolved := s.Resolve(name)
-		entry, exists := s.FS.Entry(resolved)
+	// Like GNU ls, list file operands first under the names given, then each
+	// directory's contents, with a header when there are several operands.
+	var files, directories []string
+	for _, name := range names {
+		entry, exists := s.FS.Entry(s.Resolve(name))
 		if !exists {
 			return "", fmt.Errorf("%s: no such file or directory", name)
 		}
-		if len(names) > 1 && entry.Kind == Directory {
-			if index > 0 {
-				output.WriteByte('\n')
-			}
+		if entry.Kind == Directory {
+			directories = append(directories, name)
+		} else {
+			files = append(files, name)
+		}
+	}
+	sort.Strings(files)
+	sort.Strings(directories)
+
+	var output commandOutputBuffer
+	writeEntry := func(itemPath, display string) {
+		item, _ := s.FS.Entry(itemPath)
+		if !long {
+			output.WriteString(display + "\n")
+			return
+		}
+		kind := '-'
+		if item.Kind == Directory {
+			kind = 'd'
+		}
+		output.WriteString(fmt.Sprintf("%c%s %-8s %6d %s\n", kind, permissionString(item.Mode), item.Owner, len(item.Content), display))
+	}
+	for _, name := range files {
+		writeEntry(s.Resolve(name), name)
+	}
+	for index, name := range directories {
+		if len(files) > 0 || index > 0 {
+			output.WriteByte('\n')
+		}
+		if len(names) > 1 {
 			output.WriteString(name + ":\n")
 		}
-		items := []string{resolved}
-		if entry.Kind == Directory {
-			children, _ := s.FS.Children(resolved)
-			items = children
+		resolved := s.Resolve(name)
+		if showAll {
+			writeEntry(resolved, ".")
+			writeEntry(path.Dir(resolved), "..")
 		}
-		for _, itemPath := range items {
-			item, _ := s.FS.Entry(itemPath)
-			base := path.Base(itemPath)
-			if !showAll && strings.HasPrefix(base, ".") {
-				continue
-			}
-			if long {
-				kind := '-'
-				if item.Kind == Directory {
-					kind = 'd'
-				}
-				output.WriteString(fmt.Sprintf("%c%s %-8s %6d %s\n", kind, permissionString(item.Mode), item.Owner, len(item.Content), base))
-			} else {
-				output.WriteString(base + "\n")
+		children, _ := s.FS.Children(resolved)
+		for _, child := range children {
+			base := path.Base(child)
+			if showAll || !strings.HasPrefix(base, ".") {
+				writeEntry(child, base)
 			}
 		}
 	}

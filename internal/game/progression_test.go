@@ -148,3 +148,28 @@ func TestSessionDoesNotRecordMetaCommandsAsPractice(t *testing.T) {
 		t.Fatalf("completion did not list only teaching commands:\n%s", out.String())
 	}
 }
+
+// TestRanksSpanTheCatalog keeps rank thresholds meaningful as missions are
+// added or removed: finishing Linux reaches Staff SRE, and only the Docker
+// track leads to the top rank.
+func TestRanksSpanTheCatalog(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	totals := map[string]int{}
+	for _, item := range catalog.All() {
+		totals[item.EffectiveTrack()] += item.Rewards.XP
+	}
+	linux := profile.Profile{XP: totals[mission.TrackLinux]}
+	if rank := linux.Rank(); rank != "Staff SRE" {
+		t.Errorf("Linux track total %d XP reaches %q, want Staff SRE", linux.XP, rank)
+	}
+	everything := profile.Profile{XP: totals[mission.TrackLinux] + totals[mission.TrackDocker]}
+	if rank := everything.Rank(); rank != "Distinguished Engineer" {
+		t.Errorf("catalog total %d XP reaches %q, want Distinguished Engineer", everything.XP, rank)
+	}
+	if _, _, hasNext := everything.NextRank(); hasNext {
+		t.Error("a rank remains beyond the whole catalog's XP")
+	}
+}
