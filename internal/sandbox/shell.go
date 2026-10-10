@@ -56,6 +56,9 @@ func (s *Sandbox) Execute(line string) (Result, error) {
 }
 
 func (s *Sandbox) executeLine(line string, context *executionContext, allowInteractive bool) (Result, error) {
+	if err := validateShellSyntax(line); err != nil {
+		return Result{}, err
+	}
 	tokens, err := lex(line, s.Env)
 	if err != nil {
 		return Result{}, err

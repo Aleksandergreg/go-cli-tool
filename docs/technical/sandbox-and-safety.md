@@ -58,7 +58,7 @@ Editable source: [`command-execution-pipeline.mmd`](diagrams/command-execution-p
 [`Sandbox.Execute`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/shell.go) processes a line in explicit stages:
 
 1. **Bound input:** reject a command line over 64 KiB before adding it to the attempt's 100-entry history.
-2. **Lex:** recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Expansion reads only the sandbox environment.
+2. **Lex:** reject unquoted shell syntax outside the teaching subset (command lists, background jobs, subshells, substitutions, special parameters, and file-descriptor redirection), then recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Interactive and script lines share these rules. Expansion reads only the sandbox environment.
 3. **Parse:** build pipeline stages and attach at most one input and output redirection to each stage.
 4. **Expand:** resolve eligible globs against the virtual filesystem and enforce expanded token and argument budgets.
 5. **Preflight compositions:** reject unsupported interactive-editor or script placement before an earlier pipeline stage can mutate state.
@@ -77,7 +77,7 @@ One `sandbox.Sandbox` owns:
 
 | State | Representation | Persistence |
 | --- | --- | --- |
-| Files and directories | Normalized absolute paths to typed entries with content, mode, and owner | Attempt only |
+| Files and directories | Normalized absolute paths to typed entries with content, mode, and owner; the virtual `HOME` directory always exists | Attempt only |
 | Working directory | Virtual absolute path | Attempt only; child scripts restore caller scope |
 | Environment | String map initialized with virtual `HOME` and `USER` | Attempt only; exported child-script values restore on return |
 | Processes | Mission-provided PID map and running flags | Attempt only; no host PID is visible or signalable |

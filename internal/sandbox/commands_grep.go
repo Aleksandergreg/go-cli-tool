@@ -9,7 +9,7 @@ import (
 
 func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 	recursive, namesOnly, lineNumbers := false, false, false
-	insensitive, invert, fixed, countOnly, wholeWord := false, false, false, false, false
+	insensitive, invert, fixed, countOnly, wholeWord, extended := false, false, false, false, false, false
 	var operands []string
 	optionsDone := false
 	for _, arg := range args {
@@ -37,7 +37,7 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 				case 'w':
 					wholeWord = true
 				case 'E':
-					// Go regular expressions already use extended-style syntax.
+					extended = true
 				default:
 					return "", fmt.Errorf("unknown option -%c", option)
 				}
@@ -53,6 +53,12 @@ func (s *Sandbox) cmdGrep(args []string, stdin string) (string, error) {
 	pattern := operands[0]
 	if fixed {
 		pattern = regexp.QuoteMeta(pattern)
+	} else if !extended {
+		translated, err := translateBasicRegex(pattern)
+		if err != nil {
+			return "", fmt.Errorf("invalid pattern: %w", err)
+		}
+		pattern = translated
 	}
 	if wholeWord {
 		pattern = `\b(?:` + pattern + `)\b`

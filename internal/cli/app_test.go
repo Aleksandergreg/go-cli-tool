@@ -92,4 +92,77 @@ func TestSubcommandHelpIsSuccessful(t *testing.T) {
 	if !strings.Contains(errOut.String(), "Usage: opsquest play") {
 		t.Fatalf("help output = %s", errOut.String())
 	}
+
+	for _, args := range [][]string{{"guide", "--help"}, {"guide", "-h"}, {"version", "--help"}, {"--version", "-h"}, {"show", "3", "--help"}} {
+		t.Run(strings.Join(args, " "), func(t *testing.T) {
+			store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+			app, out, errOut := testApp(t, "", store)
+			if err := app.Run(args); err != nil {
+				t.Fatalf("%v returned error: %v", args, err)
+			}
+			if !strings.Contains(errOut.String(), "Usage: opsquest ") || out.Len() != 0 {
+				t.Fatalf("%v stdout = %q, stderr = %q; want usage only", args, out.String(), errOut.String())
+			}
+			if player, err := store.Load(); err != nil || player.Onboarded {
+				t.Fatalf("%v changed the profile: %#v, %v", args, player, err)
+			}
+		})
+	}
+}
+
+func TestNoArgumentCommandsRejectArguments(t *testing.T) {
+	for _, args := range [][]string{{"guide", "extra"}, {"version", "extra"}, {"guide", "--bogus"}} {
+		store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+		app, _, _ := testApp(t, "", store)
+		if err := app.Run(args); err == nil {
+			t.Errorf("%v was accepted", args)
+		}
+	}
+}
+
+func TestFlagErrorsAreReportedOnce(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	app, _, errOut := testApp(t, "", store)
+	err := app.Run([]string{"show", "--bogus"})
+	if err == nil || !strings.Contains(err.Error(), "flag provided but not defined: -bogus") {
+		t.Fatalf("show --bogus error = %v", err)
+	}
+	if strings.Contains(errOut.String(), "bogus") || strings.Count(errOut.String(), "Usage: opsquest show") != 1 {
+		t.Fatalf("stderr = %q; want usage once and the error left to the caller", errOut.String())
+	}
+}
+
+func TestFlagsMayFollowTheMissionArgument(t *testing.T) {
+	tests := []struct {
+		args        []string
+		wantMission string
+		wantOnce    bool
+		wantErr     string
+	}{
+		{args: []string{"4", "--once"}, wantMission: "4", wantOnce: true},
+		{args: []string{"--once", "4"}, wantMission: "4", wantOnce: true},
+		{args: []string{"linux-workspace", "-web", "--once"}, wantMission: "linux-workspace", wantOnce: true},
+		{args: []string{"--", "--once"}, wantMission: "--once"},
+		{args: []string{"4", "--track", "docker"}, wantErr: "MISSION cannot be combined"},
+		{args: []string{"4", "5"}, wantErr: "usage: opsquest play"},
+		{args: []string{"4", "--bogus"}, wantErr: "flag provided but not defined"},
+	}
+	for _, test := range tests {
+		t.Run(strings.Join(test.args, " "), func(t *testing.T) {
+			app, _, _ := testApp(t, "", profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex"))
+			options, help, err := app.parsePlayOptions(test.args)
+			if test.wantErr != "" {
+				if err == nil || !strings.Contains(err.Error(), test.wantErr) {
+					t.Fatalf("parsePlayOptions(%q) error = %v, want %q", test.args, err, test.wantErr)
+				}
+				return
+			}
+			if err != nil || help {
+				t.Fatalf("parsePlayOptions(%q) = help %v, error %v", test.args, help, err)
+			}
+			if options.mission != test.wantMission || options.once != test.wantOnce {
+				t.Fatalf("parsePlayOptions(%q) = %#v", test.args, options)
+			}
+		})
+	}
 }

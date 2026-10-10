@@ -34,3 +34,21 @@ func parseShortOptions(args []string, valid string, dashIsOperand bool) (string,
 	}
 	return options.String(), operands, nil
 }
+
+// operandsOnly returns the operands of a command that accepts no options in
+// this lab. As in GNU tools, -- ends option parsing and a lone - remains an
+// operand; any other dash-prefixed argument is reported as an unknown option
+// instead of being treated as a file name.
+func operandsOnly(args []string) ([]string, error) {
+	operands := make([]string, 0, len(args))
+	for index, arg := range args {
+		if arg == "--" {
+			return append(operands, args[index+1:]...), nil
+		}
+		if strings.HasPrefix(arg, "-") && arg != "-" {
+			return nil, fmt.Errorf("unknown option %s", arg)
+		}
+		operands = append(operands, arg)
+	}
+	return operands, nil
+}

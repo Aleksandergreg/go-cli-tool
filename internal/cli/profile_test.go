@@ -39,6 +39,40 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	}
 }
 
+func TestCommandMasteryHidesLegacyMetaCommands(t *testing.T) {
+	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+	player := profile.New("alex")
+	player.RecordCommands([]string{"help", "man", "clear", "history", "grep", "ls"})
+	if err := store.Save(player); err != nil {
+		t.Fatal(err)
+	}
+
+	app, out, errOut := testApp(t, "", store)
+	if err := app.Run([]string{"commands"}); err != nil {
+		t.Fatalf("commands error = %v; stderr = %s", err, errOut.String())
+	}
+	if !strings.Contains(out.String(), "COMMAND MASTERY (2)") {
+		t.Fatalf("commands output did not count only teaching commands:\n%s", out.String())
+	}
+	for _, meta := range []string{"help", "man", "clear", "history"} {
+		if strings.Contains(out.String(), meta) {
+			t.Errorf("commands output listed meta command %q:\n%s", meta, out.String())
+		}
+	}
+
+	profileApp, profileOut, _ := testApp(t, "", store)
+	if err := profileApp.Run([]string{"profile"}); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(profileOut.String(), "Commands mastered: 2\n") {
+		t.Fatalf("profile counted meta commands:\n%s", profileOut.String())
+	}
+	saved, err := store.Load()
+	if err != nil || saved.Commands["help"] != 1 {
+		t.Fatalf("legacy meta command data = %#v, %v; want it left on disk", saved.Commands, err)
+	}
+}
+
 func TestProfileRenameRejectsTerminalControlsWithoutChangingTheSave(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	player := profile.New("alex")

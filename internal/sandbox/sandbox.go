@@ -97,6 +97,13 @@ func New(setup mission.Setup, startDir string) (*Sandbox, error) {
 		}
 		box.Archives = archives
 	}
+	// A real login always has a home directory, so `cd`, `cd ~`, and `ls ~/`
+	// keep working in missions whose setup does not mention it.
+	if home := box.Env["HOME"]; path.IsAbs(home) && !box.FS.Exists(path.Clean(home)) {
+		if err := box.FS.EnsureDir(home, 0o755); err != nil {
+			return nil, fmt.Errorf("home directory %s: %w", home, err)
+		}
+	}
 	if !box.FS.IsDir(box.CWD) {
 		return nil, fmt.Errorf("start directory %s does not exist", box.CWD)
 	}

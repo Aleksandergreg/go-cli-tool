@@ -62,7 +62,7 @@ func (f *FileSystem) Glob(cwd, pattern string) []string {
 	absPattern := Clean(cwd, pattern)
 	matches := make([]string, 0)
 	for candidate := range f.entries {
-		matched, err := path.Match(absPattern, candidate)
+		matched, err := matchShellPattern(absPattern, candidate)
 		if err == nil && matched {
 			if strings.HasPrefix(pattern, "/") {
 				matches = append(matches, candidate)
@@ -77,6 +77,24 @@ func (f *FileSystem) Glob(cwd, pattern string) []string {
 	}
 	sort.Strings(matches)
 	return matches
+}
+
+// matchShellPattern is path.Match with the shell's [!...] negated bracket
+// spelling, which path.Match only understands as [^...].
+func matchShellPattern(pattern, name string) (bool, error) {
+	if strings.Contains(pattern, "[!") {
+		runes := []rune(pattern)
+		for index := 0; index < len(runes); index++ {
+			switch {
+			case runes[index] == '\\':
+				index++
+			case runes[index] == '[' && index+1 < len(runes) && runes[index+1] == '!':
+				runes[index+1] = '^'
+			}
+		}
+		pattern = string(runes)
+	}
+	return path.Match(pattern, name)
 }
 
 func relativePath(base, target string) string {

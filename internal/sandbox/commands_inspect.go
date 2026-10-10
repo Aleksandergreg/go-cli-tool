@@ -95,6 +95,10 @@ func humanSize(size int) string {
 }
 
 func (s *Sandbox) cmdStat(args []string) (string, error) {
+	args, err := operandsOnly(args)
+	if err != nil {
+		return "", err
+	}
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing file operand")
 	}

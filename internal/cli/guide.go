@@ -7,8 +7,8 @@ import (
 )
 
 func (a *App) runGuide(args []string) error {
-	if len(args) != 0 {
-		return fmt.Errorf("guide does not accept arguments")
+	if help, err := a.parseNoArgs("guide", args); help || err != nil {
+		return err
 	}
 	player, err := a.loadPlayer()
 	if err != nil {
@@ -31,7 +31,7 @@ func (a *App) printQuickStart() {
 	fmt.Fprintln(a.out, a.style.Section("THE THREE RULES"))
 	fmt.Fprintf(a.out, "  %s Produce the objective's result; the final outcome is what counts.\n", a.style.Accent("1."))
 	fmt.Fprintf(a.out, "  %s Try any supported route. Suggested tools orient you without requiring one command.\n", a.style.Accent("2."))
-	fmt.Fprintf(a.out, "  %s Hints are always available, but they reduce bonus XP.\n", a.style.Accent("3."))
+	fmt.Fprintf(a.out, "  %s Hints are always available, but each one lowers the mission's XP reward.\n", a.style.Accent("3."))
 	fmt.Fprintln(a.out)
 	fmt.Fprintln(a.out, a.style.Section("PROGRESSION"))
 	fmt.Fprintf(a.out, "  %s follows the next incomplete stage; %s shows all four Linux worlds.\n",
@@ -56,7 +56,7 @@ func (a *App) printGuide() {
 	fmt.Fprintf(a.out, "  %s Explore the lab and produce the requested result.\n", a.style.Accent("1."))
 	fmt.Fprintf(a.out, "  %s Use any supported command sequence—the final outcome is what counts.\n", a.style.Accent("2."))
 	fmt.Fprintf(a.out, "  %s Earn XP, discover commands, and continue to the next incomplete stage.\n", a.style.Accent("3."))
-	fmt.Fprintln(a.out, "  Hints are always available; each one reduces the mission's bonus XP, never your progress.")
+	fmt.Fprintln(a.out, "  Hints are always available; each one lowers the mission's XP reward (never below a quarter), never your progress.")
 	fmt.Fprintln(a.out)
 
 	fmt.Fprintln(a.out, a.style.Section("YOUR LEARNING PATH"))

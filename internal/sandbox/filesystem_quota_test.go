@@ -236,7 +236,7 @@ func TestMoveRejectsDestinationTreeBeyondPathLimitAtomically(t *testing.T) {
 
 func TestSedAmplificationIsRejectedBeforeInPlaceWrite(t *testing.T) {
 	box := testSandbox(t)
-	result, err := box.Execute(`printf 'aa\n' | sed 's/(a+)/$1$1/'`)
+	result, err := box.Execute(`printf 'aa\n' | sed -E 's/(a+)/\1\1/'`)
 	if err != nil || result.Output != "aaaa\n" {
 		t.Fatalf("bounded capture replacement output = %q, error %v", result.Output, err)
 	}
@@ -248,7 +248,7 @@ func TestSedAmplificationIsRejectedBeforeInPlaceWrite(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if _, err := box.Execute(`sed -i 's/(a+)/$1$1/' large.txt`); err == nil {
+	if _, err := box.Execute(`sed -E -i 's/(a+)/\1\1/' large.txt`); err == nil {
 		t.Error("amplifying sed replacement unexpectedly succeeded")
 	}
 	content, err := box.FS.ReadFile("/work/large.txt")

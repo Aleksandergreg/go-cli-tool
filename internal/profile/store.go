@@ -49,14 +49,14 @@ func (s Store) Load() (Profile, error) {
 		return New(s.name()), nil
 	}
 	if err != nil {
-		return Profile{}, fmt.Errorf("read profile: %w", err)
+		return Profile{}, fmt.Errorf("read profile %s: %w", s.path, err)
 	}
 	var player Profile
 	if err := json.Unmarshal(data, &player); err != nil {
-		return Profile{}, fmt.Errorf("decode profile: %w", err)
+		return Profile{}, fmt.Errorf("decode profile %s: %w; move the file aside to keep a copy, or run 'opsquest reset' to start over", s.path, err)
 	}
 	if player.Version > currentVersion {
-		return Profile{}, fmt.Errorf("profile version %d is newer than this OpsQuest build", player.Version)
+		return Profile{}, fmt.Errorf("profile version %d at %s is newer than this OpsQuest build; upgrade OpsQuest to keep this progress", player.Version, s.path)
 	}
 	player.Normalize()
 	return player, nil

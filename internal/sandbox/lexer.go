@@ -123,9 +123,18 @@ func lex(line string, env map[string]string) ([]token, error) {
 			quote = 0
 			continue
 		}
+		// Inside double quotes a backslash escapes only $, `, ", \, and newline;
+		// before any other character it stays literal, so "a\nb" reaches
+		// printf with its \n intact.
 		if quote == '"' && char == '\\' {
 			if i+1 >= len(runes) {
 				return nil, fmt.Errorf("unfinished escape")
+			}
+			if !strings.ContainsRune("$`\"\\\n", runes[i+1]) {
+				if err := writeRune(char); err != nil {
+					return nil, err
+				}
+				continue
 			}
 			i++
 			if err := writeRune(runes[i]); err != nil {

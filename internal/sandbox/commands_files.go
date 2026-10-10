@@ -144,6 +144,10 @@ func (s *Sandbox) cmdMkdir(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdTouch(args []string) (string, error) {
+	args, err := operandsOnly(args)
+	if err != nil {
+		return "", err
+	}
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing file operand")
 	}
@@ -197,7 +201,10 @@ func (s *Sandbox) cmdCopy(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdMove(args []string) (string, error) {
-	operands := args
+	operands, err := operandsOnly(args)
+	if err != nil {
+		return "", err
+	}
 	if len(operands) < 2 {
 		return "", fmt.Errorf("missing source or destination")
 	}
@@ -251,6 +258,9 @@ func (s *Sandbox) cmdRemove(command string, args []string) (string, error) {
 		}
 		if command == "rmdir" && !s.FS.IsDir(resolved) {
 			return "", fmt.Errorf("%s: not a directory", name)
+		}
+		if command == "rm" && !recursive && s.FS.IsDir(resolved) {
+			return "", fmt.Errorf("%s: is a directory; use rm -r or rmdir", name)
 		}
 		if err := s.FS.Remove(resolved, recursive, force); err != nil {
 			return "", err

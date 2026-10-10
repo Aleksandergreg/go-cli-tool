@@ -16,7 +16,7 @@ type sedSubstitution struct {
 }
 
 func (s *Sandbox) cmdSed(args []string, stdin string) (string, error) {
-	inPlace, quiet := false, false
+	inPlace, quiet, extended := false, false, false
 	expression := ""
 	files := make([]string, 0)
 	for index := 0; index < len(args); index++ {
@@ -25,6 +25,8 @@ func (s *Sandbox) cmdSed(args []string, stdin string) (string, error) {
 			inPlace = true
 		case "-n":
 			quiet = true
+		case "-E", "-r":
+			extended = true
 		case "-e":
 			if index+1 >= len(args) {
 				return "", fmt.Errorf("-e requires an expression")
@@ -51,7 +53,7 @@ func (s *Sandbox) cmdSed(args []string, stdin string) (string, error) {
 	if inPlace && len(files) == 0 {
 		return "", fmt.Errorf("-i requires at least one file")
 	}
-	substitution, err := parseSedSubstitution(expression)
+	substitution, err := parseSedSubstitution(expression, extended)
 	if err != nil {
 		return "", err
 	}
@@ -84,7 +86,7 @@ func (s *Sandbox) cmdSed(args []string, stdin string) (string, error) {
 	return output.Result()
 }
 
-func parseSedSubstitution(expression string) (sedSubstitution, error) {
+func parseSedSubstitution(expression string, extended bool) (sedSubstitution, error) {
 	if len(expression) < 4 || expression[0] != 's' {
 		return sedSubstitution{}, fmt.Errorf("this lab supports substitutions like s/old/new/g")
 	}
@@ -100,9 +102,19 @@ func parseSedSubstitution(expression string) (sedSubstitution, error) {
 	if err != nil {
 		return sedSubstitution{}, err
 	}
+	if !extended {
+		pattern, err = translateBasicRegex(pattern)
+		if err != nil {
+			return sedSubstitution{}, fmt.Errorf("invalid regular expression: %w", err)
+		}
+	}
 	matcher, err := regexp.Compile(pattern)
 	if err != nil {
 		return sedSubstitution{}, fmt.Errorf("invalid regular expression: %w", err)
+	}
+	replacement, err = translateSedReplacement(replacement, matcher.NumSubexp())
+	if err != nil {
+		return sedSubstitution{}, err
 	}
 	result := sedSubstitution{pattern: matcher, replacement: replacement}
 	for _, flag := range expression[next:] {
@@ -125,12 +137,13 @@ func readSedSection(expression string, start int, delimiter byte) (string, int, 
 			return section.String(), index + 1, nil
 		}
 		if expression[index] == '\\' && index+1 < len(expression) {
-			if expression[index+1] == delimiter {
-				section.WriteByte(delimiter)
-				index++
-				continue
+			index++
+			if expression[index] != delimiter {
+				// Keep other escapes, such as \\ or \(, intact for the regex and
+				// replacement translators; only an escaped delimiter is unwrapped.
+				section.WriteByte('\\')
 			}
-			section.WriteByte('\\')
+			section.WriteByte(expression[index])
 			continue
 		}
 		section.WriteByte(expression[index])

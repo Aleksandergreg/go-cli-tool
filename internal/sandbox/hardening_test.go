@@ -206,3 +206,50 @@ func TestShellHelpReportsSeparateResourceBudgets(t *testing.T) {
 		}
 	}
 }
+
+func TestNewCreatesMissingHomeDirectory(t *testing.T) {
+	t.Run("default home", func(t *testing.T) {
+		box := testSandbox(t)
+		if !box.FS.IsDir("/home/operator") {
+			t.Fatal("New() did not create the default home directory")
+		}
+		for _, line := range []string{"cd", "cd ~", "ls ~/"} {
+			if _, err := box.Execute(line); err != nil {
+				t.Errorf("Execute(%q) error = %v", line, err)
+			}
+		}
+		if box.CWD != "/home/operator" {
+			t.Errorf("CWD after cd = %q, want /home/operator", box.CWD)
+		}
+	})
+
+	t.Run("mission home", func(t *testing.T) {
+		box, err := New(mission.Setup{
+			Directories: []mission.DirectorySpec{{Path: "/work"}},
+			Environment: map[string]string{"HOME": "/srv/oncall"},
+		}, "/work")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !box.FS.IsDir("/srv/oncall") || box.FS.Exists("/home/operator") {
+			t.Fatalf("paths = %v, want only the mission home created", box.FS.Paths())
+		}
+	})
+
+	t.Run("existing setup is preserved", func(t *testing.T) {
+		box, err := New(mission.Setup{
+			Directories: []mission.DirectorySpec{{Path: "/home/operator", Mode: "700"}},
+			Files:       []mission.FileSpec{{Path: "/home/operator/notes.txt", Content: "keep\n"}},
+		}, "/home/operator")
+		if err != nil {
+			t.Fatal(err)
+		}
+		entry, _ := box.FS.Entry("/home/operator")
+		if entry.Mode != 0o700 {
+			t.Errorf("home mode = %o, want the mission's 700", entry.Mode)
+		}
+		if content, err := box.FS.ReadFile("/home/operator/notes.txt"); err != nil || content != "keep\n" {
+			t.Errorf("notes.txt = %q, %v", content, err)
+		}
+	})
+}

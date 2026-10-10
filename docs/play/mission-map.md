@@ -17,7 +17,7 @@ Editable source: [`learning-journey.excalidraw`](diagrams/learning-journey.excal
 The curriculum has two independent tracks:
 
 - **Linux:** 23 missions across four ordered worlds. Bare `opsquest play` follows this track.
-- **Docker:** 16 optional missions across three worlds: Foundations, Container Triage, then Network Plumbing. Docker readiness never blocks Linux play.
+- **Docker:** 16 optional missions across three worlds: It Works on My Machine, Container Triage, then Network Plumbing. Docker readiness never blocks Linux play.
 
 Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, Docker World 2 continues at Mission 30, and Docker World 3 at Mission 35. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
 
@@ -106,7 +106,7 @@ The final Linux world moves from executing a supplied script to repairing reusab
 
 ### Docker World 1: It Works on My Machine
 
-Docker Foundations progresses through listing, logs, sanitized exit status, targeted stop, multi-service recovery, and a mixed lifecycle handoff. Logical aliases hide real container names and IDs, keeping every lesson focused on observable state for exact attempt-owned resources.
+The first Docker world progresses through listing, logs, sanitized exit status, targeted stop, multi-service recovery, and a mixed lifecycle handoff. Logical aliases hide real container names and IDs, keeping every lesson focused on observable state for exact attempt-owned resources.
 
 ### Docker World 2: Container Triage
 

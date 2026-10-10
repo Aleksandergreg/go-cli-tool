@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"fmt"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -97,4 +98,40 @@ func TestDoctorReportsAndCleansOrphanedDockerLabs(t *testing.T) {
 			t.Fatal("doctor accepted a positional argument")
 		}
 	})
+}
+
+func TestDoctorReportsACorruptProfileAndKeepsChecking(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "profile.json")
+	if err := os.WriteFile(path, []byte("{not json"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	out := &bytes.Buffer{}
+	factory := &cliJanitorFactory{cliDockerFactory: cliDockerFactory{available: true, detail: "Docker is ready for this mission."}}
+	app := New(Config{Out: out, ErrOut: &bytes.Buffer{}, Catalog: catalog, Store: profile.NewStore(path, "alex"), Factory: factory})
+
+	err = app.Run([]string{"doctor"})
+	if err == nil || !strings.Contains(err.Error(), "profile check failed") {
+		t.Fatalf("doctor error = %v, want a failed profile check", err)
+	}
+	output := out.String()
+	for _, want := range []string{
+		"embedded catalog:",
+		"✗ profile: decode profile " + path,
+		"opsquest reset",
+		"profile path: " + path,
+		"Linux labs: in-memory",
+		"docker labs: ready",
+		"docker cleanup: no orphaned lab resources",
+	} {
+		if !strings.Contains(output, want) {
+			t.Errorf("doctor output lacks %q:\n%s", want, output)
+		}
+	}
+	if content, readErr := os.ReadFile(path); readErr != nil || string(content) != "{not json" {
+		t.Fatalf("doctor changed the corrupt profile: %q, %v", content, readErr)
+	}
 }

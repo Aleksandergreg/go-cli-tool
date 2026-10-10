@@ -202,6 +202,44 @@ func TestMissionPromptParsesQuotedNavigationArguments(t *testing.T) {
 	}
 }
 
+func TestMissionPromptCampaignFilterSearchesEveryTrack(t *testing.T) {
+	tests := []struct {
+		name    string
+		line    string
+		want    string
+		exclude string
+	}{
+		{name: "other track", line: `list --campaign "Container Triage"`, want: "0/5 missions complete", exclude: "No missions match"},
+		{name: "explicit track still wins", line: `list -track=linux --campaign "Container Triage"`, want: "No missions match", exclude: "Janitor Duty"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
+			seedCompletedMissions(t, store)
+			app, out, errOut := testApp(t, test.line+"\nquit\n", store)
+			if err := app.Run([]string{"play", "3"}); err != nil {
+				t.Fatalf("Run() error = %v; stderr = %s", err, errOut.String())
+			}
+			if !strings.Contains(out.String(), test.want) || strings.Contains(out.String(), test.exclude) {
+				t.Fatalf("in-lab %q output lacks %q or contains %q:\n%s", test.line, test.want, test.exclude, out.String())
+			}
+		})
+	}
+}
+
+func TestHasFlagRecognizesFlagPackageForms(t *testing.T) {
+	for _, args := range [][]string{{"--track", "docker"}, {"-track", "docker"}, {"--track=docker"}, {"-track=docker"}} {
+		if !hasFlag(args, "track") {
+			t.Errorf("hasFlag(%q, track) = false", args)
+		}
+	}
+	for _, args := range [][]string{{"--tracks"}, {"track"}, {"--", "--track"}} {
+		if hasFlag(args, "track") {
+			t.Errorf("hasFlag(%q, track) = true", args)
+		}
+	}
+}
+
 func TestMissionPromptReportsMalformedNavigation(t *testing.T) {
 	store := profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "alex")
 	app, out, errOut := testApp(t, "list --campaign \"First Day\nquit\n", store)

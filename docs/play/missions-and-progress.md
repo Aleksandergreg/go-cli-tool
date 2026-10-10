@@ -33,8 +33,11 @@ Inside a mission:
 | `quit` | Leave the current attempt |
 
 The command guide, objective reminder, and `help COMMAND` are free. Progressive
-hints trade some XP for increasingly specific guidance. Hint progress remains
-recorded while a mission is incomplete, so quitting cannot erase the cost.
+hints trade some XP for increasingly specific guidance: each one lowers the
+mission's reward, which never falls below a quarter of its base XP. Hint
+progress remains recorded while a mission is incomplete, so quitting cannot
+erase the cost. Hints you have already revealed are repeated when you resume the
+mission and when `hint` runs out, at no extra cost.
 
 ## Choose a route
 
@@ -56,9 +59,12 @@ starts fresh disposable state while retaining saved profile progress.
 ## Completion and rewards
 
 When every observable condition passes, OpsQuest closes the active environment
-before recording completion. The first completion awards hint-adjusted XP,
-records practiced commands, and may unlock achievements. Replays retain the
-original completion and reward.
+before recording completion. The first completion awards hint-adjusted XP and
+may unlock achievements. Replays retain the original completion and reward.
+
+Every successful teaching command counts toward command mastery as soon as it
+runs, including during replays. Lab utilities such as `help`, `man`, `clear`,
+and `history` are free to use and do not count.
 
 The displayed level is derived from total XP. Ranks progress through:
 
@@ -83,6 +89,11 @@ directory belong only to one attempt.
 Completions use stable mission IDs rather than display positions. The mission
 map can therefore grow without invalidating existing completions, provided
 those IDs remain compatible.
+
+`opsquest profile --name NAME` changes your display name, and `opsquest doctor`
+shows where the profile is saved. `opsquest reset` asks before erasing all
+progress; add `--yes` to skip the question. If the profile file is damaged,
+OpsQuest names the file so you can move it aside or reset.
 
 See [Profiles and compatibility](../technical/profiles-and-compatibility.md) for
 storage and migration behavior.
