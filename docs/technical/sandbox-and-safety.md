@@ -164,7 +164,7 @@ Docker-specific ceilings include:
 | Declarative diagnostic log per container | 8 KiB |
 | Captured Docker stdout and stderr | 2 MiB each |
 | Normal Docker operation | 10 seconds |
-| Cleanup attempt | 10 seconds |
+| Cleanup attempt | 10 seconds for all of an attempt's resources, removed up to 8 at a time |
 
 The Docker-compatible engine remains a powerful external dependency; OpsQuest reduces exposure by constraining syntax, setup, runtime options, identity, and cleanup scope. It does not claim to turn an untrusted engine into a security boundary.
 

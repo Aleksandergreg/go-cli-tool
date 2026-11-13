@@ -3,12 +3,109 @@ package dockerlab
 import (
 	"context"
 	"errors"
+	"fmt"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
 )
+
+// sameCleanupCalls compares Docker invocations per resource. Close cleans
+// resources concurrently, so only the order of calls that target the same
+// exact ID, such as inspect before rm, is deterministic.
+func sameCleanupCalls(got, want [][]string) bool {
+	byResource := func(calls [][]string) map[string][][]string {
+		grouped := make(map[string][][]string)
+		for _, call := range calls {
+			resource := call[len(call)-1]
+			grouped[resource] = append(grouped[resource], call)
+		}
+		return grouped
+	}
+	return len(got) == len(want) && reflect.DeepEqual(byResource(got), byResource(want))
+}
+
+func TestCloseCleansResourcesConcurrentlyWithinOneBudget(t *testing.T) {
+	commandRunner := newFakeDockerRunner()
+	environment := createTestEnvironment(t, commandRunner)
+	gate := &concurrencyGate{runner: commandRunner, want: len(environment.containers), release: make(chan struct{})}
+	environment.runner = gate
+
+	if err := environment.Close(); err != nil {
+		t.Fatalf("Close() error = %v", err)
+	}
+	if gate.timedOut {
+		t.Fatal("Close() inspected fixtures one at a time instead of concurrently")
+	}
+	if commandRunner.containerCount() != 0 {
+		t.Fatalf("containers after Close = %d", commandRunner.containerCount())
+	}
+}
+
+func TestCleanupConcurrentlyBoundsParallelismAndKeepsFailureOrder(t *testing.T) {
+	items := make([]int, cleanupParallelism*3)
+	for index := range items {
+		items[index] = index
+	}
+	var mutex sync.Mutex
+	running, peak := 0, 0
+	unresolved, cleanupErrors := cleanupConcurrently(items, func(item int) error {
+		mutex.Lock()
+		running++
+		peak = max(peak, running)
+		mutex.Unlock()
+		time.Sleep(time.Millisecond)
+		mutex.Lock()
+		running--
+		mutex.Unlock()
+		if item%10 == 0 {
+			return fmt.Errorf("item %d", item)
+		}
+		return nil
+	})
+	if peak < 2 || peak > cleanupParallelism {
+		t.Fatalf("peak parallelism = %d, want between 2 and %d", peak, cleanupParallelism)
+	}
+	if want := []int{20, 10, 0}; !reflect.DeepEqual(unresolved, want) {
+		t.Fatalf("unresolved = %v, want %v", unresolved, want)
+	}
+	if len(cleanupErrors) != 3 || cleanupErrors[0].Error() != "item 20" {
+		t.Fatalf("cleanup errors = %v", cleanupErrors)
+	}
+}
+
+// concurrencyGate holds every first inspection until all fixtures are being
+// inspected at once, which only concurrent cleanup can achieve.
+type concurrencyGate struct {
+	runner   runner
+	want     int
+	mutex    sync.Mutex
+	waiting  int
+	release  chan struct{}
+	timedOut bool
+}
+
+func (g *concurrencyGate) run(ctx context.Context, args ...string) (runResult, error) {
+	if args[0] == "container" && args[1] == "inspect" {
+		g.mutex.Lock()
+		g.waiting++
+		if g.waiting == g.want {
+			close(g.release)
+		}
+		g.mutex.Unlock()
+		select {
+		case <-g.release:
+		case <-time.After(2 * time.Second):
+			g.mutex.Lock()
+			g.timedOut = true
+			g.mutex.Unlock()
+		}
+	}
+	return g.runner.run(ctx, args...)
+}
 
 func TestCloseVerifiesOwnershipAndIsIdempotent(t *testing.T) {
 	commandRunner := newFakeDockerRunner()
@@ -26,7 +123,7 @@ func TestCloseVerifiesOwnershipAndIsIdempotent(t *testing.T) {
 		{"container", "inspect", "--format", "{{json .}}", apiID},
 		{"container", "rm", "--force", apiID},
 	}
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, want) {
 		t.Fatalf("cleanup calls:\n got: %q\nwant: %q", got, want)
 	}
 	if commandRunner.containerCount() != 0 {
@@ -35,7 +132,7 @@ func TestCloseVerifiesOwnershipAndIsIdempotent(t *testing.T) {
 	if err := environment.Close(); err != nil {
 		t.Fatalf("second Close() error = %v", err)
 	}
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, want) {
 		t.Fatalf("second Close issued more calls: %q", got)
 	}
 }
@@ -62,7 +159,7 @@ func TestCloseRetriesOnlyUnresolvedContainers(t *testing.T) {
 		{"container", "inspect", "--format", "{{json .}}", apiID},
 		{"container", "rm", "--force", apiID},
 	}
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, firstCalls) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, firstCalls) {
 		t.Fatalf("first cleanup calls:\n got: %q\nwant: %q", got, firstCalls)
 	}
 	if _, err := environment.Execute(context.Background(), "docker ps"); err == nil || !strings.Contains(err.Error(), "environment is closed") {
@@ -76,7 +173,7 @@ func TestCloseRetriesOnlyUnresolvedContainers(t *testing.T) {
 		[]string{"container", "inspect", "--format", "{{json .}}", metricsID},
 		[]string{"container", "rm", "--force", metricsID},
 	)
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, want) {
 		t.Fatalf("cleanup calls after retry:\n got: %q\nwant: %q", got, want)
 	}
 	if commandRunner.containerCount() != 0 {
@@ -85,7 +182,7 @@ func TestCloseRetriesOnlyUnresolvedContainers(t *testing.T) {
 	if err := environment.Close(); err != nil {
 		t.Fatalf("completed Close() error = %v", err)
 	}
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, want) {
 		t.Fatalf("completed Close issued more calls: %q", got)
 	}
 }
@@ -106,7 +203,7 @@ func TestCloseTreatsAlreadyMissingContainerAsResolved(t *testing.T) {
 		{"container", "inspect", "--format", "{{json .}}", apiID},
 		{"container", "rm", "--force", apiID},
 	}
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, want) {
 		t.Fatalf("cleanup calls:\n got: %q\nwant: %q", got, want)
 	}
 	if commandRunner.containerCount() != 0 {
@@ -142,7 +239,7 @@ func TestCloseRefusesContainerWithMismatchedOwnership(t *testing.T) {
 		{"container", "inspect", "--format", "{{json .}}", apiID},
 		{"container", "inspect", "--format", "{{json .}}", apiID},
 	}
-	if got := commandRunner.snapshotCalls(); !reflect.DeepEqual(got, want) {
+	if got := commandRunner.snapshotCalls(); !sameCleanupCalls(got, want) {
 		t.Fatalf("protected cleanup calls:\n got: %q\nwant: %q", got, want)
 	}
 
