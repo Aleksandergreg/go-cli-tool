@@ -1,10 +1,5 @@
 package mission
 
-import (
-	"encoding/json"
-	"fmt"
-)
-
 const (
 	TrackLinux  = "linux"
 	TrackDocker = "docker"
@@ -18,6 +13,11 @@ const (
 
 	DockerStateRunning = "running"
 	DockerStateStopped = "stopped"
+
+	DockerHealthHealthy   = "healthy"
+	DockerHealthUnhealthy = "unhealthy"
+
+	DockerRestartOnFailure = "on-failure"
 )
 
 // ConditionType identifies one observable outcome supported by a mission
@@ -45,6 +45,10 @@ const (
 	ConditionDockerContainerRunning    ConditionType = "docker_container_running"
 	ConditionDockerContainerStopped    ConditionType = "docker_container_stopped"
 	ConditionDockerContainerCountEqual ConditionType = "docker_container_count_equals"
+	ConditionDockerContainerAbsent     ConditionType = "docker_container_absent"
+	ConditionDockerNetworkShared       ConditionType = "docker_containers_share_network"
+	ConditionDockerNetworkIsolated     ConditionType = "docker_containers_isolated"
+	ConditionDockerNetworkAbsent       ConditionType = "docker_network_absent"
 )
 
 // Mission is a declarative OpsQuest exercise. Setup describes the isolated
@@ -129,7 +133,14 @@ type ArchiveEntry struct {
 // code maps these aliases and names to isolated engine resources.
 type DockerSetup struct {
 	Images     []DockerImageSpec     `json:"images"`
+	Networks   []DockerNetworkSpec   `json:"networks,omitempty"`
 	Containers []DockerContainerSpec `json:"containers"`
+}
+
+// DockerNetworkSpec is one logical, attempt-owned network. The Docker adapter
+// always creates it as an internal network with a generated name.
+type DockerNetworkSpec struct {
+	Name string `json:"name"`
 }
 
 type DockerImageSpec struct {
@@ -137,12 +148,21 @@ type DockerImageSpec struct {
 	Reference string `json:"reference"`
 }
 
+// DockerContainerSpec is one logical fixture. Log, ExitCode, Health, and
+// Restart select fixed fixture behaviors implemented by the Docker adapter;
+// mission content never supplies an executable command.
 type DockerContainerSpec struct {
 	Name     string `json:"name"`
 	Image    string `json:"image"`
 	State    string `json:"state"`
 	Log      string `json:"log,omitempty"`
 	ExitCode *int   `json:"exit_code,omitempty"`
+	Health   string `json:"health,omitempty"`
+	Restart  string `json:"restart,omitempty"`
+	// Networks lists declared networks the fixture joins at creation. A
+	// fixture without networks runs with networking disabled and cannot be
+	// connected to a network later.
+	Networks []string `json:"networks,omitempty"`
 }
 
 type Validation struct {
@@ -150,43 +170,16 @@ type Validation struct {
 }
 
 type Condition struct {
-	Type      ConditionType `json:"type"`
-	Path      string        `json:"path,omitempty"`
-	Value     string        `json:"value,omitempty"`
-	Values    []string      `json:"values,omitempty"`
-	PID       int           `json:"pid,omitempty"`
-	Container string        `json:"container,omitempty"`
-	Count     *int          `json:"count,omitempty"`
-	present   conditionFields
-}
-
-// UnmarshalJSON retains field presence so validation can reject an unsupported
-// field even when its explicit JSON value is empty or zero. Condition owns a
-// custom decoder, so it also preserves the catalog's unknown-field rejection.
-func (c *Condition) UnmarshalJSON(data []byte) error {
-	var fields map[string]json.RawMessage
-	if err := json.Unmarshal(data, &fields); err != nil {
-		return err
-	}
-	present := conditionFields(0)
-	for name := range fields {
-		if name == "type" {
-			continue
-		}
-		flag, known := conditionFieldFlags[name]
-		if !known {
-			return fmt.Errorf("json: unknown field %q", name)
-		}
-		present |= flag
-	}
-	type wireCondition Condition
-	var decoded wireCondition
-	if err := json.Unmarshal(data, &decoded); err != nil {
-		return err
-	}
-	*c = Condition(decoded)
-	c.present = present
-	return nil
+	Type       ConditionType `json:"type"`
+	Path       string        `json:"path,omitempty"`
+	Value      string        `json:"value,omitempty"`
+	Values     []string      `json:"values,omitempty"`
+	PID        int           `json:"pid,omitempty"`
+	Container  string        `json:"container,omitempty"`
+	Count      *int          `json:"count,omitempty"`
+	Network    string        `json:"network,omitempty"`
+	Containers []string      `json:"containers,omitempty"`
+	present    conditionFields
 }
 
 type Rewards struct {

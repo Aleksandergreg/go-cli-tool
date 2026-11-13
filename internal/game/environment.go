@@ -18,6 +18,17 @@ type Execution struct {
 	PracticedCommands []string
 	PipelineWidth     int
 	Interactive       *InteractiveAction
+	// Transcript orders output and error messages when one line ran several
+	// commands (a; b, a && b, a || b). When it is empty, Output is the whole
+	// display. Output always holds only standard output for validators.
+	Transcript []TranscriptEntry
+}
+
+// TranscriptEntry is command output, or an error message shown on the
+// player's error stream.
+type TranscriptEntry struct {
+	Text  string
+	Error bool
 }
 
 // InteractiveAction lets an environment hand terminal-only work back to the
@@ -77,6 +88,15 @@ type Availability struct {
 // CLI discovery and diagnostics.
 type AvailabilityChecker interface {
 	Availability(context.Context, mission.Mission) Availability
+}
+
+// ResourceJanitor is implemented by factories whose attempt resources can
+// outlive an OpsQuest process that exits without cleanup. Orphans are only
+// resources whose owning process is provably gone or whose lifetime has
+// expired; live attempts are never reported or removed.
+type ResourceJanitor interface {
+	OrphanedResources(context.Context) (int, error)
+	RemoveOrphanedResources(context.Context) (int, error)
 }
 
 // EnvironmentAvailability reports ready by default so simple test factories

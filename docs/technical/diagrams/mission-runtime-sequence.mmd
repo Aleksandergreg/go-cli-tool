@@ -8,14 +8,24 @@ sequenceDiagram
     participant Factory as game.Factory
     participant Env as Environment
     participant Validator as outcome evaluator
+    participant Web as webapp.Server
+    actor Browser
 
     Player->>CLI: opsquest play [route]
     CLI->>Store: Load()
     Store-->>CLI: normalized profile
     CLI->>CLI: select mission and route
+    opt play --web
+        CLI->>Web: Start(loopback, one-time pairing)
+        Browser->>Web: pair and subscribe
+    end
     CLI->>Session: Run(mission, profile, factory)
     Session->>Factory: Create(context, mission)
     Factory-->>Session: fresh managed environment
+    opt play --web
+        Session-->>Web: sanitized attempt snapshot
+        Web-->>Browser: current state + SSE updates
+    end
 
     loop Until quit, switch, or complete
         Player->>Session: command or mission control
@@ -31,12 +41,20 @@ sequenceDiagram
                 Env-->>Validator: satisfied?
             end
             Validator-->>Session: outcome results
+            opt web companion active
+                Session-->>Web: sanitized outcome snapshot
+                Web-->>Browser: SSE snapshot
+            end
             alt Outcomes remain
                 Session-->>Player: progress and missing-count guidance
             else Every outcome passes
                 Session->>Env: Close()
                 Env-->>Session: cleanup complete
                 Session->>Store: Save(completion, XP, achievements)
+                opt web companion active
+                    Session-->>Web: persisted completion snapshot
+                    Web-->>Browser: SSE completion
+                end
                 Session-->>CLI: completed SessionResult
                 CLI-->>Player: completion and next route
             end

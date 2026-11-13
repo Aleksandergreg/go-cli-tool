@@ -1,0 +1,93 @@
+{
+  "id": "docker-janitor-duty",
+  "number": 30,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Janitor Duty",
+  "campaign": "Container Triage",
+  "difficulty": "beginner",
+  "story": "Last week's one-off backup and report jobs finished long ago, but their exited containers still clutter every listing. The api and worker services are healthy and must keep running.",
+  "objective": "Remove the three finished one-off job containers, keep api and worker running, and leave exactly two mission containers.",
+  "suggested_commands": [
+    "docker"
+  ],
+  "hints": [
+    "Finished jobs are exited containers; docker ps -a shows them beside the running services.",
+    "docker ps --filter status=exited lists only the exited containers.",
+    "docker rm removes one stopped container per command, for example docker rm backup-0914."
+  ],
+  "explanation": "Stopping a container keeps its filesystem, logs, and metadata. Removing it deletes that record. Clearing finished job containers keeps listings readable, and docker rm refuses running containers, so services stay safe unless you stop them first.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {
+        "name": "api",
+        "image": "fixture",
+        "state": "running"
+      },
+      {
+        "name": "worker",
+        "image": "fixture",
+        "state": "running"
+      },
+      {
+        "name": "backup-0914",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "backup 2026-09-14 complete: 412 MB written",
+        "exit_code": 0
+      },
+      {
+        "name": "backup-0915",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "backup 2026-09-15 complete: 415 MB written",
+        "exit_code": 0
+      },
+      {
+        "name": "report-weekly",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "weekly report delivered to ops-leads",
+        "exit_code": 0
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {
+        "type": "docker_container_absent",
+        "container": "backup-0914"
+      },
+      {
+        "type": "docker_container_absent",
+        "container": "backup-0915"
+      },
+      {
+        "type": "docker_container_absent",
+        "container": "report-weekly"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "api"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "worker"
+      },
+      {
+        "type": "docker_container_count_equals",
+        "count": 2
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 75,
+    "hint_penalty": 10
+  }
+}

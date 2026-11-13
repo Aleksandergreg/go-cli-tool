@@ -91,6 +91,14 @@ once_output="$(printf 'pwd\n' | run_fresh_opsquest play --once 1)"
 assert_contains "one-shot play" "${once_output}" "NEXT RECOMMENDED"
 assert_not_contains "one-shot play" "${once_output}" "MISSION 02: Configuration Crawl"
 
+web_output="$(printf 'pwd\n' | run_fresh_opsquest play --web --once 1)"
+assert_no_ansi "web companion play" "${web_output}"
+assert_contains "web companion play" "${web_output}" "WEB MISSION COMPANION"
+assert_contains "web companion play" "${web_output}" "http://127.0.0.1:"
+assert_contains "web companion play" "${web_output}" "Mission 01 ready in the web companion"
+assert_contains "web companion play" "${web_output}" "✓ Mission complete!"
+assert_not_contains "web companion play" "${web_output}" "Your first ticket simply says"
+
 printf 'pwd\n' | run_route_opsquest play --once 1 >/dev/null
 replay_hints_output="$(printf 'hint\nhint\nhint\nquit\n' | run_route_opsquest play 1)"
 assert_contains "replay hints" "${replay_hints_output}" "Hint 1/2 (no XP cost):"
@@ -118,7 +126,9 @@ docker_list_output="$(run_opsquest list --track docker)"
 assert_no_ansi "docker list" "${docker_list_output}"
 assert_contains "docker list" "${docker_list_output}" "DOCKER LABS"
 assert_contains "docker list" "${docker_list_output}" "Container Census"
-assert_contains "docker list" "${docker_list_output}" "0/6 missions complete"
+assert_contains "docker list" "${docker_list_output}" "Container Triage"
+assert_contains "docker list" "${docker_list_output}" "Network Plumbing"
+assert_contains "docker list" "${docker_list_output}" "0/16 missions complete"
 assert_contains "docker list" "${docker_list_output}" "Continue: opsquest play --track docker"
 assert_contains "docker list" "${docker_list_output}" "Jump: opsquest play --track docker --world N"
 
@@ -144,11 +154,18 @@ assert_contains "profile initialization" "${profile_output}" "Operator: Smoke Op
 
 doctor_output="$(run_opsquest doctor)"
 assert_no_ansi "doctor" "${doctor_output}"
-assert_contains "doctor" "${doctor_output}" "embedded catalog: 29 missions"
+assert_contains "doctor" "${doctor_output}" "embedded catalog: 39 missions (23 Linux, 16 Docker)"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
 assert_contains "doctor" "${doctor_output}" "Linux labs: in-memory; no host shell or filesystem access"
 assert_contains "doctor" "${doctor_output}" "docker labs:"
 assert_contains "doctor" "${doctor_output}" "docker executable not found in PATH"
+assert_not_contains "doctor" "${doctor_output}" "docker cleanup:"
+
+cleanup_output="$(run_opsquest doctor --cleanup 2>&1 || true)"
+assert_contains "doctor cleanup" "${cleanup_output}" "docker cleanup failed: docker executable not found in PATH"
+
+doctor_help_output="$(run_opsquest help doctor)"
+assert_contains "doctor help" "${doctor_help_output}" "Usage: opsquest doctor [--cleanup]"
 
 play_output="$(printf 'pwd\nopsquest list --completed\nplay 4\nquit\n' | run_opsquest play)"
 assert_no_ansi "scripted mission" "${play_output}"

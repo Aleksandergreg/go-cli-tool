@@ -30,17 +30,18 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 ## What is included
 
 - 23 Linux missions across four ordered learning worlds
-- Six optional, disposable Docker Foundations missions
+- 16 optional, disposable Docker missions across three worlds: It Works on My Machine, Container Triage, and Network Plumbing
 - An isolated in-memory filesystem, environment, process table, and archives
-- Quote-aware globs and variables, pipelines, redirection, and command history
+- Quote-aware globs and variables, pipelines, redirection, `;`/`&&`/`||` command lists, and command history
 - A compact virtual `vi` and bounded virtual shell scripts
 - Progressive hints, free command guidance, XP, ranks, and six achievements
+- An optional loopback-only web companion for mission guidance and live progress
 - World maps, direct mission practice, replay, and persistent profile progress
 - Outcome validation for output, paths, content, permissions, processes, environment, and Docker state
 
 ## Quick start
 
-OpsQuest requires Go 1.22 or newer.
+OpsQuest requires Go 1.26 or newer when building from source.
 
 ```console
 $ go run ./cmd/opsquest play
@@ -63,12 +64,16 @@ $ opsquest guide
 $ opsquest map
 $ opsquest play --world 2
 $ opsquest play --once 4
+$ opsquest play --web
 $ opsquest profile
 $ opsquest achievements
 $ opsquest doctor
 ```
 
-The complete player guide covers [installation and first play](docs/play/quick-start.md), [mission behavior](docs/play/how-missions-work.md), and [controls and commands](docs/play/controls-and-commands.md).
+The complete player guide covers [installation and first play](docs/play/quick-start.md),
+[the local web companion](docs/play/web-companion.md),
+[missions and progress](docs/play/missions-and-progress.md), and
+[controls and commands](docs/play/controls-and-commands.md).
 
 ## Optional Docker Foundations
 
@@ -80,21 +85,21 @@ $ opsquest doctor
 $ opsquest play 20
 ```
 
-On macOS, you can direct both setup and gameplay to OrbStack without changing your global Docker context:
-
-```console
-$ DOCKER_CONTEXT=orbstack docker pull docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662
-$ DOCKER_CONTEXT=orbstack opsquest doctor
-$ DOCKER_CONTEXT=orbstack opsquest play 20
-```
-
-OpsQuest never pulls the image automatically. The OrbStack context uses the same constrained Docker integration and cleanup path as every other compatible engine. See [Docker Foundations](docs/play/docker-foundations.md) for setup details, the teaching subset, and the isolation boundary.
+OpsQuest never pulls the image automatically. If an OpsQuest process is
+killed before it can clean up, the next Docker mission removes its leftover lab
+containers; `opsquest doctor` reports them and `opsquest doctor --cleanup`
+removes them on demand. See
+[Docker Foundations](docs/play/docker-foundations.md) for Docker Desktop,
+Docker Engine, and OrbStack setup, plus the teaching subset and isolation
+boundary.
 
 ## Safety model
 
 Player-entered Linux commands—including virtual scripts—are parsed and executed by OpsQuest. They never reach a host shell, host process, or host path. The teaching shell operates only on bounded in-memory state.
 
-Docker input is parsed into a small set of typed teaching actions. OpsQuest constructs Docker arguments itself, uses only exact resources labeled for the current attempt, applies resource restrictions, and verifies ownership again during cleanup. It does not expose arbitrary Docker passthrough, privileged mode, host mounts, host networking, devices, or the Docker socket.
+Docker input is parsed into a small set of typed teaching actions. OpsQuest constructs Docker arguments itself, uses only exact resources labeled for the current attempt, applies resource restrictions, and verifies ownership again during cleanup. Fixture processes live at most 24 hours, and leftovers from a crashed process are removed only when every ownership label matches and the recorded owner process is gone. Lab networks are always internal, attempt-owned, and labeled; players cannot run commands inside containers. It does not expose arbitrary Docker passthrough, privileged mode, host mounts, host networking, devices, or the Docker socket.
+
+The optional web companion binds only to an ephemeral `127.0.0.1` port, uses a one-time pairing URL, and exposes a read-only mission projection. It cannot submit commands, mutate the profile or attempt, address Docker resources, or approve completion.
 
 Read [Sandbox and safety](docs/technical/sandbox-and-safety.md) for trust boundaries, quotas, cleanup behavior, and threat controls.
 
@@ -103,10 +108,12 @@ Read [Sandbox and safety](docs/technical/sandbox-and-safety.md) for trust bounda
 The hosted site is published at [aleksandergreg.github.io/go-cli-tool](https://aleksandergreg.github.io/go-cli-tool/). Its source is organized by purpose:
 
 - [Play OpsQuest](docs/play/README.md) — player setup, missions, controls, worlds, and Docker
-- [Game and learning](docs/game/README.md) — learning philosophy, curriculum, mission design, and progression
-- [Technical](docs/technical/README.md) — architecture, safety, mission content, profiles, and contribution workflows
-- [Roadmap](docs/roadmap/README.md) — delivered foundations and proposed improvements
-- [Delivery history](docs/history/README.md) — point-in-time iteration evidence
+- [How OpsQuest works](docs/game/README.md) — learning philosophy, architecture, and safety
+- [Contribute](docs/technical/README.md) — quality gates, mission authoring, and compatibility
+- [Roadmap](docs/roadmap/README.md) — explicitly proposed, unshipped work
+
+Point-in-time iteration evidence stays in the repository-only
+[delivery history](project/history/README.md).
 
 ## Project structure
 
@@ -120,7 +127,9 @@ internal/mission/   Strict embedded catalog, worlds, and mission JSON
 internal/profile/   XP, ranks, achievements, and atomic persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
 internal/dockerlab/ Optional, label-scoped Docker adapter
+internal/webapp/    Loopback-only mission companion and embedded browser UI
 docs/               Zensical documentation source and diagrams
+project/            Repository-only decisions and delivery history
 ```
 
 ## Development
@@ -130,6 +139,7 @@ The repository [agent guide](AGENTS.md) defines safety invariants, package bound
 ```console
 $ make check             # tests, mission validation, vet, build, and smoke test
 $ make check-all         # normal gate plus race detection
+$ make check-docs        # dependency-free documentation consistency checks
 $ make docker-integration
 $ make orbstack-integration
 $ make docs-check        # strict Zensical build and link validation
@@ -144,13 +154,22 @@ Task-specific Codex workflows live in [`.agents/skills`](.agents/skills): `$add-
 
 ## Releases and security
 
-Release Please maintains semantic-version release pull requests from Conventional Commits. Merging a release pull request creates the tag and GitHub release; GoReleaser attaches checksummed macOS, Linux, and Windows archives. Repository-managed CodeQL analyzes the real Go build path. GitHub settings and rulesets are declared under [`infra/github`](infra/github); the [governance runbook](docs/technical/repository-governance.md) defines the credential, state, and reviewed-apply boundaries.
+Release Please maintains semantic-version release pull requests from
+Conventional Commits. Merging a release pull request creates the tag and GitHub
+release; GoReleaser attaches checksummed macOS, Linux, and Windows archives.
+Repository-managed CodeQL analyzes the real Go build path. GitHub settings and
+rulesets are declared under [`infra/github`](infra/github); its
+[governance runbook](infra/github/GOVERNANCE.md) defines the credential, state,
+and reviewed-apply boundaries.
 
-See [CHANGELOG.md](CHANGELOG.md), [GitHub Releases](https://github.com/Aleksandergreg/go-cli-tool/releases), and the [CI/CD roadmap](docs/roadmap/ci-cd.md). Third-party module licenses are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+See [CHANGELOG.md](CHANGELOG.md), [GitHub Releases](https://github.com/Aleksandergreg/go-cli-tool/releases),
+and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
 ## Roadmap
 
-Docker campaign increments, distribution improvements, and longer-term ideas are tracked in the [project roadmap](docs/roadmap/README.md). Kubernetes remains future scope.
+Docker campaign increments, distribution improvements, and longer-term ideas
+are tracked in the [roadmap](docs/roadmap/README.md). Kubernetes remains future
+scope.
 
 ## License
 

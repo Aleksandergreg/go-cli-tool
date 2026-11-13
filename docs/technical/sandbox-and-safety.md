@@ -6,10 +6,11 @@ status: current
 
 # OpsQuest sandbox and safety
 
-OpsQuest has two execution models with different trust boundaries:
+OpsQuest has two execution models and one optional presentation boundary:
 
 - Linux missions use a teaching shell implemented entirely in Go over in-memory state.
 - Optional Docker missions parse a deliberately small command language and translate typed actions into fixed Docker CLI arguments for attempt-owned resources on the active Docker-compatible engine.
+- `play --web` serves sanitized mission snapshots from an ephemeral IPv4 loopback port; the browser cannot submit commands or approve completion.
 
 Neither model passes a raw player line to a host shell.
 
@@ -19,10 +20,34 @@ Neither model passes a raw player line to a host shell.
 
 Editable source: [`trust-boundaries.excalidraw`](diagrams/trust-boundaries.excalidraw)
 
-The player controls command text and navigation choices. Trusted OpsQuest code decides whether that text is a session control, a simulated-shell command, or one of the supported Docker teaching forms. Only two components normally interact with durable or external host facilities:
+The diagram focuses on command and storage authority. The separate loopback
+presentation boundary is described in [Web companion boundary](#web-companion-boundary).
+
+The player controls command text and navigation choices. Trusted OpsQuest code decides whether that text is a session control, a simulated-shell command, or one of the supported Docker teaching forms. Only three components normally interact with durable or external host facilities:
 
 - `profile.Store` reads and atomically replaces one configured profile file. Player commands cannot address this path.
 - `dockerlab.execRunner` invokes the discovered Docker executable with arguments constructed inside `internal/dockerlab`. It never invokes `sh -c` and never forwards the original line.
+- `webapp.Server` listens on `127.0.0.1` for the lifetime of one `play --web` command. It has no environment, runner, profile store, or command-input dependency.
+
+## Web companion boundary
+
+The companion uses an ephemeral port and a cryptographically random one-time
+pairing token. A successful exchange creates an HTTP-only, same-site cookie and
+redirects away from the token-bearing URL. Exact Host and Origin checks reduce
+loopback confusion and DNS-rebinding exposure; restrictive CSP, frame, referrer,
+content-type, permissions, and cross-origin headers constrain the embedded page.
+
+After pairing, the page may read the latest sanitized snapshot and subscribe to
+Server-Sent Events. It cannot submit terminal lines, address virtual files,
+choose Docker aliases or IDs, alter profile data, reveal a hint without the CLI
+control, or mark an objective complete. Static assets use no external scripts,
+fonts, trackers, or network service.
+
+Snapshots are complete current projections with monotonically increasing event
+IDs. A slow subscriber skips obsolete queued snapshots and converges on the
+latest state. They exclude raw mission setup and condition objects, command
+text, terminal output, and internal resource identifiers. The page constructs
+all mission text with DOM text nodes rather than HTML interpolation.
 
 ## Linux command execution
 
@@ -33,18 +58,19 @@ Editable source: [`command-execution-pipeline.mmd`](diagrams/command-execution-p
 [`Sandbox.Execute`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/sandbox/shell.go) processes a line in explicit stages:
 
 1. **Bound input:** reject a command line over 64 KiB before adding it to the attempt's 100-entry history.
-2. **Lex:** recognize words, quotes, escapes, comments, variables, pipes, and `<`, `>`, or `>>`. Expansion reads only the sandbox environment.
-3. **Parse:** build pipeline stages and attach at most one input and output redirection to each stage.
-4. **Expand:** resolve eligible globs against the virtual filesystem and enforce expanded token and argument budgets.
-5. **Preflight compositions:** reject unsupported interactive-editor or script placement before an earlier pipeline stage can mutate state.
-6. **Dispatch:** call a Go method from the supported-command switch. Nested `find -exec` and scripts share dispatch budgets.
-7. **Move virtual data:** pipeline output becomes the next stage's input; redirection reads or writes only virtual files.
-8. **Return learning metadata:** output, successful command names, maximum pipeline width, or a virtual editor request flow back to `game.Session`.
-9. **Observe outcomes:** output validators compare the returned text; state validators query the active environment.
+2. **Split lists:** separate unquoted `;`, `&&`, and `||` into pipelines and check every pipeline's syntax before the first runs. Each pipeline then passes through the remaining stages only when its turn comes, so expansion sees earlier `cd` and `export` effects.
+3. **Lex:** reject unquoted shell syntax outside the teaching subset (background jobs, subshells, substitutions, special parameters, and file-descriptor redirection), then recognize words, quotes, escapes, comments, variables, `$?`, pipes, and `<`, `>`, or `>>`. Interactive and script lines share these rules. Expansion reads only the sandbox environment and the attempt's last exit status.
+4. **Parse:** build pipeline stages and attach at most one input and output redirection to each stage.
+5. **Expand:** resolve eligible globs against the virtual filesystem and enforce expanded token and argument budgets.
+6. **Preflight compositions:** reject unsupported interactive-editor or script placement before an earlier pipeline stage can mutate state.
+7. **Dispatch:** call a Go method from the supported-command switch. Every pipeline of a list, nested `find -exec`, and scripts share one dispatch budget, and a list's combined output shares the 2 MiB output limit.
+8. **Move virtual data:** pipeline output becomes the next stage's input; redirection reads or writes only virtual files. A stage's `>` target is emptied just before it runs and restored if that stage fails.
+9. **Return learning metadata:** output, successful command names, maximum pipeline width, an ordered output-and-error transcript for lists, or a virtual editor request flow back to `game.Session`.
+10. **Observe outcomes:** output validators compare the returned text; state validators query the active environment.
 
 Unsupported commands fail at dispatch. The shell implements a teaching subset, not process lookup, so a name absent from the dispatcher can never fall through to the host.
 
-A full pipeline is not one transaction: an ordinary earlier stage may mutate virtual state before a later stage fails. Safety-sensitive operations preflight their own affected state, and compositions known to be unsupported (`vi` in a pipeline, or a script receiving pipeline/file input) are rejected before any stage runs.
+A full pipeline is not one transaction: an ordinary earlier stage may mutate virtual state before a later stage fails. Safety-sensitive operations preflight their own affected state, a failed stage restores the redirect target it emptied, and compositions known to be unsupported (`vi` in a pipeline or list, or a script receiving pipeline/file input) are rejected before any stage runs. A command list is likewise not a transaction: commands that ran before a failure keep their effects.
 
 ## Virtual state model
 
@@ -52,9 +78,9 @@ One `sandbox.Sandbox` owns:
 
 | State | Representation | Persistence |
 | --- | --- | --- |
-| Files and directories | Normalized absolute paths to typed entries with content, mode, and owner | Attempt only |
+| Files and directories | Normalized absolute paths to typed entries with content, mode, and owner; the virtual `HOME` directory always exists | Attempt only |
 | Working directory | Virtual absolute path | Attempt only; child scripts restore caller scope |
-| Environment | String map initialized with virtual `HOME` and `USER` | Attempt only; exported child-script values restore on return |
+| Environment | String map initialized with virtual `HOME` and `USER`, plus the last exit status read by `$?` | Attempt only; exported child-script values restore on return, and a script's status becomes its caller's `$?` |
 | Processes | Mission-provided PID map and running flags | Attempt only; no host PID is visible or signalable |
 | Archives | Logical archive metadata and payload entries | Attempt only; kept synchronized with virtual path mutations |
 | History | Last 100 accepted command lines | Attempt only |
@@ -97,14 +123,33 @@ Docker missions are opt-in and follow a narrower path:
 
 1. The mission catalog accepts only pinned image references and bounded logical fixtures.
 2. Availability checks the Docker executable, active Docker-compatible engine, and exact local image without creating resources or pulling images. An active `orbstack` context is identified for provider-specific guidance only.
-3. The factory generates a random session ID and creates containers with generated names and five ownership labels.
-4. Player text is parsed into `list`, `start`, `restart`, `stop`, `inspect`, `logs`, or `help`; flags and aliases must match the small grammar.
+3. The factory first sweeps orphaned fixtures (see below), then generates a random session ID, creates the mission's declared networks, and creates containers. Networks and containers get generated names, five ownership labels, and two advisory owner labels (process ID and host name).
+4. Player text is parsed into `list`, `start`, `restart`, `stop`, `rm`, `inspect`, `logs`, or `help`; flags and aliases must match the small grammar. `ps` filters are limited to fixed `status` and `health` values and are evaluated in Go over sanitized inspection data rather than passed to Docker. `logs --tail` accepts only a whole number up to 10,000 or `all`. `rm` has no `--force` form and refuses a running container. `docker network ls`, `inspect`, `create`, `rm`, `connect`, and `disconnect` accept no options, validated logical names only, and never the built-in `bridge`, `host`, `none`, or `default` networks.
 5. The adapter resolves a validated logical alias to a tracked exact container ID.
 6. `exec.CommandContext` receives fixed arguments constructed by the adapter.
 7. Observations inspect exact IDs or enumerate by the session label, then verify the complete ownership-label set.
-8. `Close` seals the attempt immediately, re-inspects ownership, removes only matching exact IDs, and retains unresolved resources for a retry.
+8. `Close` seals the attempt immediately, re-inspects ownership, removes only matching exact IDs (containers first, then networks), and retains unresolved resources for a retry. Resources the player already removed count as resolved.
+9. Engine errors that name a tracked container are rewritten to its logical identity, and a missing container is reported as removed, so real IDs and generated names never reach the player.
 
-Created containers use no network, a read-only root filesystem, a bounded temporary filesystem, an unprivileged numeric user, no Linux capabilities, `no-new-privileges`, and explicit PID, memory, CPU, file-descriptor, restart, and stop-timeout limits. Diagnostic fixtures use a fixed shell program; bounded log text and exit status are passed as data arguments rather than interpolated into that program. Containers do not receive host bind mounts, devices, privileged mode, host networking, or a Docker socket.
+Created containers use a read-only root filesystem, a bounded temporary filesystem, an unprivileged numeric user, no Linux capabilities, `no-new-privileges`, and explicit PID, memory, CPU, file-descriptor, restart, and stop-timeout limits. Diagnostic and logging fixtures use fixed shell programs; bounded log text, exit status, and lifetime are passed as data arguments rather than interpolated into those programs. Long-lived fixture processes exit after 24 hours. Health probes are the fixed BusyBox applets `true` or `false`, selected by a validated `health` enum. The restart policy is `no` except for a declared crash-loop fixture, which uses `on-failure:50` and therefore stops relaunching on its own. Containers do not receive host bind mounts, devices, privileged mode, host networking, published ports, or a Docker socket.
+
+### Lab networks
+
+A fixture without declared networks runs with `--network none`, exactly as before networks existed. A fixture with declared networks starts on the first one and joins the rest before it starts, with its logical alias as its network alias. Every lab network is created by OpsQuest with fixed options: the `bridge` driver and `--internal`, so it has no route to external networks. Players cannot pass network options, can create at most 4 networks per attempt, and can only attach this attempt's containers to this attempt's networks. `docker network rm` is refused while any container is attached, including stopped ones, because Docker would otherwise leave those containers unable to start. `inspect` shows logical network names and members, never engine IDs.
+
+The internal flag is not the only control. Players cannot run commands inside containers: there is no `exec`, and fixtures run fixed programs. So no player-controlled traffic starts inside a lab network, whatever the engine allows between an internal network and its host gateway.
+
+### Orphaned fixtures
+
+A process that is killed before `Close` leaves its fixtures behind. Before each Docker attempt, and on demand through `opsquest doctor --cleanup`, the factory lists containers and networks labeled `com.opsquest.managed=true` and removes an exact ID only when all of these hold:
+
+- the managed, schema, session, mission, and alias labels are present and well formed;
+- the name is the generated `opsquest-<session>-cNN` (container) or `opsquest-<session>-nNN` (network) form for that same session;
+- either the owner-host label matches this machine and the recorded owner process is no longer running, or the resource is older than the 24-hour fixture lifetime.
+
+Orphaned containers are removed before orphaned networks.
+
+Owners on other hosts, and fixtures created before owner labels existed, can therefore only age out. A plain `opsquest doctor` counts orphans without removing anything. A failed automatic sweep never blocks mission setup.
 
 Docker-specific ceilings include:
 
@@ -113,6 +158,9 @@ Docker-specific ceilings include:
 | Player Docker line | 64 KiB |
 | Images per mission | 16 |
 | Containers per mission | 32 |
+| Declared networks per mission | 8 |
+| Declared networks per container | 4 |
+| Player-created networks per attempt | 4 |
 | Declarative diagnostic log per container | 8 KiB |
 | Captured Docker stdout and stderr | 2 MiB each |
 | Normal Docker operation | 10 seconds |
@@ -124,15 +172,24 @@ The Docker-compatible engine remains a powerful external dependency; OpsQuest re
 
 | Threat | Primary controls | Evidence location |
 | --- | --- | --- |
-| Player launches a host command | Closed Go dispatcher; no fallback process lookup; raw line never reaches a shell | `internal/sandbox/shell.go`, hardening tests |
-| Player reads or writes a host path | Independent in-memory root and virtual path resolver | `internal/sandbox/filesystem.go`, regression tests |
+| Player launches a host command | Closed Go dispatcher; no fallback process lookup; raw line never reaches a shell | `internal/sandbox/shell.go`, `dispatch.go`, hardening tests |
+| Player reads or writes a host path | Independent in-memory root and virtual path resolver | `internal/sandbox/filesystem*.go`, regression tests |
 | Expansion exhausts memory | Line, token, argument, output, entry, and aggregate budgets | quota tests in `internal/sandbox` |
 | Archive escapes extraction target | Strict metadata validation and destination containment | archive and hardening tests |
 | Script bypasses shell restrictions | Same parser/dispatcher, bounded nesting and steps, unsupported syntax rejection | `commands_script.go` and tests |
 | Docker input becomes arbitrary CLI flags | Typed parser accepts only exact actions and validated logical aliases | `internal/dockerlab/parser.go` and tests |
-| Cleanup removes another container | Exact ID plus managed/schema/session/mission/alias label verification | `internal/dockerlab/environment.go` and tests |
-| Partial Docker setup leaks resources silently | Factory may return a partial environment; managed cleanup and retryable `Close` | `internal/dockerlab/factory.go`, environment contract tests |
+| Cleanup removes another container | Exact ID plus managed/schema/session/mission/alias label verification | `internal/dockerlab/cleanup.go`, `ownership.go` and tests |
+| Partial Docker setup leaks resources silently | Factory may return a partial environment; managed cleanup and retryable `Close` | `internal/dockerlab/factory.go`, `fixtures.go`, environment contract tests |
+| A killed process leaks running fixtures | 24-hour fixture lifetime; owner-process and age-based sweep with complete label and generated-name proof | `internal/dockerlab/janitor.go` and tests |
+| Orphan sweep removes a live or foreign container | Live same-host owners are never swept; unknown owners only after the fixture lifetime; exact IDs only | `internal/dockerlab/janitor_test.go` |
+| Removed containers leak engine identity | Missing-container errors mapped to the alias; tracked IDs and names redacted from engine errors | `internal/dockerlab/transport.go`, `container_commands.go` and tests |
+| Lab network reaches the host network or internet | Fixed `--internal` bridge networks; no network options; no in-container command execution | `internal/dockerlab/network.go`, `network_test.go` |
+| Player attaches a lab container to a host or foreign network | Built-in names rejected by the parser; only tracked attempt networks resolve; exact IDs only | `internal/dockerlab/parser.go`, `network_commands.go` and tests |
+| Network cleanup strands or removes the wrong network | Containers removed first; label and generated-name verification; retryable unresolved set; janitor sweeps networks after containers | `internal/dockerlab/cleanup.go`, `janitor.go` and tests |
 | Persisted display text injects terminal controls | Profile names reject non-printable characters and normalize legacy values | `internal/profile/profile.go` and tests |
+| Another site reaches the loopback companion | One-time capability pairing, exact Host/Origin checks, same-site HTTP-only cookie, no permissive CORS | `internal/webapp/server.go` and tests |
+| Browser input reaches a mission environment | Companion exposes only read-only state and SSE routes; `game.Session` has no companion command callback | `internal/webapp`, `internal/game/companion.go` |
+| Browser observes private attempt internals | Dedicated sanitized snapshot type; no setup, raw condition, transcript, or resource-ID fields | `internal/game/companion.go` and tests |
 
 ## Safety review checklist
 

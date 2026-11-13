@@ -1,0 +1,75 @@
+{
+  "id": "docker-running-isnt-healthy",
+  "number": 32,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Running Isn't Healthy",
+  "campaign": "Container Triage",
+  "difficulty": "intermediate",
+  "story": "All the web replicas report as up, yet one in three requests fails. Each replica has a health probe, and one of them has been failing it quietly. A standby replica is ready to take its place.",
+  "objective": "Take the unhealthy web replica out of service without deleting it, bring the standby replica online, keep the healthy replica running, and leave exactly three mission containers.",
+  "suggested_commands": [
+    "docker"
+  ],
+  "hints": [
+    "Running means the process exists; the health probe says whether it can do its job. docker ps shows health beside each running container.",
+    "docker ps --filter health=unhealthy isolates the failing replica, and docker inspect shows State.Health.",
+    "Stop the unhealthy replica instead of removing it so its logs stay available, then start web-c."
+  ],
+  "explanation": "A health check is a probe Docker runs inside the container. A container can be running while its probe fails, so check health as well as state. Stopping the bad replica keeps its logs and metadata for debugging, and starting the standby restores capacity.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {
+        "name": "web-a",
+        "image": "fixture",
+        "state": "running",
+        "health": "healthy",
+        "log": "INFO web-a listening on :8080"
+      },
+      {
+        "name": "web-b",
+        "image": "fixture",
+        "state": "running",
+        "health": "unhealthy",
+        "log": "INFO web-b listening on :8080\nERROR upstream pool exhausted; health probe failing"
+      },
+      {
+        "name": "web-c",
+        "image": "fixture",
+        "state": "stopped",
+        "health": "healthy",
+        "log": "INFO web-c listening on :8080"
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {
+        "type": "docker_container_stopped",
+        "container": "web-b"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "web-a"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "web-c"
+      },
+      {
+        "type": "docker_container_count_equals",
+        "count": 3
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 90,
+    "hint_penalty": 15
+  }
+}

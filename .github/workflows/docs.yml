@@ -11,6 +11,7 @@ on:
       - "requirements-docs.txt"
       - "Makefile"
       - "README.md"
+      - "scripts/check-docs.sh"
   pull_request:
     branches:
       - main
@@ -21,6 +22,7 @@ on:
       - "requirements-docs.txt"
       - "Makefile"
       - "README.md"
+      - "scripts/check-docs.sh"
   workflow_dispatch:
 
 permissions:
@@ -44,7 +46,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Python
-        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.13"
       - name: Install pinned documentation toolchain
@@ -75,4 +77,4 @@ jobs:
     steps:
       - name: Deploy GitHub Pages
         id: deployment
-        uses: actions/deploy-pages@cd2ce8fcbc39b97be8ca5fce6e763baed58fa128 # v5
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5

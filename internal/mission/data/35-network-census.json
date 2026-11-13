@@ -1,0 +1,90 @@
+{
+  "id": "docker-network-census",
+  "number": 35,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Network Census",
+  "campaign": "Network Plumbing",
+  "difficulty": "beginner",
+  "story": "A new teammate wants to know which network the api uses to reach its cache. The network diagram on the wiki is two reorgs out of date.",
+  "objective": "Find the network that api and cache share, and finish by displaying that network's inspection.",
+  "suggested_commands": [
+    "docker"
+  ],
+  "hints": [
+    "docker network ls lists the lab's networks.",
+    "docker inspect api shows which networks a container is attached to under NetworkSettings.Networks.",
+    "docker network inspect cache-net lists every container attached to that network."
+  ],
+  "explanation": "Containers can only talk to each other over a network they share. A network's inspection lists every container attached to it, and a container's inspection lists its networks. Between them you can map who can reach whom without guessing.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "networks": [
+      {
+        "name": "web-net"
+      },
+      {
+        "name": "cache-net"
+      },
+      {
+        "name": "db-net"
+      }
+    ],
+    "containers": [
+      {
+        "name": "web",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "web-net"
+        ]
+      },
+      {
+        "name": "api",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "web-net",
+          "cache-net"
+        ]
+      },
+      {
+        "name": "cache",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "cache-net"
+        ]
+      },
+      {
+        "name": "db",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "db-net"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {
+        "type": "output_contains_all",
+        "values": [
+          "\"Name\": \"cache-net\"",
+          "\"api\"",
+          "\"cache\""
+        ]
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 80,
+    "hint_penalty": 10
+  }
+}

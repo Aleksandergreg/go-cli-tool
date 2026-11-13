@@ -1,12 +1,86 @@
 # Changelog
 
+## [0.12.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.11.0...v0.12.0) (2026-10-10)
+
+
+### Features
+
+* $ and diagram update ([#47](https://github.com/Aleksandergreg/go-cli-tool/issues/47)) ([bd43343](https://github.com/Aleksandergreg/go-cli-tool/commit/bd433434521f0f5b37acfe2e771e085af5c644d6))
+
+## [0.11.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.10.0...v0.11.0) (2026-10-10)
+
+
+### Features
+
+* Enable || && and ; to function properly inside the shell ([#45](https://github.com/Aleksandergreg/go-cli-tool/issues/45)) ([ce2e4a7](https://github.com/Aleksandergreg/go-cli-tool/commit/ce2e4a7c29ed5bec1b042e47b2c0d2b1aa365985))
+
+## [0.10.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.9.0...v0.10.0) (2026-10-10)
+
+
+### Features
+
+* Common commands gave wrong answers compared to real Linux ([#43](https://github.com/Aleksandergreg/go-cli-tool/issues/43)) ([87c076f](https://github.com/Aleksandergreg/go-cli-tool/commit/87c076fcc7c338f5af37a801f657ec37c8243368))
+
+## [0.9.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.2...v0.9.0) (2026-10-09)
+
+
+### Features
+
+* New UI ([#41](https://github.com/Aleksandergreg/go-cli-tool/issues/41)) ([efaf5df](https://github.com/Aleksandergreg/go-cli-tool/commit/efaf5df39e5ae4ee846365a3936bf88d93fb80b5))
+
+## [0.8.2](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.1...v0.8.2) (2026-10-06)
+
+
+### Bug Fixes
+
+* Codeql not repo is public ([#38](https://github.com/Aleksandergreg/go-cli-tool/issues/38)) ([914bfc6](https://github.com/Aleksandergreg/go-cli-tool/commit/914bfc633b0d86f1bb491be212af67cb9976b28b))
+* Set repo to public ([#40](https://github.com/Aleksandergreg/go-cli-tool/issues/40)) ([9eb67df](https://github.com/Aleksandergreg/go-cli-tool/commit/9eb67df616831ccf38577345a5b7fa8338ed6fca))
+
+## [0.8.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.8.0...v0.8.1) (2026-09-30)
+
+
+### Bug Fixes
+
+* **docker:** treat only reference-specific errors as missing networks ([#35](https://github.com/Aleksandergreg/go-cli-tool/issues/35)) ([1fa140c](https://github.com/Aleksandergreg/go-cli-tool/commit/1fa140c41d3ed4dd7720e0a8f89530802bc3f02e))
+
+## [0.8.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.1...v0.8.0) (2026-09-30)
+
+
+### Features
+
+* **docker:** add Container Triage world and orphaned lab cleanup ([56dbfe2](https://github.com/Aleksandergreg/go-cli-tool/commit/56dbfe20ef7e09398e6120d3865207638968d49a))
+* **docker:** add Container Triage world and orphaned lab cleanup ([#32](https://github.com/Aleksandergreg/go-cli-tool/issues/32)) ([56dbfe2](https://github.com/Aleksandergreg/go-cli-tool/commit/56dbfe20ef7e09398e6120d3865207638968d49a))
+* **docker:** add Network Plumbing world with internal attempt-owned networks ([#34](https://github.com/Aleksandergreg/go-cli-tool/issues/34)) ([b4b1ba9](https://github.com/Aleksandergreg/go-cli-tool/commit/b4b1ba9fe70885e81736f4f77083b4731e808f3a))
+
+## [0.7.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.7.0...v0.7.1) (2026-09-24)
+
+
+### Bug Fixes
+
+* **webapp:** close unsued connections so companion shutdown is prompt ([#30](https://github.com/Aleksandergreg/go-cli-tool/issues/30)) ([a2503d0](https://github.com/Aleksandergreg/go-cli-tool/commit/a2503d01a6c418294c25f17fa7389e19d895c8c5))
+* **webapp:** close unused connections so companion shutdown is prompt ([a2503d0](https://github.com/Aleksandergreg/go-cli-tool/commit/a2503d01a6c418294c25f17fa7389e19d895c8c5))
+
+## [0.7.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.6.0...v0.7.0) (2026-08-24)
+
+
+### Features
+
+* 5 more new docker missions and 6 linux missions ([#24](https://github.com/Aleksandergreg/go-cli-tool/issues/24)) ([f14ae0f](https://github.com/Aleksandergreg/go-cli-tool/commit/f14ae0f1890df9d328bcec1bad292d951dfee5eb))
+* Add a web app that shows missions hints and tips and connects t… ([#27](https://github.com/Aleksandergreg/go-cli-tool/issues/27)) ([2d166bf](https://github.com/Aleksandergreg/go-cli-tool/commit/2d166bffaf13fa3e29133c4e86ec9e91a9e85349))
+* add OrbStack support ([#21](https://github.com/Aleksandergreg/go-cli-tool/issues/21)) ([49a6ce0](https://github.com/Aleksandergreg/go-cli-tool/commit/49a6ce00c502ac16efb0aca831011fd2cd3cd27c))
+* change branch protection rules for admins ([b00062b](https://github.com/Aleksandergreg/go-cli-tool/commit/b00062bf03709d143c550da0093509db91c4a2b7))
+
+
+### Bug Fixes
+
+* game stopping ([11a9a71](https://github.com/Aleksandergreg/go-cli-tool/commit/11a9a71fb244d7a9cbf620820460ec68b0e6921b))
+
 ## [0.6.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.5.0...v0.6.0) (2026-07-22)
 
 
 ### Features
 
 * infrastructure to define repo guidelines and secrets workflow ([c8d2792](https://github.com/Aleksandergreg/go-cli-tool/commit/c8d27926acccdd0a276324cfcfd8dbe79ce99eaf))
-* infrastructure to define repo guidelines and secrets workflow ([857955f](https://github.com/Aleksandergreg/go-cli-tool/commit/857955f034d6f82134443d03ef149e92d62a4fe7))
 
 
 ### Bug Fixes
@@ -33,17 +107,11 @@
 ### Features
 
 * add guided world progression and refresh terminal UX ([e709111](https://github.com/Aleksandergreg/go-cli-tool/commit/e709111cc3dc8cda9492bbc83622bbd1213005e0))
-* add guided world progression and refresh terminal UX ([e709111](https://github.com/Aleksandergreg/go-cli-tool/commit/e709111cc3dc8cda9492bbc83622bbd1213005e0))
-* add guided world progression and refresh terminal UX ([fe8b97e](https://github.com/Aleksandergreg/go-cli-tool/commit/fe8b97e6629e533c58c7dc0263b6c7b5de19c2d9))
 * release please, codesql and go releaser ([b892c59](https://github.com/Aleksandergreg/go-cli-tool/commit/b892c59fc09b2eb15e9baf4f263a0a1df83a5edd))
-* release please, codesql and go releaser ([b892c59](https://github.com/Aleksandergreg/go-cli-tool/commit/b892c59fc09b2eb15e9baf4f263a0a1df83a5edd))
-* release please, codesql and go releaser ([71e7ebf](https://github.com/Aleksandergreg/go-cli-tool/commit/71e7ebf62cbd291d51b1760694ce12f5259d4555))
 
 
 ### Bug Fixes
 
 * **cli:** continue after selected mission completion ([446caaf](https://github.com/Aleksandergreg/go-cli-tool/commit/446caaf1b8232abb0f6f9f97568463e2068cf0b0))
-
-## Changelog
 
 OpsQuest release notes are generated from Conventional Commits by Release Please.

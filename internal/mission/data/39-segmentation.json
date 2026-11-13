@@ -1,0 +1,127 @@
+{
+  "id": "docker-segmentation",
+  "number": 39,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Segmentation",
+  "campaign": "Network Plumbing",
+  "difficulty": "advanced",
+  "story": "Everything runs on one flat network, so the public web tier can reach the database. A retired cron container is still holding the old legacy network open.",
+  "objective": "Keep web reaching api and api reaching db, make sure web can no longer reach db, remove the legacy network and the retired cron container attached to it, and keep web, api, and db running.",
+  "suggested_commands": [
+    "docker"
+  ],
+  "hints": [
+    "Map it before you cut: docker network ls and docker network inspect show which containers share each network.",
+    "Create a second network for the database tier, and connect api and db to it before you change flat-net.",
+    "Then disconnect db from flat-net so web and db no longer share any network.",
+    "The lab refuses docker network rm while any container, even a stopped one, is still attached. Remove old-cron first; it has already stopped, so docker rm works.",
+    "docker network create db-net, docker network connect db-net api, docker network connect db-net db, docker network disconnect flat-net db, docker rm old-cron, docker network rm legacy-net."
+  ],
+  "explanation": "Segmentation gives each tier only the paths it needs: web to api, and api to db. Connect new paths before cutting old ones so services never lose each other, and retire unused networks along with the containers that kept them alive.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "networks": [
+      {
+        "name": "flat-net"
+      },
+      {
+        "name": "legacy-net"
+      }
+    ],
+    "containers": [
+      {
+        "name": "web",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "flat-net"
+        ]
+      },
+      {
+        "name": "api",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "flat-net"
+        ]
+      },
+      {
+        "name": "db",
+        "image": "fixture",
+        "state": "running",
+        "networks": [
+          "flat-net"
+        ]
+      },
+      {
+        "name": "old-cron",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "cron: final run complete; job retired",
+        "exit_code": 0,
+        "networks": [
+          "legacy-net"
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {
+        "type": "docker_containers_share_network",
+        "containers": [
+          "web",
+          "api"
+        ]
+      },
+      {
+        "type": "docker_containers_share_network",
+        "containers": [
+          "api",
+          "db"
+        ]
+      },
+      {
+        "type": "docker_containers_isolated",
+        "containers": [
+          "web",
+          "db"
+        ]
+      },
+      {
+        "type": "docker_network_absent",
+        "network": "legacy-net"
+      },
+      {
+        "type": "docker_container_absent",
+        "container": "old-cron"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "web"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "api"
+      },
+      {
+        "type": "docker_container_running",
+        "container": "db"
+      },
+      {
+        "type": "docker_container_count_equals",
+        "count": 3
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 140,
+    "hint_penalty": 20
+  }
+}

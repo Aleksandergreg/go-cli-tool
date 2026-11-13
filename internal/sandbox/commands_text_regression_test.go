@@ -87,9 +87,9 @@ func TestSedReplacementUsesSedSyntax(t *testing.T) {
 		{command: `printf 'COST=x\n' | sed 's/x/${1}$$/'`, want: "COST=${1}$$\n"},
 		{command: `printf 'COST=x\n' | sed 's/COST/[&]/'`, want: "[COST]=x\n"},
 		{command: `printf 'COST=x\n' | sed 's/COST/\&/'`, want: "&=x\n"},
-		{command: `printf 'COST=x\n' | sed 's/(COST)=(x)/\2=\1/'`, want: "x=COST\n"},
+		{command: `printf 'COST=x\n' | sed -E 's/(COST)=(x)/\2=\1/'`, want: "x=COST\n"},
 		{command: `printf 'COST=x\n' | sed -E 's/(COST)/\1S/'`, want: "COSTS=x\n"},
-		{command: `printf 'COST=x\n' | sed 's/(COST)/\0\0/'`, want: "COSTCOST=x\n"},
+		{command: `printf 'COST=x\n' | sed 's/\(COST\)/\1S/'`, want: "COSTS=x\n"},
 		{command: `printf 'a a\n' | sed 's/a/<&>/g'`, want: "<a> <a>\n"},
 		{command: `printf 'a/b\n' | sed 's/\//\\/'`, want: "a\\b\n"},
 		{command: `printf 'a b\n' | sed 's/ /\t/'`, want: "a\tb\n"},
@@ -104,20 +104,17 @@ func TestSedReplacementUsesSedSyntax(t *testing.T) {
 func TestSedRejectsReferencesToMissingGroups(t *testing.T) {
 	box := testSandbox(t)
 	before, _ := box.FS.ReadFile("/work/quiet.log")
-	for command, want := range map[string]string{
-		`sed -i 's/\(INFO\)/\1!/' quiet.log`: "group with ( )",
-		`sed -i 's/(INFO)/\2!/' quiet.log`:   "has 1 capture group(s)",
+	for _, command := range []string{
+		`sed -i 's/(INFO)/\1!/' quiet.log`,
+		`sed -i 's/\(INFO\)/\2!/' quiet.log`,
+		`sed -E -i 's/(INFO)/\2!/' quiet.log`,
 	} {
 		_, err := box.Execute(command)
-		if err == nil || !strings.Contains(err.Error(), want) {
-			t.Errorf("%s error = %v, want mention of %q", command, err, want)
+		if err == nil || !strings.Contains(err.Error(), "invalid reference") {
+			t.Errorf("%s error = %v, want an invalid reference", command, err)
 		}
 	}
 	if after, _ := box.FS.ReadFile("/work/quiet.log"); after != before {
 		t.Errorf("rejected sed changed the file: %q", after)
-	}
-	manual, err := box.Execute(`help sed`)
-	if err != nil || !strings.Contains(manual.Output, `\1 to \9`) || !strings.Contains(manual.Output, "extended") {
-		t.Errorf("help sed = %q, %v", manual.Output, err)
 	}
 }

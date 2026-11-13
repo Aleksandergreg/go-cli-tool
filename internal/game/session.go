@@ -5,11 +5,8 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"slices"
-	"strconv"
 	"strings"
 	"time"
-	"unicode"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
@@ -20,6 +17,8 @@ type Session struct {
 	Mission      mission.Mission
 	Player       *profile.Profile
 	Saver        ProfileSaver
+	Reporter     AttemptReporter
+	Companion    bool
 	In           io.Reader
 	Out          io.Writer
 	ErrOut       io.Writer
@@ -53,11 +52,83 @@ type SessionResult struct {
 }
 
 func (s Session) Run() (returnResult SessionResult, returnErr error) {
+	a, err := s.begin()
+	if err != nil {
+		return SessionResult{}, err
+	}
+	defer func() {
+		if err := a.environment.close(); err != nil {
+			returnErr = errors.Join(returnErr, fmt.Errorf("close mission environment: %w", err))
+		}
+	}()
+	if err := a.announce(); err != nil {
+		return SessionResult{}, err
+	}
+	a.practiced = make([]string, 0)
+	a.discovered = make([]string, 0)
+	for {
+		if err := a.ctx.Err(); err != nil {
+			return SessionResult{}, fmt.Errorf("mission context: %w", err)
+		}
+		line, readErr := a.reader.ReadLine(a.Style.Prompt(a.environment.PromptLabel()), a.environment.CompletionSource())
+		if errors.Is(readErr, io.EOF) {
+			fmt.Fprintln(a.Out)
+			return a.pause(), nil
+		}
+		if readErr != nil {
+			if err := a.ctx.Err(); err != nil {
+				return SessionResult{}, fmt.Errorf("mission context: %w", err)
+			}
+			return SessionResult{}, fmt.Errorf("read command: %w", readErr)
+		}
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		next, err := a.handle(line)
+		if err != nil {
+			return SessionResult{}, err
+		}
+		if next.done {
+			return next.result, nil
+		}
+	}
+}
+
+// attempt is the mutable state of one running mission session.
+type attempt struct {
+	Session
+	ctx         context.Context
+	factory     Factory
+	environment *managedEnvironment
+	reader      CommandLineReader
+	replaying   bool
+	hintsUsed   int
+	outcomes    []outcomeResult
+	practiced   []string
+	discovered  []string
+	lastOutput  string
+	worldRoute  int
+}
+
+// step is the effect of one input line: done ends the session with result.
+type step struct {
+	done   bool
+	result SessionResult
+}
+
+func finish(result SessionResult) step {
+	return step{done: true, result: result}
+}
+
+// begin validates the session, applies defaults, and creates the first
+// mission environment.
+func (s Session) begin() (*attempt, error) {
 	if s.Player == nil {
-		return SessionResult{}, fmt.Errorf("mission session requires a player profile")
+		return nil, fmt.Errorf("mission session requires a player profile")
 	}
 	if s.Saver == nil {
-		return SessionResult{}, fmt.Errorf("mission session requires profile persistence")
+		return nil, fmt.Errorf("mission session requires profile persistence")
 	}
 	if s.In == nil {
 		s.In = strings.NewReader("")
@@ -68,511 +139,86 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 	if s.ErrOut == nil {
 		s.ErrOut = io.Discard
 	}
-	ctx := defaultContext(s.Context)
-	factory := defaultFactory(s.Factory)
-	environment, err := createManagedEnvironment(ctx, factory, s.Mission)
+	a := &attempt{Session: s, ctx: defaultContext(s.Context), factory: defaultFactory(s.Factory)}
+	environment, err := createManagedEnvironment(a.ctx, a.factory, s.Mission)
 	if err != nil {
-		return SessionResult{}, fmt.Errorf("prepare mission: %w", err)
+		return nil, fmt.Errorf("prepare mission: %w", err)
 	}
-	defer func() {
-		if err := environment.close(); err != nil {
-			returnErr = errors.Join(returnErr, fmt.Errorf("close mission environment: %w", err))
-		}
-	}()
-	if s.Now == nil {
-		s.Now = time.Now
+	a.environment = environment
+	if a.Now == nil {
+		a.Now = time.Now
 	}
-
-	replaying := s.Player.IsComplete(s.Mission.ID)
-	hintsUsed := s.Player.MissionHints(s.Mission.ID)
-	printMission(s.Out, s.Mission, hintsUsed, replaying, s.Catalog, s.Style)
-	reader := s.Reader
-	if reader == nil {
-		reader = NewCommandLineReaderContext(ctx, s.In, s.Out)
+	a.replaying = s.Player.IsComplete(s.Mission.ID)
+	a.hintsUsed = s.Player.MissionHints(s.Mission.ID)
+	a.reader = s.Reader
+	if a.reader == nil {
+		a.reader = NewCommandLineReaderContext(a.ctx, a.In, a.Out)
 	}
-	discovered := make([]string, 0)
-	practiced := make([]string, 0)
-	lastOutput := ""
-	worldRoute := 0
+	return a, nil
+}
 
-	for {
-		if err := ctx.Err(); err != nil {
-			return SessionResult{}, fmt.Errorf("mission context: %w", err)
-		}
-		line, readErr := reader.ReadLine(s.Style.Prompt(environment.PromptLabel()), environment.CompletionSource())
-		if errors.Is(readErr, io.EOF) {
-			fmt.Fprintln(s.Out)
-			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
-		}
-		if readErr != nil {
-			if err := ctx.Err(); err != nil {
-				return SessionResult{}, fmt.Errorf("mission context: %w", err)
-			}
-			return SessionResult{}, fmt.Errorf("read command: %w", readErr)
-		}
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
-		}
-		if fields, navigation, navigationErr := missionNavigationFields(line); navigation {
-			if navigationErr != nil {
-				fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("invalid mission navigation: "+navigationErr.Error()))
-				continue
-			}
-			switch fields[0] {
-			case "list", "missions", "map", "worlds":
-				if s.ListMissions == nil {
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("mission listing is unavailable in this session"))
-					continue
-				}
-				listArgs := fields[1:]
-				if fields[0] == "map" || fields[0] == "worlds" {
-					if len(fields) != 1 {
-						fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(fields[0]+" does not accept arguments"))
-						continue
-					}
-					listArgs = nil
-				}
-				if err := s.ListMissions(listArgs); err != nil {
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(err.Error()))
-				}
-				continue
-			case "world":
-				if len(fields) != 2 {
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: world NUMBER"))
-					continue
-				}
-				worldNumber, err := strconv.Atoi(fields[1])
-				if err != nil || worldNumber < 1 {
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("world number must be a positive integer; use map to see worlds"))
-					continue
-				}
-				target, found := s.Catalog.NextInWorld(s.Mission.EffectiveTrack(), worldNumber, s.Player.IsComplete)
-				replayingCompletedWorld := false
-				if !found {
-					if world, exists := s.Catalog.World(s.Mission.EffectiveTrack(), worldNumber); exists && len(world.Missions) > 0 {
-						target, found = world.Missions[0], true
-						replayingCompletedWorld = true
-					}
-				}
-				if !found {
-					message := fmt.Sprintf("world %d does not exist in the %s track; use map to see worlds", worldNumber, s.Mission.EffectiveTrack())
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
-					continue
-				}
-				if target.ID == s.Mission.ID {
-					worldRoute = worldNumber
-					message := fmt.Sprintf("World %d route selected; already playing the recommended stage.", worldNumber)
-					if replayingCompletedWorld {
-						message = fmt.Sprintf("World %d replay selected; already playing Stage 1.", worldNumber)
-					}
-					fmt.Fprintln(s.Out, s.Style.Accent(message))
-					continue
-				}
-				if replayingCompletedWorld {
-					fmt.Fprintln(s.Out, s.Style.Accent(fmt.Sprintf("World %d is complete; replaying Stage 1.", worldNumber)))
-				}
-				printMissionSwitch(s.Out, target, s.Style)
-				return SessionResult{SwitchMission: target.ID, WorldRoute: worldNumber, HintsUsed: hintsUsed}, nil
-			case "play":
-				if len(fields) != 2 {
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure("usage inside a mission: play STAGE_OR_ID"))
-					continue
-				}
-				ref := fields[1]
-				target, found := mission.Mission{}, false
-				if stageNumber, err := strconv.Atoi(ref); err == nil {
-					placement, placed := s.Catalog.Placement(s.Mission.ID)
-					if placed {
-						world, worldFound := s.Catalog.World(placement.Track, placement.WorldNumber)
-						if worldFound && stageNumber >= 1 && stageNumber <= len(world.Missions) {
-							target, found = world.Missions[stageNumber-1], true
-						}
-						if !found {
-							message := fmt.Sprintf("stage %q does not exist in World %d; choose a stage from 1 to %d or use map", ref, placement.WorldNumber, placement.StageTotal)
-							fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
-							continue
-						}
-					}
-				} else {
-					target, found = s.Catalog.Find(ref)
-				}
-				if !found {
-					message := fmt.Sprintf("mission %q not found; use list --ids to see available mission IDs", ref)
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
-					continue
-				}
-				if target.ID == s.Mission.ID {
-					message := fmt.Sprintf("Already playing Mission %02d: %s.", target.Number, target.Title)
-					fmt.Fprintln(s.Out, s.Style.Accent(message))
-					continue
-				}
-				printMissionSwitch(s.Out, target, s.Style)
-				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
-			case "next", "previous", "prev":
-				direction := 1
-				if fields[0] != "next" {
-					direction = -1
-				}
-				if len(fields) != 1 {
-					message := fmt.Sprintf("%s does not accept arguments", fields[0])
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
-					continue
-				}
-				target, found := s.Catalog.AdjacentInTrack(s.Mission.ID, direction)
-				if !found {
-					message := fmt.Sprintf("Mission %02d is already at this end of the catalog.", s.Mission.Number)
-					fmt.Fprintln(s.Out, s.Style.Warning(message))
-					continue
-				}
-				printMissionSwitch(s.Out, target, s.Style)
-				return SessionResult{SwitchMission: target.ID, HintsUsed: hintsUsed}, nil
-			}
-		}
-
-		switch line {
-		case "quit", "exit", ":q":
-			fmt.Fprintln(s.Out, s.Style.Accent("Mission paused. Your profile progress is safe."))
-			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
-		case "hint":
-			if hintsUsed >= len(s.Mission.Hints) {
-				fmt.Fprintln(s.Out, s.Style.Warning("No more hints. ByteWorks has exhausted its documentation budget."))
-				continue
-			}
-			cost := 0
-			if replaying {
-				hintsUsed++
-			} else {
-				before := AdjustedReward(s.Mission, hintsUsed)
-				hintsUsed = s.Player.RecordHint(s.Mission.ID)
-				if err := s.Saver.Save(*s.Player); err != nil {
-					return SessionResult{}, err
-				}
-				cost = before - AdjustedReward(s.Mission, hintsUsed)
-			}
-			costLabel := fmt.Sprintf("-%d XP", cost)
-			if cost == 0 {
-				costLabel = "no XP cost"
-			}
-			prefix := fmt.Sprintf("Hint %d/%d (%s):", hintsUsed, len(s.Mission.Hints), costLabel)
-			fmt.Fprintf(s.Out, "%s %s\n", s.Style.Warning(prefix), s.Mission.Hints[hintsUsed-1])
-			continue
-		case "objective":
-			fmt.Fprintf(s.Out, "%s\n%s\n\n%s\n", s.Style.Section("OBJECTIVE"), s.Mission.Objective, s.Style.CommandGuide(s.Mission.SuggestedCommands))
-			continue
-		case "status":
-			outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, lastOutput)
-			if err != nil {
-				return SessionResult{}, fmt.Errorf("check mission status: %w", err)
-			}
-			printOutcomeStatus(s.Out, outcomes, s.Style)
-			continue
-		case "restart":
-			if err := environment.close(); err != nil {
-				return SessionResult{}, fmt.Errorf("restart mission: close current environment: %w", err)
-			}
-			environment, err = createManagedEnvironment(ctx, factory, s.Mission)
-			if err != nil {
-				return SessionResult{}, fmt.Errorf("restart mission: %w", err)
-			}
-			lastOutput = ""
-			fmt.Fprintln(s.Out, s.Style.Accent("Mission environment restarted. Hints and command mastery are retained."))
-			continue
-		case "?", "guide":
-			printMissionControls(s.Out, s.Style)
-			continue
-		}
-
-		result, executeErr := environment.Execute(ctx, line)
-		if executeErr != nil {
-			if err := ctx.Err(); err != nil {
-				return SessionResult{}, fmt.Errorf("execute command: %w", err)
-			}
-			fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(executeErr.Error()))
-			continue
-		}
-		if err := ctx.Err(); err != nil {
-			return SessionResult{}, fmt.Errorf("execute command: %w", err)
-		}
-		if result.Interactive != nil {
-			if result.Interactive.Run == nil {
-				return SessionResult{}, fmt.Errorf("run %s: interactive action has no runner", result.Interactive.Command)
-			}
-			if err := result.Interactive.Run(reader); err != nil {
-				if errors.Is(err, ErrInteractiveEditor) || errors.Is(err, ErrUnsupportedEditorFile) {
-					message := fmt.Sprintf("%s: %v", result.Interactive.Command, err)
-					fmt.Fprintln(s.ErrOut, s.ErrorStyle.Failure(message))
-					continue
-				}
-				return SessionResult{}, fmt.Errorf("run %s: %w", result.Interactive.Command, err)
-			}
-		}
-		if result.Output != "" {
-			fmt.Fprint(s.Out, result.Output)
-			if !strings.HasSuffix(result.Output, "\n") {
-				fmt.Fprintln(s.Out)
-			}
-		}
-		lastOutput = result.Output
-		for _, command := range result.PracticedCommands {
-			if !slices.Contains(practiced, command) {
-				practiced = append(practiced, command)
-			}
-			if s.Player.Commands[command] == 0 && !slices.Contains(discovered, command) {
-				discovered = append(discovered, command)
-			}
-		}
-		s.Player.RecordCommands(result.PracticedCommands)
-		unlocked := make([]profile.Achievement, 0)
-		achievementTime := s.Now()
-		if result.PipelineWidth >= 3 {
-			if achievement, added := s.Player.UnlockAchievement(profile.AchievementPipeDream, achievementTime); added {
-				unlocked = append(unlocked, achievement)
-			}
-		}
-		unlocked = append(unlocked, ReconcileCommandAchievements(s.Player, achievementTime)...)
-		if err := s.Saver.Save(*s.Player); err != nil {
-			return SessionResult{}, err
-		}
-
-		outcomes, err := evaluateOutcomes(ctx, s.Mission.Validation, environment.Environment, result.Output)
+// announce reports the starting state to the companion and presents the
+// mission in the terminal.
+func (a *attempt) announce() error {
+	if a.Reporter != nil {
+		outcomes, err := evaluateOutcomes(a.ctx, a.Mission.Validation, a.environment.Environment, "")
 		if err != nil {
-			return SessionResult{}, fmt.Errorf("validate mission: %w", err)
+			return fmt.Errorf("prepare companion mission status: %w", err)
 		}
-		if !allOutcomesSatisfied(outcomes) {
-			printAchievements(s.Out, unlocked, s.Style)
-			message := fmt.Sprintf("Progress — %d/%d outcome checks satisfied. Type status to see what remains.", satisfiedOutcomeCount(outcomes), len(outcomes))
-			fmt.Fprintln(s.Out, s.Style.Accent(message))
-			continue
-		}
-		if err := environment.close(); err != nil {
-			return SessionResult{}, fmt.Errorf("complete mission: close environment before awarding XP: %w", err)
-		}
-
-		xp := AdjustedReward(s.Mission, hintsUsed)
-		completedAt := s.Now()
-		firstCompletion := s.Player.Complete(s.Mission.ID, xp, hintsUsed, completedAt)
-		if !firstCompletion {
-			xp = 0
-		} else {
-			unlocked = append(unlocked, ReconcileAchievements(s.Player, s.Catalog, completedAt)...)
-		}
-		if err := s.Saver.Save(*s.Player); err != nil {
-			return SessionResult{}, err
-		}
-		printCompletion(s.Out, s.Mission, xp, firstCompletion, practiced, discovered, unlocked, s.Style)
-		return SessionResult{Completed: true, XPAwarded: xp, HintsUsed: hintsUsed, WorldRoute: worldRoute}, nil
+		a.outcomes = outcomes
+		a.report(AttemptStarted, AttemptStateActive, nil)
 	}
-}
-
-func printMission(out io.Writer, item mission.Mission, hintsUsed int, completed bool, catalog mission.Catalog, style ui.Style) {
-	heading := fmt.Sprintf("MISSION %02d: %s", item.Number, item.Title)
-	fmt.Fprintf(out, "\n%s\n", style.Header(heading))
-	fmt.Fprintln(out, style.Muted(strings.Repeat("=", len(item.Title)+12)))
-	if placement, found := catalog.Placement(item.ID); found {
-		location := fmt.Sprintf("%s · World %d/%d: %s · Stage %d/%d",
-			displayTrackName(placement.Track), placement.WorldNumber, placement.WorldTotal,
-			placement.WorldName, placement.StageNumber, placement.StageTotal)
-		fmt.Fprintln(out, style.World(location))
+	if a.Companion {
+		fmt.Fprintf(a.Out, "\nMission %02d ready in the web companion. Enter lab commands below.\n", a.Mission.Number)
 	} else {
-		fmt.Fprintf(out, "Campaign: %s\n", style.World(item.Campaign))
+		printMission(a.Out, a.Mission, a.hintsUsed, a.replaying, a.Catalog, a.Style)
 	}
-	reward := style.Reward(fmt.Sprintf("%d XP", AdjustedReward(item, hintsUsed)))
-	if completed {
-		reward = style.Accent(fmt.Sprintf("already claimed · %d XP base", item.Rewards.XP))
-	}
-	fmt.Fprintf(out, "Difficulty: %s · Reward: %s\n", style.Difficulty(item.Difficulty), reward)
-	if hintsUsed > 0 {
-		fmt.Fprintln(out, style.Warning(fmt.Sprintf("Hints already used: %d/%d", hintsUsed, len(item.Hints))))
-	}
-	fmt.Fprintf(out, "\n%s\n%s\n\n", style.Section("INCIDENT"), item.Story)
-	fmt.Fprintf(out, "%s\n%s\n\n", style.Section("OBJECTIVE"), item.Objective)
-	fmt.Fprintf(out, "%s\n\n", style.CommandGuide(item.SuggestedCommands))
-	printCompactMissionControls(out, style)
+	return nil
 }
 
-func displayTrackName(track string) string {
-	switch track {
-	case mission.TrackDocker:
-		return "Docker"
-	case mission.TrackLinux:
-		return "Linux"
-	default:
-		return track
-	}
-}
-
-func printCompactMissionControls(out io.Writer, style ui.Style) {
-	fmt.Fprintf(out, "Controls: %s for the full guide\n", accented(style, " · ", "hint", "objective", "status", "restart", "quit", "?"))
-	fmt.Fprintf(out, "Navigate: %s\n", accented(style, " · ", "map", "world N", "play STAGE/ID", "next", "previous"))
-	fmt.Fprintf(out, "Lab: %s lists commands · %s completes · arrows edit and recall history\n",
-		style.Accent("help"), style.Accent("Tab"))
-}
-
-func printMissionControls(out io.Writer, style ui.Style) {
-	fmt.Fprintln(out, style.Section("MISSION GUIDE"))
-	fmt.Fprintf(out, "  Controls: %s\n", accented(style, ", ", "hint", "objective", "status", "restart", "quit"))
-	fmt.Fprintf(out, "  Navigate: %s\n", accented(style, ", ", "map", "world N", "play STAGE/ID", "next", "previous"))
-	fmt.Fprintf(out, "  Lab commands: %s or %s. Valid solutions are judged by their result.\n", style.Accent("help"), style.Accent("help COMMAND"))
-	fmt.Fprintf(out, "  Line editing: arrows move and recall history; %s or %s jump across the line.\n",
-		style.Accent("Home/End"), style.Accent("Ctrl-A/E"))
-	fmt.Fprintf(out, "  %s move by word; %s completes; %s, %s, and %s remove text.\n",
-		style.Accent("Option/Ctrl-Left/Right"), style.Accent("Tab"), style.Accent("Backspace"), style.Accent("Delete"), style.Accent("Ctrl-W"))
-	fmt.Fprintln(out, "  Prefix navigation with opsquest if you prefer; both forms are equivalent inside a mission.")
-}
-
-func accented(style ui.Style, separator string, values ...string) string {
-	styled := make([]string, len(values))
-	for index, value := range values {
-		styled[index] = style.Accent(value)
-	}
-	return strings.Join(styled, separator)
-}
-
-func missionNavigationFields(line string) ([]string, bool, error) {
-	fields, err := splitMissionNavigation(line)
-	if len(fields) == 0 {
-		return nil, false, nil
-	}
-	prefixed := fields[0] == "opsquest"
-	if prefixed {
-		fields = fields[1:]
-		if len(fields) == 0 {
-			if err != nil {
-				return nil, true, err
-			}
-			return []string{"missions"}, true, nil
+// handle routes one input line to navigation, a built-in lab command, or the
+// mission environment.
+func (a *attempt) handle(line string) (step, error) {
+	if fields, navigation, err := missionNavigationFields(line); navigation {
+		if err != nil {
+			a.fail("invalid mission navigation: " + err.Error())
+			return step{}, nil
+		}
+		if next, handled := a.navigate(fields); handled {
+			return next, nil
 		}
 	}
-	switch fields[0] {
-	case "list", "missions", "map", "worlds", "world", "play", "next", "previous", "prev":
-		return fields, true, err
-	default:
-		if prefixed && err != nil {
-			return nil, true, err
-		}
-		// Non-navigation input belongs to the active environment, including its
-		// own quote and escape errors.
-		return nil, false, nil
+	switch line {
+	case "quit", "exit", ":q":
+		fmt.Fprintln(a.Out, a.Style.Accent("Mission paused. Your profile progress is safe."))
+		return finish(a.pause()), nil
+	case "hint":
+		return step{}, a.revealHint()
+	case "objective":
+		a.showObjective()
+		return step{}, nil
+	case "status":
+		return step{}, a.refreshStatus()
+	case "restart":
+		return step{}, a.restart()
+	case "?", "guide":
+		a.showControls()
+		return step{}, nil
 	}
+	return a.execute(line)
 }
 
-// splitMissionNavigation parses the small, host-independent argument syntax
-// accepted by in-mission navigation. It deliberately performs no expansion or
-// command execution: whitespace separates fields, quotes group text, and a
-// backslash escapes the next character outside single quotes.
-func splitMissionNavigation(line string) ([]string, error) {
-	fields := make([]string, 0)
-	var field strings.Builder
-	var quote rune
-	escaped := false
-	started := false
-
-	flush := func() {
-		if !started {
-			return
-		}
-		fields = append(fields, field.String())
-		field.Reset()
-		started = false
-	}
-
-	for _, char := range line {
-		if escaped {
-			field.WriteRune(char)
-			escaped = false
-			started = true
-			continue
-		}
-		if quote != 0 {
-			if char == quote {
-				quote = 0
-				continue
-			}
-			if quote == '"' && char == '\\' {
-				escaped = true
-				continue
-			}
-			field.WriteRune(char)
-			continue
-		}
-
-		switch {
-		case unicode.IsSpace(char):
-			flush()
-		case char == '\'' || char == '"':
-			quote = char
-			started = true
-		case char == '\\':
-			escaped = true
-			started = true
-		default:
-			field.WriteRune(char)
-			started = true
-		}
-	}
-
-	if escaped {
-		flush()
-		return fields, fmt.Errorf("unfinished escape")
-	}
-	if quote != 0 {
-		flush()
-		name := "single"
-		if quote == '"' {
-			name = "double"
-		}
-		return fields, fmt.Errorf("unterminated %s quote", name)
-	}
-	flush()
-	return fields, nil
+// pause reports the paused attempt and ends the session without completing.
+func (a *attempt) pause() SessionResult {
+	a.report(AttemptPaused, AttemptStatePaused, nil)
+	return SessionResult{Quit: true, HintsUsed: a.hintsUsed}
 }
 
-func printMissionSwitch(out io.Writer, target mission.Mission, style ui.Style) {
-	message := fmt.Sprintf("Switching to Mission %02d: %s. The current mission environment will reset.", target.Number, target.Title)
-	fmt.Fprintln(out, style.Accent(message))
+// report sends the current attempt state to the companion reporter.
+func (a *attempt) report(eventType AttemptEventType, state string, unlocked []profile.Achievement) {
+	a.reportAttempt(eventType, state, a.outcomes, a.hintsUsed, a.replaying, 0, false, a.practiced, a.discovered, unlocked)
 }
 
-func printOutcomeStatus(out io.Writer, outcomes []outcomeResult, style ui.Style) {
-	message := fmt.Sprintf("Outcome checks satisfied: %d/%d.", satisfiedOutcomeCount(outcomes), len(outcomes))
-	fmt.Fprintln(out, style.Accent(message))
-	for _, outcome := range outcomes {
-		marker := style.Progress("", "○")
-		if outcome.Satisfied {
-			marker = style.Progress("✓", "")
-		}
-		fmt.Fprintf(out, "  %s %s\n", marker, outcome.Description)
-	}
-}
-
-// AdjustedReward returns the XP still available after hints while preserving
-// the mission's minimum quarter-reward floor.
-func AdjustedReward(item mission.Mission, hintsUsed int) int {
-	return max(item.Rewards.XP-hintsUsed*item.Rewards.HintPenalty, item.Rewards.XP/4)
-}
-
-func printCompletion(out io.Writer, item mission.Mission, xp int, first bool, practiced, discovered []string, unlocked []profile.Achievement, style ui.Style) {
-	fmt.Fprintf(out, "\n%s\n", style.Success("✓ Mission complete!"))
-	if first {
-		fmt.Fprintln(out, style.Reward(fmt.Sprintf("+%d XP", xp)))
-	} else {
-		fmt.Fprintln(out, style.Accent("Replay complete — XP was already claimed."))
-	}
-	if len(discovered) == 1 {
-		fmt.Fprintln(out, style.Accent(fmt.Sprintf("New command discovered: %s", discovered[0])))
-	} else if len(discovered) > 1 {
-		fmt.Fprintln(out, style.Accent(fmt.Sprintf("New commands discovered: %s", strings.Join(discovered, ", "))))
-	} else if len(practiced) == 1 {
-		fmt.Fprintln(out, style.Accent(fmt.Sprintf("Command practiced: %s", practiced[0])))
-	} else if len(practiced) > 1 {
-		fmt.Fprintln(out, style.Accent(fmt.Sprintf("Commands practiced: %s", strings.Join(practiced, ", "))))
-	}
-	printAchievements(out, unlocked, style)
-	fmt.Fprintf(out, "\n%s\n", item.Explanation)
-}
-
-func printAchievements(out io.Writer, unlocked []profile.Achievement, style ui.Style) {
-	for _, achievement := range unlocked {
-		fmt.Fprintf(out, "%s %s — %s\n", style.Achievement("★ Achievement unlocked:"), achievement.Title, achievement.Description)
-	}
+func (a *attempt) fail(message string) {
+	fmt.Fprintln(a.ErrOut, a.ErrorStyle.Failure(message))
 }

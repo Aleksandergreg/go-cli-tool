@@ -1,20 +1,22 @@
 ---
-description: How OpsQuest turns operational incidents into a structured, outcome-based learning path.
+description: How OpsQuest combines learning design, architecture, and isolation into an outcome-based terminal game.
 audience: players, educators, and contributors
 status: current
 ---
 
-# Game and learning design
+# How OpsQuest works
 
 OpsQuest teaches operational problem-solving through incidents rather than isolated command drills. Each mission combines a memorable situation, an observable goal, a disposable environment, and feedback that rewards understanding instead of one memorized command transcript.
 
 ## Read by topic
 
-- [Learning philosophy](learning-philosophy.md) explains the incident loop, safe experimentation, help model, and curriculum principles.
-- [Curriculum and mission map](curriculum.md) shows the current tracks, worlds, tools, difficulty, and outcomes.
-- [Outcome-based mission design](mission-design.md) explains how missions are authored and evaluated without prescribing one solution.
-- [Progression and rewards](progression.md) covers routes, hints, XP, ranks, achievements, replay, and persistence.
+- [Learning philosophy](learning-philosophy.md) explains the incident loop,
+  safe experimentation, guidance model, and curriculum principles.
+- [Architecture](../technical/architecture.md) maps the application,
+  environment boundary, mission runtime, and durable profile state.
+- [Sandbox and safety](../technical/sandbox-and-safety.md) documents the
+  in-memory Linux shell, Docker boundary, quotas, and threat controls.
 
-The editable learning-journey source and rendered SVG live in [`diagrams/`](diagrams/).
-
-Player instructions live under [Play OpsQuest](../play/README.md). Implementation contracts live under [Technical](../technical/README.md). Unfinished game systems and missions belong in the [Roadmap](../roadmap/README.md).
+Players can see every current world and objective in the
+[mission map](../play/mission-map.md). Contributors should start with
+[Contributing](../technical/README.md).

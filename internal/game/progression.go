@@ -1,6 +1,7 @@
 package game
 
 import (
+	"slices"
 	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
@@ -55,10 +56,25 @@ func ReconcileAchievements(player *profile.Profile, catalog mission.Catalog, now
 	return unlocked
 }
 
+// metaCommands explain or tidy the lab, or only set an exit status, rather
+// than practice an operations skill, so they never earn command mastery.
+var metaCommands = map[string]bool{"clear": true, "false": true, "help": true, "history": true, "man": true, "true": true}
+
+// CountsAsPractice reports whether a successful command earns command mastery.
+func CountsAsPractice(command string) bool { return !metaCommands[command] }
+
+// PracticedCommands returns the player's mastered commands in sorted order.
+// Meta commands recorded by earlier builds remain on disk but are ignored.
+func PracticedCommands(player profile.Profile) []string {
+	return slices.DeleteFunc(player.MasteredCommands(), func(command string) bool {
+		return !CountsAsPractice(command)
+	})
+}
+
 // ReconcileCommandAchievements applies criteria that can change after an
 // ordinary successful command without traversing mission content.
 func ReconcileCommandAchievements(player *profile.Profile, now time.Time) []profile.Achievement {
-	if player == nil || len(player.Commands) < 10 {
+	if player == nil || len(PracticedCommands(*player)) < 10 {
 		return nil
 	}
 	achievement, added := player.UnlockAchievement(profile.AchievementCommandCollector, now)
@@ -66,4 +82,10 @@ func ReconcileCommandAchievements(player *profile.Profile, now time.Time) []prof
 		return nil
 	}
 	return []profile.Achievement{achievement}
+}
+
+// AdjustedReward returns the XP still available after hints while preserving
+// the mission's minimum quarter-reward floor.
+func AdjustedReward(item mission.Mission, hintsUsed int) int {
+	return max(item.Rewards.XP-hintsUsed*item.Rewards.HintPenalty, item.Rewards.XP/4)
 }

@@ -1,0 +1,98 @@
+{
+  "id": "docker-postmortem-triage",
+  "number": 34,
+  "track": "docker",
+  "environment": "docker",
+  "title": "Postmortem Triage",
+  "campaign": "Container Triage",
+  "difficulty": "advanced",
+  "story": "The morning after a rough release: a canary replica is failing its health probe, and last night's sync jobs have finished. Some succeeded and one did not. The postmortem needs the evidence, and the listings need cleaning up.",
+  "objective": "Take the unhealthy canary out of service but keep it for debugging, remove the sync jobs that succeeded, keep the failed sync job for the postmortem, keep api serving, and leave exactly three mission containers.",
+  "suggested_commands": [
+    "docker"
+  ],
+  "hints": [
+    "Look before changing anything. docker ps -a shows every service and job.",
+    "Health appears beside running containers; docker ps --filter health=unhealthy isolates the failing replica.",
+    "docker ps --filter status=exited lists the finished jobs, and docker inspect shows each job's State.ExitCode.",
+    "docker rm removes only stopped containers, and a removed container's logs are gone. Remove only the jobs that exited with code 0.",
+    "docker stop api-canary, docker rm sync-orders, and docker rm sync-users; leave sync-invoices in place."
+  ],
+  "explanation": "Triage separates evidence from clutter. Health shows which running replica is failing, and exit codes show which finished jobs succeeded. Stopping keeps a container's evidence and removing deletes it, so remove only what you will never need to investigate.",
+  "docker": {
+    "images": [
+      {
+        "alias": "fixture",
+        "reference": "docker.io/library/busybox@sha256:73aaf090f3d85aa34ee199857f03fa3a95c8ede2ffd4cc2cdb5b94e566b11662"
+      }
+    ],
+    "containers": [
+      {
+        "name": "api",
+        "image": "fixture",
+        "state": "running",
+        "health": "healthy"
+      },
+      {
+        "name": "api-canary",
+        "image": "fixture",
+        "state": "running",
+        "health": "unhealthy",
+        "log": "INFO canary build 2026.09.30 started\nERROR GET /checkout returned HTTP 500"
+      },
+      {
+        "name": "sync-orders",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "sync-orders: 1204 rows synced",
+        "exit_code": 0
+      },
+      {
+        "name": "sync-users",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "sync-users: 88 rows synced",
+        "exit_code": 0
+      },
+      {
+        "name": "sync-invoices",
+        "image": "fixture",
+        "state": "stopped",
+        "log": "ERROR invoice sync failed: upstream timeout after 30s",
+        "exit_code": 3
+      }
+    ]
+  },
+  "validation": {
+    "all": [
+      {
+        "type": "docker_container_running",
+        "container": "api"
+      },
+      {
+        "type": "docker_container_stopped",
+        "container": "api-canary"
+      },
+      {
+        "type": "docker_container_absent",
+        "container": "sync-orders"
+      },
+      {
+        "type": "docker_container_absent",
+        "container": "sync-users"
+      },
+      {
+        "type": "docker_container_stopped",
+        "container": "sync-invoices"
+      },
+      {
+        "type": "docker_container_count_equals",
+        "count": 3
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 130,
+    "hint_penalty": 20
+  }
+}

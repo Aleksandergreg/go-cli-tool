@@ -1,7 +1,7 @@
 <!-- Rendered export; edit the matching Mermaid source. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-labelledby="title desc">
   <title id="title">OpsQuest component architecture</title>
-  <desc id="desc">Package dependency diagram showing the composition root, CLI and game orchestration, mission and profile domains, sandbox and Docker adapters, and UI and build information support packages.</desc>
+  <desc id="desc">Package dependency diagram showing the composition root, CLI and game orchestration, mission and profile domains, sandbox and Docker adapters, and UI, web companion, and build information support packages.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
@@ -38,6 +38,8 @@
   <path class="edge" d="M490 730 C600 680 710 640 785 620"/>
   <path class="edge" d="M1090 680 C1030 640 960 620 875 615"/>
   <path class="edge" d="M1090 680 C1130 540 1090 430 1000 370"/>
+  <path class="edge" d="M430 370 C520 500 650 610 735 700"/>
+  <path class="edge" d="M795 700 C870 590 925 470 935 370"/>
 
   <g filter="url(#shadow)">
     <rect x="500" y="118" width="400" height="84" rx="18" fill="#172554" stroke="#172554" stroke-width="2"/>
@@ -79,6 +81,11 @@
     <rect x="990" y="680" width="290" height="104" rx="16" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
     <text x="1135" y="718" text-anchor="middle" class="name" fill="#78350f">internal/dockerlab</text>
     <text x="1135" y="744" text-anchor="middle" class="body" fill="#92400e">typed optional Docker adapter</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="660" y="700" width="270" height="92" rx="16" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="795" y="735" text-anchor="middle" class="name" fill="#334155">internal/webapp</text>
+    <text x="795" y="761" text-anchor="middle" class="body" fill="#475569">loopback mission companion</text>
   </g>
   <g filter="url(#shadow)">
     <rect x="80" y="680" width="250" height="92" rx="16" fill="#f1f5f9" stroke="#64748b"/>

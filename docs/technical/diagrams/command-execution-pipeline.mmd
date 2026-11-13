@@ -3,7 +3,9 @@ flowchart LR
     INPUT["Player command line"] --> LINE{"At most 64 KiB?"}
     LINE -- No --> E1["Reject<br/>history unchanged"]
     LINE -- Yes --> HISTORY["Record in bounded<br/>attempt history"]
-    HISTORY --> LEX["Lex<br/>quotes · escapes · variables<br/>comments · pipes · redirection"]
+    HISTORY --> SPLIT{"Split ; && || lists<br/>every pipeline's syntax valid?"}
+    SPLIT -- No --> E4["Reject the whole line<br/>nothing runs · $? = 2"]
+    SPLIT -- Yes --> LEX["Lex one pipeline<br/>quotes · escapes · variables · $?<br/>comments · pipes · redirection"]
     LEX --> PARSE["Parse<br/>pipeline stages and redirects"]
     PARSE --> EXPAND["Expand<br/>virtual globs and arguments"]
     EXPAND --> PREFLIGHT{"Composition and<br/>resource checks pass?"}
@@ -14,12 +16,15 @@ flowchart LR
     STATE --> OUTPUT{"Output within limit?"}
     OUTPUT -- No --> E3["Reject bounded output"]
     OUTPUT -- Yes --> REDIRECT{"Virtual output<br/>redirection?"}
-    REDIRECT -- Yes --> WRITE["Preflight and write<br/>virtual destination"]
+    REDIRECT -- Yes --> WRITE["Write virtual destination<br/>&gt; empties it before the stage<br/>restored if the stage fails"]
     REDIRECT -- No --> NEXT{"Another pipeline stage?"}
     WRITE --> NEXT
     NEXT -- Yes --> READ
-    NEXT -- No --> RESULT["Execution result<br/>output · practiced commands<br/>pipeline width · editor request"]
-    RESULT --> VALIDATE["Outcome evaluation<br/>text comparison + Environment.Observe"]
+    NEXT -- No --> RESULT["Pipeline result<br/>output · exit status for $?<br/>practiced commands"]
+    RESULT --> LIST{"Another pipeline<br/>the operators allow?"}
+    LIST -- "Yes: ; always · && after success · || after failure" --> LEX
+    LIST -- No --> FINAL["Execution result<br/>ordered output and errors<br/>pipeline width · editor request"]
+    FINAL --> VALIDATE["Outcome evaluation<br/>text comparison + Environment.Observe"]
 
     VFS[("In-memory filesystem")]
     ENV[("Virtual environment")]
@@ -41,8 +46,8 @@ flowchart LR
     classDef invariant fill:#ede9fe,color:#4c1d95,stroke:#7c3aed,stroke-width:2px
 
     class INPUT input
-    class HISTORY,LEX,PARSE,EXPAND,READ,DISPATCH,RESULT,VALIDATE stage
+    class HISTORY,LEX,PARSE,EXPAND,READ,DISPATCH,RESULT,FINAL,VALIDATE stage
     class STATE,WRITE,VFS,ENV,PROC,ARC state
-    class LINE,PREFLIGHT,OUTPUT,REDIRECT,NEXT decision
-    class E1,E2,E3 error
+    class LINE,SPLIT,PREFLIGHT,OUTPUT,REDIRECT,NEXT,LIST decision
+    class E1,E2,E3,E4 error
     class HOST invariant

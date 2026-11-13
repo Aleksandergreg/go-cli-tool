@@ -2,7 +2,7 @@ GORELEASER ?= goreleaser
 TOFU ?= tofu
 ZENSICAL ?= zensical
 
-.PHONY: build test race vet check-agent-docs validate-missions smoke-test docker-integration orbstack-integration docs-build docs-check docs-serve tofu-check release-check release-snapshot check check-all run clean
+.PHONY: build test race vet check-agent-docs check-docs validate-missions smoke-test docker-integration orbstack-integration docs-build docs-check docs-serve tofu-check release-check release-snapshot check check-all run clean
 
 build:
 	mkdir -p bin
@@ -10,6 +10,9 @@ build:
 
 check-agent-docs:
 	./scripts/check-agent-docs.sh
+
+check-docs:
+	./scripts/check-docs.sh
 
 validate-missions:
 	./scripts/validate-missions.sh
@@ -31,11 +34,11 @@ docker-integration:
 orbstack-integration:
 	DOCKER_CONTEXT=orbstack OPSQUEST_DOCKER_TEST=1 go test ./internal/dockerlab -run Integration -count=1
 
-docs-build:
+docs-build: check-docs
 	@command -v $(ZENSICAL) >/dev/null 2>&1 || { echo "error: Zensical is required; install requirements-docs.txt in a Python 3.10+ virtual environment" >&2; exit 1; }
 	$(ZENSICAL) build --clean
 
-docs-check:
+docs-check: check-docs
 	@command -v $(ZENSICAL) >/dev/null 2>&1 || { echo "error: Zensical is required; install requirements-docs.txt in a Python 3.10+ virtual environment" >&2; exit 1; }
 	$(ZENSICAL) build --clean --strict
 
@@ -56,7 +59,7 @@ release-check:
 release-snapshot: release-check
 	$(GORELEASER) release --snapshot --clean
 
-check: check-agent-docs test vet build smoke-test
+check: check-agent-docs check-docs test vet build smoke-test
 
 check-all: check race
 

@@ -64,38 +64,56 @@ func (s *Sandbox) cmdLS(args []string) (string, error) {
 	if len(names) == 0 {
 		names = []string{"."}
 	}
-	var output commandOutputBuffer
-	for index, name := range names {
-		resolved := s.Resolve(name)
-		entry, exists := s.FS.Entry(resolved)
+	// Like GNU ls, list file operands first under the names given, then each
+	// directory's contents, with a header when there are several operands.
+	var files, directories []string
+	for _, name := range names {
+		entry, exists := s.FS.Entry(s.Resolve(name))
 		if !exists {
 			return "", fmt.Errorf("%s: no such file or directory", name)
 		}
-		if len(names) > 1 && entry.Kind == Directory {
-			if index > 0 {
-				output.WriteByte('\n')
-			}
+		if entry.Kind == Directory {
+			directories = append(directories, name)
+		} else {
+			files = append(files, name)
+		}
+	}
+	sort.Strings(files)
+	sort.Strings(directories)
+
+	var output commandOutputBuffer
+	writeEntry := func(itemPath, display string) {
+		item, _ := s.FS.Entry(itemPath)
+		if !long {
+			output.WriteString(display + "\n")
+			return
+		}
+		kind := '-'
+		if item.Kind == Directory {
+			kind = 'd'
+		}
+		output.WriteString(fmt.Sprintf("%c%s %-8s %6d %s\n", kind, permissionString(item.Mode), item.Owner, len(item.Content), display))
+	}
+	for _, name := range files {
+		writeEntry(s.Resolve(name), name)
+	}
+	for index, name := range directories {
+		if len(files) > 0 || index > 0 {
+			output.WriteByte('\n')
+		}
+		if len(names) > 1 {
 			output.WriteString(name + ":\n")
 		}
-		items := []string{resolved}
-		if entry.Kind == Directory {
-			children, _ := s.FS.Children(resolved)
-			items = children
+		resolved := s.Resolve(name)
+		if showAll {
+			writeEntry(resolved, ".")
+			writeEntry(path.Dir(resolved), "..")
 		}
-		for _, itemPath := range items {
-			item, _ := s.FS.Entry(itemPath)
-			base := path.Base(itemPath)
-			if !showAll && strings.HasPrefix(base, ".") {
-				continue
-			}
-			if long {
-				kind := '-'
-				if item.Kind == Directory {
-					kind = 'd'
-				}
-				output.WriteString(fmt.Sprintf("%c%s %-8s %6d %s\n", kind, permissionString(item.Mode), item.Owner, len(item.Content), base))
-			} else {
-				output.WriteString(base + "\n")
+		children, _ := s.FS.Children(resolved)
+		for _, child := range children {
+			base := path.Base(child)
+			if showAll || !strings.HasPrefix(base, ".") {
+				writeEntry(child, base)
 			}
 		}
 	}
@@ -145,6 +163,10 @@ func (s *Sandbox) cmdMkdir(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdTouch(args []string) (string, error) {
+	args, err := operandsOnly(args)
+	if err != nil {
+		return "", err
+	}
 	if len(args) == 0 {
 		return "", fmt.Errorf("missing file operand")
 	}
@@ -198,7 +220,10 @@ func (s *Sandbox) cmdCopy(args []string) (string, error) {
 }
 
 func (s *Sandbox) cmdMove(args []string) (string, error) {
-	operands := args
+	operands, err := operandsOnly(args)
+	if err != nil {
+		return "", err
+	}
 	if len(operands) < 2 {
 		return "", fmt.Errorf("missing source or destination")
 	}
@@ -253,6 +278,9 @@ func (s *Sandbox) cmdRemove(command string, args []string) (string, error) {
 		if command == "rmdir" && !s.FS.IsDir(resolved) {
 			return "", fmt.Errorf("%s: not a directory", name)
 		}
+		if command == "rm" && !recursive && s.FS.IsDir(resolved) {
+			return "", fmt.Errorf("%s: is a directory; use rm -r or rmdir", name)
+		}
 		if err := s.FS.Remove(resolved, recursive, force); err != nil {
 			return "", err
 		}
@@ -291,33 +319,4 @@ func (s *Sandbox) cmdChown(args []string) (string, error) {
 		}
 	}
 	return "", nil
-}
-
-func sortedKeys[V any](items map[string]V) []string {
-	keys := make([]string, 0, len(items))
-	for key := range items {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
-}
-
-// parseShortOptions handles the shared, deliberately small combined-short-flag
-// syntax used by teaching commands such as ls, du, sort, and tr.
-func parseShortOptions(args []string, valid string, dashIsOperand bool) (string, []string, error) {
-	var options strings.Builder
-	operands := make([]string, 0, len(args))
-	for _, arg := range args {
-		if !strings.HasPrefix(arg, "-") || dashIsOperand && arg == "-" {
-			operands = append(operands, arg)
-			continue
-		}
-		for _, option := range strings.TrimPrefix(arg, "-") {
-			if !strings.ContainsRune(valid, option) {
-				return "", nil, fmt.Errorf("unknown option -%c", option)
-			}
-			options.WriteRune(option)
-		}
-	}
-	return options.String(), operands, nil
 }

@@ -1,6 +1,9 @@
 package game
 
 import (
+	"bytes"
+	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -93,5 +96,80 @@ func TestReconcileAchievementsUsesDurableProfileAndCatalogState(t *testing.T) {
 	}
 	if player.HasAchievement(profile.AchievementPipeDream) {
 		t.Fatal("event-only pipeline achievement was inferred from durable state")
+	}
+}
+
+func TestCommandCollectorIgnoresMetaCommands(t *testing.T) {
+	now := time.Date(2026, 10, 9, 12, 0, 0, 0, time.UTC)
+	player := profile.New("tester")
+	// An older build recorded these lab utilities as practice.
+	player.RecordCommands([]string{"clear", "help", "history", "man"})
+	player.RecordCommands([]string{"cat", "cd", "cp", "echo", "find", "grep", "ls", "mkdir", "pwd"})
+
+	if got := PracticedCommands(player); len(got) != 9 || got[0] != "cat" || got[8] != "pwd" {
+		t.Fatalf("PracticedCommands() = %v, want the nine sorted teaching commands", got)
+	}
+	if unlocked := ReconcileCommandAchievements(&player, now); len(unlocked) != 0 {
+		t.Fatalf("meta commands completed Command Collector: %#v", unlocked)
+	}
+	player.RecordCommands([]string{"sort"})
+	if unlocked := ReconcileCommandAchievements(&player, now); len(unlocked) != 1 || unlocked[0].ID != profile.AchievementCommandCollector {
+		t.Fatalf("tenth teaching command unlocked %#v, want Command Collector", unlocked)
+	}
+}
+
+func TestSessionDoesNotRecordMetaCommandsAsPractice(t *testing.T) {
+	catalog, item := seamCatalogMission(t, "linux-orientation")
+	out := &bytes.Buffer{}
+	player := profile.New("tester")
+	session := Session{
+		Mission: item,
+		Player:  &player,
+		Saver:   profile.NewStore(filepath.Join(t.TempDir(), "profile.json"), "tester"),
+		Out:     out,
+		ErrOut:  &bytes.Buffer{},
+		Reader:  &seamReader{lines: []string{"help", "man ls", "clear", "history", "ls", "pwd"}},
+		Catalog: catalog,
+	}
+
+	result, err := session.Run()
+	if err != nil || !result.Completed {
+		t.Fatalf("Run() = %#v, %v; want a completed mission", result, err)
+	}
+	for _, meta := range []string{"clear", "help", "history", "man"} {
+		if player.Commands[meta] != 0 {
+			t.Errorf("meta command %q recorded as practice: %#v", meta, player.Commands)
+		}
+	}
+	if player.Commands["ls"] != 1 || player.Commands["pwd"] != 1 {
+		t.Fatalf("teaching commands = %#v, want ls and pwd recorded", player.Commands)
+	}
+	if !strings.Contains(out.String(), "New commands discovered: ls, pwd\n") {
+		t.Fatalf("completion did not list only teaching commands:\n%s", out.String())
+	}
+}
+
+// TestRanksSpanTheCatalog keeps rank thresholds meaningful as missions are
+// added or removed: finishing Linux reaches Staff SRE, and only the Docker
+// track leads to the top rank.
+func TestRanksSpanTheCatalog(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	totals := map[string]int{}
+	for _, item := range catalog.All() {
+		totals[item.EffectiveTrack()] += item.Rewards.XP
+	}
+	linux := profile.Profile{XP: totals[mission.TrackLinux]}
+	if rank := linux.Rank(); rank != "Staff SRE" {
+		t.Errorf("Linux track total %d XP reaches %q, want Staff SRE", linux.XP, rank)
+	}
+	everything := profile.Profile{XP: totals[mission.TrackLinux] + totals[mission.TrackDocker]}
+	if rank := everything.Rank(); rank != "Distinguished Engineer" {
+		t.Errorf("catalog total %d XP reaches %q, want Distinguished Engineer", everything.XP, rank)
+	}
+	if _, _, hasNext := everything.NextRank(); hasNext {
+		t.Error("a rank remains beyond the whole catalog's XP")
 	}
 }

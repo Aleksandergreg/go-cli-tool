@@ -49,22 +49,27 @@ func (s *Sandbox) cmdExecutableScript(context *executionContext, args []string, 
 	resolved := s.Resolve(args[0])
 	entry, exists := s.FS.Entry(resolved)
 	if !exists {
-		return "", fmt.Errorf("%s: no such file or directory", args[0])
+		return "", withExitStatus(statusCommandNotFound, fmt.Errorf("%s: no such file or directory", args[0]))
 	}
 	if entry.Kind != Regular {
-		return "", fmt.Errorf("%s: is a directory", args[0])
+		return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: is a directory", args[0]))
 	}
 	if entry.Mode&0o111 == 0 {
-		return "", fmt.Errorf("%s: permission denied; set an executable mode with chmod", args[0])
+		return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: permission denied; set an executable mode with chmod", args[0]))
 	}
 	return s.executeScript(context, resolved, true)
 }
 
 func (s *Sandbox) executeScript(context *executionContext, scriptPath string, requireShebang bool) (string, error) {
-	content, err := s.FS.ReadFile(scriptPath)
-	if err != nil {
-		return "", err
+	// As in sh, a missing script exits 127 and one that cannot run exits 126.
+	entry, exists := s.FS.Entry(scriptPath)
+	if !exists {
+		return "", withExitStatus(statusCommandNotFound, fmt.Errorf("%s: no such file", scriptPath))
 	}
+	if entry.Kind != Regular {
+		return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: is a directory", scriptPath))
+	}
+	content := entry.Content
 	if len(content) > maxScriptBytes {
 		return "", fmt.Errorf("%s: script exceeds the %d KiB limit", scriptPath, maxScriptBytes/1024)
 	}
@@ -75,7 +80,7 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 	if requireShebang {
 		firstLine := strings.TrimSuffix(lines[0], "\r")
 		if firstLine != "#!/bin/sh" && firstLine != "#!/usr/bin/env sh" {
-			return "", fmt.Errorf("%s: executable scripts require #!/bin/sh or #!/usr/bin/env sh", scriptPath)
+			return "", withExitStatus(statusCannotExecute, fmt.Errorf("%s: executable scripts require #!/bin/sh or #!/usr/bin/env sh", scriptPath))
 		}
 	}
 	if len(context.scriptStack) >= maxScriptDepth {
@@ -94,7 +99,10 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		s.Env = savedEnv
 	}()
 
+	// A script runs in a new shell, where $? starts at 0.
+	s.lastStatus = 0
 	var output strings.Builder
+	statusFailed := false
 	for index, rawLine := range lines {
 		lineNumber := index + 1
 		line := strings.TrimSuffix(rawLine, "\r")
@@ -105,10 +113,21 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 		if trimmed == "" || strings.HasPrefix(trimmed, "#") {
 			continue
 		}
-		if err := validateScriptSyntax(line); err != nil {
-			return "", fmt.Errorf("%s:%d: %w", scriptPath, lineNumber, err)
-		}
+		stderrBefore := len(context.stderr)
 		result, err := s.executeLine(line, context, false)
+		// Failures that a command list handled (`a || b`), on this line or in a
+		// nested script, still reach the caller's terminal ahead of the
+		// script's output, located like the errors that stop a script.
+		diagnostics := slices.Clone(context.stderr[stderrBefore:])
+		context.stderr = context.stderr[:stderrBefore]
+		for _, chunk := range result.Transcript {
+			if chunk.Error {
+				diagnostics = append(diagnostics, chunk.Text)
+			}
+		}
+		for _, message := range diagnostics {
+			context.stderr = append(context.stderr, fmt.Sprintf("%s:%d: %s", scriptPath, lineNumber, message))
+		}
 		if err != nil {
 			return "", fmt.Errorf("%s:%d: %w", scriptPath, lineNumber, err)
 		}
@@ -116,78 +135,13 @@ func (s *Sandbox) executeScript(context *executionContext, scriptPath string, re
 			return "", fmt.Errorf("%s:%d: script output exceeds the %d KiB limit", scriptPath, lineNumber, maxScriptOutputBytes/1024)
 		}
 		output.WriteString(result.Output)
+		statusFailed = result.statusFailed
+	}
+	if statusFailed {
+		// Like sh, a script's exit status is that of its last command.
+		return output.String(), errFailureStatus
 	}
 	return output.String(), nil
-}
-
-func validateScriptSyntax(line string) error {
-	runes := []rune(line)
-	var quote rune
-	escaped := false
-	tokenStarted := false
-	for index, char := range runes {
-		if escaped {
-			escaped = false
-			tokenStarted = true
-			continue
-		}
-		if quote == '\'' {
-			if char == quote {
-				quote = 0
-			}
-			continue
-		}
-		if char == '\\' {
-			escaped = true
-			continue
-		}
-		if quote == '"' {
-			if char == quote {
-				quote = 0
-				continue
-			}
-			if char == '`' || char == '$' && index+1 < len(runes) && runes[index+1] == '(' {
-				return fmt.Errorf("command substitution is not supported")
-			}
-			if char == '$' && isUnsupportedScriptParameter(runes[index+1:]) {
-				return fmt.Errorf("positional and special parameters are not supported")
-			}
-			continue
-		}
-
-		if unicode.IsSpace(char) {
-			tokenStarted = false
-			continue
-		}
-		if char == '#' && !tokenStarted {
-			break
-		}
-		if char == '\'' || char == '"' {
-			quote = char
-			tokenStarted = true
-			continue
-		}
-		switch char {
-		case ';', '&', '(', ')':
-			return fmt.Errorf("shell control syntax %q is not supported", char)
-		case '`':
-			return fmt.Errorf("command substitution is not supported")
-		case '|':
-			if index+1 < len(runes) && runes[index+1] == '|' {
-				return fmt.Errorf("control operator || is not supported")
-			}
-		case '$':
-			if index+1 < len(runes) && runes[index+1] == '(' {
-				return fmt.Errorf("command substitution is not supported")
-			}
-			if isUnsupportedScriptParameter(runes[index+1:]) {
-				return fmt.Errorf("positional and special parameters are not supported")
-			}
-		}
-		tokenStarted = true
-	}
-
-	return nil
 }
 
 func validateScriptCommands(parsed commandLine) error {
@@ -207,16 +161,6 @@ var unsupportedScriptKeywords = map[string]struct{}{
 	"if": {}, "then": {}, "elif": {}, "else": {}, "fi": {},
 	"for": {}, "while": {}, "until": {}, "do": {}, "done": {},
 	"case": {}, "esac": {}, "select": {}, "function": {},
-}
-
-func isUnsupportedScriptParameter(input []rune) bool {
-	if len(input) == 0 {
-		return false
-	}
-	if unicode.IsDigit(input[0]) || strings.ContainsRune("?$!#*@-", input[0]) {
-		return true
-	}
-	return len(input) > 1 && input[0] == '{' && (unicode.IsDigit(input[1]) || strings.ContainsRune("?$!#*@-", input[1]))
 }
 
 func validScriptVariableName(name string) bool {
