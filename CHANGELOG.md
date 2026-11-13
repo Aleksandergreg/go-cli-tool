@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.13.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.12.0...v0.13.0) (2026-11-13)
+
+
+### Features
+
+* Auto-sweep ([#57](https://github.com/Aleksandergreg/go-cli-tool/issues/57)) ([a29d3ca](https://github.com/Aleksandergreg/go-cli-tool/commit/a29d3ca6879a169f5e7a8368a979701c1e5f0b48))
+* fix container leaks and implement proper sedd ([#55](https://github.com/Aleksandergreg/go-cli-tool/issues/55)) ([eaf2e24](https://github.com/Aleksandergreg/go-cli-tool/commit/eaf2e2484189f4f28cfc15b78f3c199f187062bc))
+
 ## [0.12.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.11.0...v0.12.0) (2026-10-10)
 
 
