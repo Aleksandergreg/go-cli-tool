@@ -396,6 +396,14 @@ func lex(line string, env map[string]string) ([]token, error) {
 				return nil, fmt.Errorf("unfinished escape")
 			}
 			i++
+			// Inside double quotes a backslash escapes only shell-special
+			// characters. Sequences such as \n and \t stay intact for commands
+			// like printf, tr, grep, and sed to interpret.
+			if !strings.ContainsRune("$`\"\\", runes[i]) {
+				if err := writeRune('\\'); err != nil {
+					return nil, err
+				}
+			}
 			if err := writeRune(runes[i]); err != nil {
 				return nil, err
 			}
@@ -611,7 +619,9 @@ var commandManuals = map[string]string{
 	"pwd":      "pwd — print the current working directory",
 	"rm":       "rm [-rf] PATH... — remove paths inside the virtual filesystem",
 	"rmdir":    "rmdir DIR... — remove empty directories",
-	"sed":      "sed [-i] 's/REGEX/REPLACEMENT/g' [FILE] — transform text",
+	"sed": "sed [-i] [-n] [-E] 's/REGEX/REPLACEMENT/[gp]' [FILE] — transform text\n" +
+		"REGEX always uses extended syntax, as with sed -E: group with ( ) rather than \\( \\).\n" +
+		"In REPLACEMENT, & is the whole match, \\1 to \\9 are groups, and \\& or \\\\ are literal; $ has no special meaning.",
 	"sh": "sh FILE — run a virtual UTF-8 script through the OpsQuest teaching shell\n" +
 		"Blank lines, comments, #!/bin/sh, existing commands, variables, pipelines, and redirection are supported.\n" +
 		"Executable paths such as ./deploy.sh require a shebang and an executable mode; sh FILE does not.\n" +

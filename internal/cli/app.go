@@ -220,7 +220,7 @@ func (a *App) runPlay(args []string) error {
 		}
 	}
 	continuous := !*once
-	reader := game.NewCommandLineReader(a.in, a.out)
+	reader := game.NewCommandLineReaderContext(a.ctx, a.in, a.out)
 	for {
 		currentTrack := item.EffectiveTrack()
 		wasComplete := player.IsComplete(item.ID)
@@ -734,7 +734,7 @@ func (a *App) runReset(args []string) error {
 	}
 	if !*yes {
 		fmt.Fprint(a.out, "Reset all OpsQuest progress? [y/N] ")
-		reader := bufio.NewReader(a.in)
+		reader := bufio.NewReader(game.NewContextReader(a.ctx, a.in))
 		answer, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
 			return fmt.Errorf("read confirmation: %w", err)

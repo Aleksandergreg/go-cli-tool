@@ -73,7 +73,12 @@ func (s *Sandbox) cmdFind(context *executionContext, args []string) (string, err
 			return "", err
 		}
 		for _, candidate := range items {
-			entry, _ := s.FS.Entry(candidate)
+			entry, exists := s.FS.Entry(candidate)
+			if !exists {
+				// An earlier -exec command removed or moved this entry after the
+				// traversal was planned; there is nothing left to match.
+				continue
+			}
 			if entryType == "f" && entry.Kind != Regular {
 				continue
 			}

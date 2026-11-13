@@ -88,7 +88,7 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 	printMission(s.Out, s.Mission, hintsUsed, replaying, s.Catalog, s.Style)
 	reader := s.Reader
 	if reader == nil {
-		reader = NewCommandLineReader(s.In, s.Out)
+		reader = NewCommandLineReaderContext(ctx, s.In, s.Out)
 	}
 	discovered := make([]string, 0)
 	practiced := make([]string, 0)
@@ -105,6 +105,9 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			return SessionResult{Quit: true, HintsUsed: hintsUsed}, nil
 		}
 		if readErr != nil {
+			if err := ctx.Err(); err != nil {
+				return SessionResult{}, fmt.Errorf("mission context: %w", err)
+			}
 			return SessionResult{}, fmt.Errorf("read command: %w", readErr)
 		}
 		line = strings.TrimSpace(line)

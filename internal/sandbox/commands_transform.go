@@ -25,6 +25,8 @@ func (s *Sandbox) cmdSed(args []string, stdin string) (string, error) {
 			inPlace = true
 		case "-n":
 			quiet = true
+		case "-E", "-r":
+			// Patterns already use extended regular-expression syntax.
 		case "-e":
 			if index+1 >= len(args) {
 				return "", fmt.Errorf("-e requires an expression")
@@ -104,6 +106,10 @@ func parseSedSubstitution(expression string) (sedSubstitution, error) {
 	if err != nil {
 		return sedSubstitution{}, fmt.Errorf("invalid regular expression: %w", err)
 	}
+	replacement, err = translateSedReplacement(replacement, matcher.NumSubexp())
+	if err != nil {
+		return sedSubstitution{}, err
+	}
 	result := sedSubstitution{pattern: matcher, replacement: replacement}
 	for _, flag := range expression[next:] {
 		switch flag {
@@ -130,12 +136,59 @@ func readSedSection(expression string, start int, delimiter byte) (string, int, 
 				index++
 				continue
 			}
+			// Keep the escaped pair together so an escaped backslash directly
+			// before the delimiter cannot be mistaken for an escaped delimiter.
 			section.WriteByte('\\')
+			section.WriteByte(expression[index+1])
+			index++
 			continue
 		}
 		section.WriteByte(expression[index])
 	}
 	return "", 0, fmt.Errorf("unterminated substitution")
+}
+
+// translateSedReplacement converts sed replacement syntax into the template
+// understood by Go's regexp package. & and \0 are the whole match, \1 to \9
+// are capture groups, \n and \t are a newline and a tab, and any other escaped
+// character is literal. A dollar sign has no special meaning in sed, so it is
+// escaped rather than exposed as Go template syntax.
+func translateSedReplacement(replacement string, groups int) (string, error) {
+	var template strings.Builder
+	for index := 0; index < len(replacement); index++ {
+		char := replacement[index]
+		switch {
+		case char == '&':
+			template.WriteString("${0}")
+		case char == '$':
+			template.WriteString("$$")
+		case char == '\\' && index+1 < len(replacement):
+			index++
+			next := replacement[index]
+			switch {
+			case next >= '0' && next <= '9':
+				group := int(next - '0')
+				if group > groups {
+					if groups == 0 {
+						return "", fmt.Errorf("invalid reference \\%d: the pattern has no capture group; this lab uses extended syntax, so group with ( ) rather than \\( \\)", group)
+					}
+					return "", fmt.Errorf("invalid reference \\%d: the pattern has %d capture group(s)", group, groups)
+				}
+				fmt.Fprintf(&template, "${%d}", group)
+			case next == 'n':
+				template.WriteByte('\n')
+			case next == 't':
+				template.WriteByte('\t')
+			case next == '$':
+				template.WriteString("$$")
+			default:
+				template.WriteByte(next)
+			}
+		default:
+			template.WriteByte(char)
+		}
+	}
+	return template.String(), nil
 }
 
 func applySedSubstitution(content string, substitution sedSubstitution) (string, string, error) {
