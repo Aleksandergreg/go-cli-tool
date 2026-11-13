@@ -55,7 +55,7 @@ OrbStack does not introduce a second execution backend. On macOS it is selected 
 
 [`cmd/opsquest/main.go`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/cmd/opsquest/main.go) performs a deliberately small composition sequence:
 
-1. Create an interrupt-aware context.
+1. Create a context that ends on interrupt, termination, or hangup; pending input reads are abandoned when it ends so mission cleanup can run.
 2. Load and validate every embedded mission with `mission.LoadCatalog`.
 3. Resolve the profile store with `profile.DefaultStore`.
 4. Construct the CLI with standard streams, catalog, store, and the combined environment factory.

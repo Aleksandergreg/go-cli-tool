@@ -76,6 +76,9 @@ func (s Session) Run() (returnResult SessionResult, returnErr error) {
 			return a.pause(), nil
 		}
 		if readErr != nil {
+			if err := a.ctx.Err(); err != nil {
+				return SessionResult{}, fmt.Errorf("mission context: %w", err)
+			}
 			return SessionResult{}, fmt.Errorf("read command: %w", readErr)
 		}
 		line = strings.TrimSpace(line)
@@ -149,7 +152,7 @@ func (s Session) begin() (*attempt, error) {
 	a.hintsUsed = s.Player.MissionHints(s.Mission.ID)
 	a.reader = s.Reader
 	if a.reader == nil {
-		a.reader = NewCommandLineReader(a.In, a.Out)
+		a.reader = NewCommandLineReaderContext(a.ctx, a.In, a.Out)
 	}
 	return a, nil
 }

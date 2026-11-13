@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 	"strings"
+
+	"github.com/aleksandergregersen/opsquest/internal/game"
 )
 
 func (a *App) runReset(args []string) error {
@@ -18,7 +20,7 @@ func (a *App) runReset(args []string) error {
 	}
 	if !*yes {
 		fmt.Fprint(a.out, "Reset all OpsQuest progress? [y/N] ")
-		reader := bufio.NewReader(a.in)
+		reader := bufio.NewReader(game.NewContextReader(a.ctx, a.in))
 		answer, err := reader.ReadString('\n')
 		if err != nil && err != io.EOF {
 			return fmt.Errorf("read confirmation: %w", err)
