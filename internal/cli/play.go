@@ -65,7 +65,7 @@ func (a *App) runPlay(args []string) (returnErr error) {
 	if err := a.onboard(item, &player, options.web); err != nil {
 		return err
 	}
-	reader := game.NewCommandLineReader(a.in, a.out)
+	reader := game.NewCommandLineReaderContext(a.ctx, a.in, a.out)
 	for {
 		wasComplete := player.IsComplete(item.ID)
 		result, err := a.newSession(item, &player, reader, activeCompanion).Run()

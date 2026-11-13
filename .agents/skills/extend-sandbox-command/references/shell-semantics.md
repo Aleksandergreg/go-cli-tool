@@ -11,8 +11,8 @@ Do not add a fallback to the host. Unknown commands must remain errors, and play
 ## Current parsing subset
 
 - Words are separated by unquoted whitespace.
-- Single quotes preserve literal text. Double quotes allow basic `$NAME` and `${NAME}` expansion plus escaped characters.
-- A backslash escapes the following character; unfinished escapes and quotes are errors.
+- Single quotes preserve literal text. Double quotes allow basic `$NAME` and `${NAME}` expansion; inside them a backslash escapes only `$`, `` ` ``, `"`, and `\`, so sequences such as `\n` reach the command intact.
+- Outside quotes a backslash escapes the following character; unfinished escapes and quotes are errors.
 - A `#` beginning a new unquoted token starts a comment.
 - Unquoted `*`, `?`, and `[` patterns expand against the virtual filesystem with POSIX-style path matching. Quoted patterns remain literal.
 - `|` creates a pipeline. `<`, `>`, and `>>` are stage-local redirections backed by virtual files.

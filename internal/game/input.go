@@ -2,6 +2,7 @@ package game
 
 import (
 	"bufio"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -54,6 +55,58 @@ func (r *scannerLineReader) Edit(_ sandbox.EditorRequest, _ viSaveFunc) error {
 	return ErrInteractiveEditor
 }
 
+// contextReader lets a blocking read of a terminal or pipe be abandoned when
+// ctx ends. Standard input cannot be interrupted portably, so each read runs
+// on its own goroutine and Read stops waiting for it once ctx is done. The
+// abandoned goroutine keeps the private scratch buffer and ends with the
+// process; every later Read reports the context error.
+type contextReader struct {
+	ctx     context.Context
+	source  io.Reader
+	scratch []byte
+}
+
+type contextReadResult struct {
+	count int
+	err   error
+}
+
+// NewContextReader returns source unchanged when ctx can never end, so
+// callers without a cancelable context keep plain synchronous reads.
+func NewContextReader(ctx context.Context, source io.Reader) io.Reader {
+	if ctx == nil || ctx.Done() == nil {
+		return source
+	}
+	return &contextReader{ctx: ctx, source: source}
+}
+
+func (r *contextReader) Read(buffer []byte) (int, error) {
+	if err := r.ctx.Err(); err != nil {
+		return 0, err
+	}
+	if len(buffer) == 0 {
+		return 0, nil
+	}
+	if len(r.scratch) < len(buffer) {
+		r.scratch = make([]byte, len(buffer))
+	}
+	scratch := r.scratch[:len(buffer)]
+	done := make(chan contextReadResult, 1)
+	go func() {
+		count, err := r.source.Read(scratch)
+		done <- contextReadResult{count: count, err: err}
+	}()
+	select {
+	case result := <-done:
+		copy(buffer, scratch[:result.count])
+		return result.count, result.err
+	case <-r.ctx.Done():
+		// The pending read still owns scratch; never hand it to another read.
+		r.scratch = nil
+		return 0, r.ctx.Err()
+	}
+}
+
 type terminalLineReader struct {
 	editor   *term.Terminal
 	keys     *terminalKeyReader
@@ -63,13 +116,20 @@ type terminalLineReader struct {
 }
 
 func NewCommandLineReader(in io.Reader, out io.Writer) CommandLineReader {
+	return NewCommandLineReaderContext(context.Background(), in, out)
+}
+
+// NewCommandLineReaderContext returns a reader whose pending line or key read
+// fails with the context error once ctx ends. Without it, a signal received
+// while waiting for input would only take effect after the next line arrived.
+func NewCommandLineReaderContext(ctx context.Context, in io.Reader, out io.Writer) CommandLineReader {
 	input, inputIsFile := in.(*os.File)
 	output, outputIsFile := out.(*os.File)
 	if !inputIsFile || !outputIsFile || !term.IsTerminal(int(input.Fd())) || !term.IsTerminal(int(output.Fd())) {
-		return newScannerLineReader(in, out)
+		return newScannerLineReader(NewContextReader(ctx, in), out)
 	}
 
-	keys := newTerminalKeyReader(input)
+	keys := newTerminalKeyReader(NewContextReader(ctx, input))
 	readWriter := terminalReadWriter{reader: keys, writer: output}
 	return &terminalLineReader{
 		editor:   term.NewTerminal(readWriter, ""),

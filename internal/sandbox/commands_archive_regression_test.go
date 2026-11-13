@@ -50,3 +50,28 @@ func TestTarCreateFailurePreservesExistingArchiveMetadata(t *testing.T) {
 		t.Errorf("failed tar creation changed backing file: got %q, want %q", backing, originalBacking)
 	}
 }
+
+func TestFindExecSkipsEntriesRemovedByAnEarlierExec(t *testing.T) {
+	for _, command := range []string{
+		`find tree -type d -exec rm -r {} \;`,
+		`find tree -type f -exec rm -r tree \;`,
+		`find tree -name "*.txt" -exec rm -r tree \;`,
+	} {
+		box := testSandbox(t)
+		for _, setup := range []string{`mkdir -p tree/nested`, `touch tree/a.txt tree/b.txt tree/nested/c.txt`} {
+			if _, err := box.Execute(setup); err != nil {
+				t.Fatalf("%s: %v", setup, err)
+			}
+		}
+
+		if _, err := box.Execute(command); err != nil {
+			t.Errorf("%s: unexpected error %v", command, err)
+		}
+		if box.FS.Exists("/work/tree") {
+			t.Errorf("%s: left /work/tree behind", command)
+		}
+		if !box.FS.Exists("/work/events.log") {
+			t.Errorf("%s: removed a file outside the search root", command)
+		}
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"syscall"
 
 	"github.com/aleksandergregersen/opsquest/internal/cli"
 	"github.com/aleksandergregersen/opsquest/internal/dockerlab"
@@ -22,7 +23,10 @@ func main() {
 }
 
 func run() error {
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt)
+	// Termination and hangup are handled like an interrupt so a mission attempt
+	// unwinds through its deferred cleanup instead of leaving Docker fixtures
+	// behind when the terminal closes or the process is asked to stop.
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 
 	catalog, err := mission.LoadCatalog()
