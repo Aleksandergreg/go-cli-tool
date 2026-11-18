@@ -15,10 +15,11 @@ func TestMapShowsTrackLocalWorldsAndStages(t *testing.T) {
 		t.Fatalf("map error = %v; stderr = %s", err, errOut.String())
 	}
 	for _, expected := range []string{
-		"WORLD 1/4 · First Day",
+		"WORLD 1/5 · First Day",
 		"Stage 6/6 · #06",
-		"WORLD 2/4 · The Logpocalypse",
-		"WORLD 4/4 · The Automation Shift",
+		"WORLD 2/5 · The Logpocalypse",
+		"WORLD 4/5 · The Automation Shift",
+		"WORLD 5/5 · Audit Season",
 		"Jump: opsquest play --world N",
 	} {
 		if !strings.Contains(out.String(), expected) {
@@ -36,7 +37,7 @@ func TestListAndProfileWorkWithoutExistingSave(t *testing.T) {
 	if err := app.Run([]string{"list"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "0/23 missions complete") {
+	if !strings.Contains(out.String(), "0/26 missions complete") {
 		t.Fatalf("list output = %s", out.String())
 	}
 
@@ -73,7 +74,7 @@ func TestListCampaignFilterUsesCampaignTotal(t *testing.T) {
 	if !strings.Contains(out.String(), "0/6 missions complete") {
 		t.Fatalf("campaign-filtered total missing:\n%s", out.String())
 	}
-	if strings.Contains(out.String(), "0/39 missions complete") || strings.Contains(out.String(), "Production Friday") {
+	if strings.Contains(out.String(), "0/42 missions complete") || strings.Contains(out.String(), "Production Friday") {
 		t.Fatalf("campaign filter used catalog-wide scope:\n%s", out.String())
 	}
 }

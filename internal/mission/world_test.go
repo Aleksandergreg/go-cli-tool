@@ -13,8 +13,8 @@ func TestCatalogWorldsAreOrderedWithinEachTrack(t *testing.T) {
 	}
 
 	linux := catalog.Worlds("")
-	wantNames := []string{"First Day", "The Logpocalypse", "Production Friday", "The Automation Shift"}
-	wantStages := []int{6, 6, 7, 4}
+	wantNames := []string{"First Day", "The Logpocalypse", "Production Friday", "The Automation Shift", "Audit Season"}
+	wantStages := []int{6, 6, 7, 4, 3}
 	if len(linux) != len(wantNames) {
 		t.Fatalf("len(Worlds(linux)) = %d, want %d", len(linux), len(wantNames))
 	}
@@ -23,8 +23,8 @@ func TestCatalogWorldsAreOrderedWithinEachTrack(t *testing.T) {
 			t.Errorf("Worlds(linux)[%d] = number %d, track %q, name %q, stages %d", index, world.Number, world.Track, world.Name, len(world.Missions))
 		}
 	}
-	if linux[1].Missions[0].ID != "linux-permissions" || linux[2].Missions[0].ID != "linux-tail-trouble" || linux[3].Missions[0].ID != "linux-runbook-runner" {
-		t.Fatalf("Linux world boundaries = %q, %q, then %q", linux[1].Missions[0].ID, linux[2].Missions[0].ID, linux[3].Missions[0].ID)
+	if linux[1].Missions[0].ID != "linux-permissions" || linux[2].Missions[0].ID != "linux-tail-trouble" || linux[3].Missions[0].ID != "linux-runbook-runner" || linux[4].Missions[0].ID != "linux-who-can-log-in" {
+		t.Fatalf("Linux world boundaries = %q, %q, %q, then %q", linux[1].Missions[0].ID, linux[2].Missions[0].ID, linux[3].Missions[0].ID, linux[4].Missions[0].ID)
 	}
 
 	docker := catalog.Worlds(TrackDocker)
@@ -61,7 +61,7 @@ func TestCatalogWorldLookupAndPlacement(t *testing.T) {
 		number int
 	}{
 		{track: TrackLinux, number: 0},
-		{track: TrackLinux, number: 5},
+		{track: TrackLinux, number: 6},
 		{track: "missing", number: 1},
 	} {
 		if _, found := catalog.World(test.track, test.number); found {
@@ -75,15 +75,19 @@ func TestCatalogWorldLookupAndPlacement(t *testing.T) {
 	}{
 		{
 			missionID: "linux-orientation",
-			want:      Placement{Track: TrackLinux, WorldNumber: 1, WorldTotal: 4, WorldName: "First Day", StageNumber: 1, StageTotal: 6},
+			want:      Placement{Track: TrackLinux, WorldNumber: 1, WorldTotal: 5, WorldName: "First Day", StageNumber: 1, StageTotal: 6},
 		},
 		{
 			missionID: "linux-pipeline-report",
-			want:      Placement{Track: TrackLinux, WorldNumber: 2, WorldTotal: 4, WorldName: "The Logpocalypse", StageNumber: 6, StageTotal: 6},
+			want:      Placement{Track: TrackLinux, WorldNumber: 2, WorldTotal: 5, WorldName: "The Logpocalypse", StageNumber: 6, StageTotal: 6},
 		},
 		{
 			missionID: "linux-vi-first-aid",
-			want:      Placement{Track: TrackLinux, WorldNumber: 4, WorldTotal: 4, WorldName: "The Automation Shift", StageNumber: 2, StageTotal: 4},
+			want:      Placement{Track: TrackLinux, WorldNumber: 4, WorldTotal: 5, WorldName: "The Automation Shift", StageNumber: 2, StageTotal: 4},
+		},
+		{
+			missionID: "linux-exit-interview",
+			want:      Placement{Track: TrackLinux, WorldNumber: 5, WorldTotal: 5, WorldName: "Audit Season", StageNumber: 3, StageTotal: 3},
 		},
 		{
 			missionID: "docker-container-census",

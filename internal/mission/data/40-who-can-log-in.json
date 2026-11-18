@@ -1,0 +1,33 @@
+{
+  "id": "linux-who-can-log-in",
+  "number": 40,
+  "title": "Who Can Log In?",
+  "campaign": "Audit Season",
+  "difficulty": "beginner",
+  "story": "Audit season has arrived, along with an auditor whose first question is which accounts can open an interactive shell. The answer is somewhere in /etc/passwd, between the service accounts and a chat bot with an unfortunate name.",
+  "objective": "Print only the names of the accounts in /etc/passwd whose login shell is /bin/bash, one name per line.",
+  "start_dir": "/etc",
+  "suggested_commands": ["cat", "grep", "cut"],
+  "hints": [
+    "Each /etc/passwd line is one account split into seven colon-separated fields. The account name comes first and the login shell comes last.",
+    "grep matches anywhere on a line, so anchor the shell to the end with $. cut -d: -f1 then keeps only the first colon-separated field.",
+    "Try: grep ':/bin/bash$' /etc/passwd | cut -d: -f1"
+  ],
+  "explanation": "Many system files are delimited records. cut -d: -f1 selects the name field from /etc/passwd, and anchoring the pattern to the end of the line makes grep test the shell field instead of any text that merely mentions bash, such as a home directory. Selecting fields first with cut -d: -f1,7 and filtering afterward is an equally valid route.",
+  "setup": {
+    "directories": [
+      {"path": "/etc"}
+    ],
+    "files": [
+      {"path": "/etc/passwd", "content": "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nwww-data:x:33:33:www-data:/var/www:/usr/sbin/nologin\npostgres:x:112:120:PostgreSQL administrator:/var/lib/postgresql:/bin/false\ndeploy:x:1001:1001:Release automation:/home/deploy:/bin/bash\nbashbot:x:1002:1002:Chat bot:/opt/bashbot:/usr/sbin/nologin\noncall:x:1003:1003:On-call engineer:/home/oncall:/bin/bash\n", "mode": "0644"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "output_contains_all", "values": ["root", "deploy", "oncall"]},
+      {"type": "output_not_contains", "value": "bashbot"},
+      {"type": "output_not_contains", "value": ":"}
+    ]
+  },
+  "rewards": {"xp": 70, "hint_penalty": 10}
+}

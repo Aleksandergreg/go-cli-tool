@@ -15,7 +15,7 @@ OpsQuest teaches through short incidents inside disposable environments. You ins
 3. Learn how [missions, hints, routes, and rewards work](missions-and-progress.md).
 4. Keep the [controls and command reference](controls-and-commands.md) nearby while playing.
 
-The default route follows the four Linux worlds in the [mission map](mission-map.md).
+The default route follows the five Linux worlds in the [mission map](mission-map.md).
 The separate [Docker Foundations](docker-foundations.md) track is optional and
 never blocks Linux progress.
 
