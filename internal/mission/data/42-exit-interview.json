@@ -1,0 +1,41 @@
+{
+  "id": "linux-exit-interview",
+  "number": 42,
+  "title": "Boss Battle: Exit Interview",
+  "campaign": "Audit Season",
+  "difficulty": "advanced",
+  "story": "The auditor's final request: prove that every production host enforces TLS. The inventory was exported by three teams, one of which types exclusively in capital letters, and one host config still carries an optimistic comment from last quarter.",
+  "objective": "From /audit/inventory.csv, write each production host once, in lowercase and alphabetical order, to /reports/prod-hosts.txt. Then write /reports/tls-audit.txt with one line per production host in the same order: the hostname, a space, and PASS if /etc/fleet/HOST.conf has an active tls=on line or FAIL if it does not.",
+  "start_dir": "/audit",
+  "suggested_commands": ["cat", "tr", "grep", "cut", "sort", "echo"],
+  "hints": [
+    "Split the audit into two outcomes: a clean production host list first, then one TLS verdict per host.",
+    "tr translates characters from standard input. tr 'A-Z' 'a-z' < inventory.csv lowercases every row, so WEB-01 and web-01 become duplicates that sort -u can collapse.",
+    "Filter on the environment field, not the whole line: one staging host has prod in its name. After lowercasing, grep ',prod$' keeps production rows and cut -d, -f1 keeps the hostname.",
+    "grep -q prints nothing and only sets the exit status. Anchor the setting with '^tls=on$' so a comment that mentions tls=on does not count, then use && and || with >> to append PASS or FAIL.",
+    "One route: tr 'A-Z' 'a-z' < inventory.csv | grep ',prod$' | cut -d, -f1 | sort -u > /reports/prod-hosts.txt, then for each host in order: grep -q '^tls=on$' /etc/fleet/api-01.conf && echo 'api-01 PASS' >> /reports/tls-audit.txt || echo 'api-01 FAIL' >> /reports/tls-audit.txt"
+  ],
+  "explanation": "Audit evidence has to be reproducible. Lowercasing with tr before sort -u turns differently capitalized duplicates into identical lines, and filtering on the environment field keeps prod-mirror-01, a staging host, out of production. grep -q reduces each config to an exit status, the ^ and $ anchors ignore the commented tls=on, and && / || choose which line to append. a && b || c also runs c when b fails; echo with >> succeeds here, so the pattern is safe, but keep that in mind before chaining riskier commands.",
+  "setup": {
+    "directories": [
+      {"path": "/audit"},
+      {"path": "/etc/fleet"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/audit/inventory.csv", "content": "hostname,team,environment\nweb-01,web,prod\nWEB-01,WEB,PROD\ndb-01,data,prod\nAPI-01,PLATFORM,PROD\nprod-mirror-01,platform,staging\nCache-01,Web,Prod\nDB-01,DATA,PROD\n"},
+      {"path": "/etc/fleet/api-01.conf", "content": "service=api\ntls=on\nport=8443\n"},
+      {"path": "/etc/fleet/cache-01.conf", "content": "service=cache\nport=6380\ntls=on\n"},
+      {"path": "/etc/fleet/db-01.conf", "content": "service=postgres\nport=5432\n"},
+      {"path": "/etc/fleet/web-01.conf", "content": "service=web\n# tls=on after the certificate renewal\ntls=off\nport=443\n"},
+      {"path": "/etc/fleet/prod-mirror-01.conf", "content": "service=mirror\ntls=on\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_lines_equal", "path": "/reports/prod-hosts.txt", "values": ["api-01", "cache-01", "db-01", "web-01"]},
+      {"type": "file_lines_equal", "path": "/reports/tls-audit.txt", "values": ["api-01 PASS", "cache-01 PASS", "db-01 FAIL", "web-01 FAIL"]}
+    ]
+  },
+  "rewards": {"xp": 170, "hint_penalty": 25}
+}

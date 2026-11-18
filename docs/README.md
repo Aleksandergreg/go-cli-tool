@@ -30,7 +30,7 @@ The game describes an observable objective, gives you a disposable environment, 
 
 ## Current scope
 
-- 23 Linux missions across four ordered learning worlds
+- 26 Linux missions across five ordered learning worlds
 - 16 optional Docker missions across three worlds
 - Outcome-based validation rather than one required command transcript
 - An in-memory filesystem, process table, environment, archives, editor, and shell scripts

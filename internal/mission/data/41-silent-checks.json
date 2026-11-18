@@ -1,0 +1,41 @@
+{
+  "id": "linux-silent-checks",
+  "number": 41,
+  "title": "Silent Checks",
+  "campaign": "Audit Season",
+  "difficulty": "intermediate",
+  "story": "The auditor wants proof that someone actually reads the health checks. They report the way monitoring tools do: exit status 0 means healthy and anything else means trouble. Some of them also chat on the way out, which proves nothing either way.",
+  "objective": "Run the health checks in /opt/checks and record the name of each failing check (api for api.sh) in /reports/failing-checks.txt, one per line in alphabetical order.",
+  "start_dir": "/opt/checks",
+  "suggested_commands": ["ls", "cat", "sh", "echo"],
+  "hints": [
+    "A check's verdict is its exit status, not its output. Run one, then echo $? to see 0 for success or a non-zero failure status.",
+    "Command lists act on that status: a && b runs b only when a succeeds, and a || b runs b only when a fails.",
+    "Append with >> so each failing name adds a line instead of replacing the file, and work through the checks alphabetically.",
+    "Try: ./api.sh || echo api >> /reports/failing-checks.txt, then repeat it for cert, disk, and queue."
+  ],
+  "explanation": "Automation reads exit statuses, not prose. A script's status is the status of its last command, so each check passes or fails on its final grep -q. echo $? shows the most recent status, a || b turns a failure into an action, and a && b continues only after success. The output was a decoy: the certificate warning came from a passing check, and the queue's cheerful message came from a failing one.",
+  "setup": {
+    "directories": [
+      {"path": "/opt/checks"},
+      {"path": "/var/state"},
+      {"path": "/reports"}
+    ],
+    "files": [
+      {"path": "/opt/checks/api.sh", "content": "#!/bin/sh\n# Healthy when the API reports ready.\ngrep -q '^state=ready$' /var/state/api.state\n", "mode": "0755"},
+      {"path": "/opt/checks/cert.sh", "content": "#!/bin/sh\n# Healthy while the certificate is valid; renewal reminders are only warnings.\necho 'WARNING: certificate renews in 45 days'\ngrep -q '^valid=yes$' /var/state/cert.state\n", "mode": "0755"},
+      {"path": "/opt/checks/disk.sh", "content": "#!/bin/sh\n# Healthy while disk usage stays under the alert threshold.\ngrep -q '^threshold=ok$' /var/state/disk.state\n", "mode": "0755"},
+      {"path": "/opt/checks/queue.sh", "content": "#!/bin/sh\n# Healthy when the work queue is empty.\necho 'queue check finished'\ngrep -q '^backlog=0$' /var/state/queue.state\n", "mode": "0755"},
+      {"path": "/var/state/api.state", "content": "state=ready\nuptime_seconds=86400\n"},
+      {"path": "/var/state/cert.state", "content": "valid=yes\nexpires_in_days=45\n"},
+      {"path": "/var/state/disk.state", "content": "threshold=exceeded\nusage_percent=97\n"},
+      {"path": "/var/state/queue.state", "content": "backlog=1200\n"}
+    ]
+  },
+  "validation": {
+    "all": [
+      {"type": "file_lines_equal", "path": "/reports/failing-checks.txt", "values": ["disk", "queue"]}
+    ]
+  },
+  "rewards": {"xp": 95, "hint_penalty": 15}
+}

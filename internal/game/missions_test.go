@@ -86,6 +86,20 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 			"chmod 750 night-shift.sh",
 			"./night-shift.sh",
 		},
+		"linux-who-can-log-in": {`grep ':/bin/bash$' /etc/passwd | cut -d: -f1`},
+		"linux-silent-checks": {
+			"./api.sh || echo api >> /reports/failing-checks.txt",
+			"./cert.sh || echo cert >> /reports/failing-checks.txt",
+			"./disk.sh || echo disk >> /reports/failing-checks.txt",
+			"./queue.sh || echo queue >> /reports/failing-checks.txt",
+		},
+		"linux-exit-interview": {
+			`tr 'A-Z' 'a-z' < inventory.csv | grep ',prod$' | cut -d, -f1 | sort -u > /reports/prod-hosts.txt`,
+			`grep -q '^tls=on$' /etc/fleet/api-01.conf && echo 'api-01 PASS' >> /reports/tls-audit.txt || echo 'api-01 FAIL' >> /reports/tls-audit.txt`,
+			`grep -q '^tls=on$' /etc/fleet/cache-01.conf && echo 'cache-01 PASS' >> /reports/tls-audit.txt || echo 'cache-01 FAIL' >> /reports/tls-audit.txt`,
+			`grep -q '^tls=on$' /etc/fleet/db-01.conf && echo 'db-01 PASS' >> /reports/tls-audit.txt || echo 'db-01 FAIL' >> /reports/tls-audit.txt`,
+			`grep -q '^tls=on$' /etc/fleet/web-01.conf && echo 'web-01 PASS' >> /reports/tls-audit.txt || echo 'web-01 FAIL' >> /reports/tls-audit.txt`,
+		},
 	}
 
 	for _, item := range catalog.All() {

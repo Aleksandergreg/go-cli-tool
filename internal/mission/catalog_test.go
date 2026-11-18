@@ -10,8 +10,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 39 {
-		t.Fatalf("len(All()) = %d, want 39", len(items))
+	if len(items) != 42 {
+		t.Fatalf("len(All()) = %d, want 42", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {
@@ -44,7 +44,7 @@ func TestLegacyMissionDefaultsAndCatalogTrackFiltering(t *testing.T) {
 
 	linux := catalog.InTrack("")
 	docker := catalog.InTrack(TrackDocker)
-	if len(linux) != 23 || len(docker) != 16 {
+	if len(linux) != 26 || len(docker) != 16 {
 		t.Fatalf("track sizes = linux %d, docker %d", len(linux), len(docker))
 	}
 	if docker[0].ID != "docker-container-census" || docker[0].Number != 20 {
@@ -132,8 +132,8 @@ func TestCatalogTrackBoundariesAndAdjacency(t *testing.T) {
 		t.Fatalf("FirstInTrack(linux) = %#v, %v", first, found)
 	}
 	last, found := catalog.LastInTrack(TrackLinux)
-	if !found || last.Number != 29 {
-		t.Fatalf("LastInTrack(linux) = %#v, %v", last, found)
+	if !found || last.ID != "linux-exit-interview" || last.Number != 42 {
+		t.Fatalf("LastInTrack(linux) = %q #%d, %v", last.ID, last.Number, found)
 	}
 	lastDocker, found := catalog.LastInTrack(TrackDocker)
 	if !found || lastDocker.ID != "docker-segmentation" || lastDocker.Number != 39 {
@@ -150,6 +150,10 @@ func TestCatalogTrackBoundariesAndAdjacency(t *testing.T) {
 	previous, found := catalog.AdjacentInTrack("linux-runbook-runner", -1)
 	if !found || previous.ID != "linux-production-friday" {
 		t.Fatalf("AdjacentInTrack(before 26) = %#v, %v", previous, found)
+	}
+	pastDocker, found := catalog.AdjacentInTrack("linux-scope-creep", 1)
+	if !found || pastDocker.ID != "linux-who-can-log-in" {
+		t.Fatalf("AdjacentInTrack(after 29) = %#v, %v", pastDocker, found)
 	}
 	nextDocker, found := catalog.AdjacentInTrack("docker-container-census", 1)
 	if !found || nextDocker.ID != "docker-last-broadcast" {

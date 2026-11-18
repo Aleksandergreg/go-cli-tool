@@ -34,7 +34,7 @@ func (a *App) printQuickStart() {
 	fmt.Fprintf(a.out, "  %s Hints are always available, but each one lowers the mission's XP reward.\n", a.style.Accent("3."))
 	fmt.Fprintln(a.out)
 	fmt.Fprintln(a.out, a.style.Section("PROGRESSION"))
-	fmt.Fprintf(a.out, "  %s follows the next incomplete stage; %s shows all four Linux worlds.\n",
+	fmt.Fprintf(a.out, "  %s follows the next incomplete stage; %s shows all five Linux worlds.\n",
 		a.style.Accent("opsquest play"), a.style.Accent("opsquest map"))
 	fmt.Fprintln(a.out, "  Every 100 XP raises your level. Worlds guide the learning order but never lock replay or jumps.")
 	fmt.Fprintln(a.out)
@@ -66,6 +66,7 @@ func (a *App) printGuide() {
 	fmt.Fprintf(a.out, "  %s Permissions, environment, processes, archives, and pipelines\n", a.style.World("World 2 · The Logpocalypse —"))
 	fmt.Fprintf(a.out, "  %s Logs, transformation, ownership, and incident repair\n", a.style.World("World 3 · Production Friday —"))
 	fmt.Fprintf(a.out, "  %s Modal editing and reusable shell scripts\n", a.style.World("World 4 · The Automation Shift —"))
+	fmt.Fprintf(a.out, "  %s Delimited fields, exit status, and command lists\n", a.style.World("World 5 · Audit Season —"))
 	fmt.Fprintf(a.out, "  Run %s to resume the recommended path, or %s to inspect and jump between worlds.\n",
 		a.style.Accent("opsquest play"), a.style.Accent("opsquest map"))
 	fmt.Fprintln(a.out, "  At the top level, a mission number or ID walks forward from that exact mission.")

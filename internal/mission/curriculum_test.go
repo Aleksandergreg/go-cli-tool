@@ -33,6 +33,37 @@ func TestAutomationShiftCurriculum(t *testing.T) {
 	}
 }
 
+func TestAuditSeasonCurriculum(t *testing.T) {
+	catalog, err := LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+	wants := []struct {
+		id         string
+		number     int
+		difficulty string
+		hints      int
+	}{
+		{id: "linux-who-can-log-in", number: 40, difficulty: DifficultyBeginner, hints: 3},
+		{id: "linux-silent-checks", number: 41, difficulty: DifficultyIntermediate, hints: 4},
+		{id: "linux-exit-interview", number: 42, difficulty: DifficultyAdvanced, hints: 5},
+	}
+	for _, want := range wants {
+		item, found := catalog.Find(want.id)
+		if !found {
+			t.Errorf("mission %q missing", want.id)
+			continue
+		}
+		if item.Number != want.number || item.Campaign != "Audit Season" || item.EffectiveTrack() != TrackLinux || item.Difficulty != want.difficulty || len(item.Hints) != want.hints {
+			t.Errorf("mission %q curriculum metadata = number %d, campaign %q, track %q, difficulty %q, hints %d", item.ID, item.Number, item.Campaign, item.EffectiveTrack(), item.Difficulty, len(item.Hints))
+		}
+	}
+	worlds := catalog.Worlds(TrackLinux)
+	if len(worlds) != 5 || worlds[4].Name != "Audit Season" || len(worlds[4].Missions) != 3 {
+		t.Fatalf("Linux worlds = %d, want Audit Season as World 5", len(worlds))
+	}
+}
+
 func TestRebalancedLinuxCurriculumMetadata(t *testing.T) {
 	catalog, err := LoadCatalog()
 	if err != nil {
