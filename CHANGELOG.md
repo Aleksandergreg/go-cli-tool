@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.14.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.13.0...v0.14.0) (2026-11-18)
+
+
+### Features
+
+* ([#59](https://github.com/Aleksandergreg/go-cli-tool/issues/59)) ([076692c](https://github.com/Aleksandergreg/go-cli-tool/commit/076692c83cd313a8ba2a2355a98659272b108b11))
+
 ## [0.13.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.12.0...v0.13.0) (2026-11-13)
 
 
