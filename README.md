@@ -7,7 +7,7 @@ $ opsquest play --once 5
 
 MISSION 05: The Missing Log File
 ================================
-Linux · World 1/4: First Day · Stage 5/6
+Linux · World 1/5: First Day · Stage 5/6
 Difficulty: beginner · Reward: 75 XP
 
 INCIDENT
@@ -29,7 +29,7 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 
 ## What is included
 
-- 23 Linux missions across four ordered learning worlds
+- 26 Linux missions across five ordered learning worlds
 - 16 optional, disposable Docker missions across three worlds: It Works on My Machine, Container Triage, and Network Plumbing
 - An isolated in-memory filesystem, environment, process table, and archives
 - Quote-aware globs and variables, pipelines, redirection, `;`/`&&`/`||` command lists, and command history

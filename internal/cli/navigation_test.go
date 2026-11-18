@@ -15,7 +15,7 @@ func TestMissionPromptCanShowMapAndJumpWorlds(t *testing.T) {
 		t.Fatalf("in-mission world navigation error = %v; stderr = %s", err, errOut.String())
 	}
 	for _, expected := range []string{
-		"WORLD 4/4 · The Automation Shift",
+		"WORLD 4/5 · The Automation Shift",
 		"Switching to Mission 26: Run the Runbook",
 		"MISSION 26: Run the Runbook",
 		"Navigate here: world N",
@@ -101,7 +101,7 @@ func TestMissionPromptCanListAndSwitchMissions(t *testing.T) {
 	output := out.String()
 	for _, expected := range []string{
 		"LINUX CAMPAIGN",
-		"1/23 missions complete",
+		"1/26 missions complete",
 		"Switching to Mission 04: A Place for Everything",
 		"MISSION 04: A Place for Everything",
 		"✓ Directory exists: /workspace/reports/daily",
@@ -128,7 +128,7 @@ func TestMissionPromptUsesWorldLocalStageNumbers(t *testing.T) {
 		"Navigate: map · world N · play STAGE/ID",
 		"Switching to Mission 10: The Runaway Worker",
 		"MISSION 10: The Runaway Worker",
-		"World 2/4: The Logpocalypse · Stage 4/6",
+		"World 2/5: The Logpocalypse · Stage 4/6",
 	} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("world-local stage navigation missing %q:\n%s", expected, output)
@@ -156,7 +156,7 @@ func TestMissionPromptStageJumpContinuesIntoNextWorld(t *testing.T) {
 		"Switching to Mission 06: The Release Shuffle",
 		"Replay complete",
 		"Continuing to Mission 07: Permission to Deploy",
-		"World 2/4: The Logpocalypse",
+		"World 2/5: The Logpocalypse",
 	} {
 		if !strings.Contains(output, expected) {
 			t.Errorf("stage jump did not continue with %q:\n%s", expected, output)

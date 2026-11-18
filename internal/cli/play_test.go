@@ -174,7 +174,7 @@ func TestPlayCanJumpToAndCompleteOneWorld(t *testing.T) {
 	if err := app.Run([]string{"play", "--world", "2"}); err != nil {
 		t.Fatalf("world jump error = %v; stderr = %s", err, errOut.String())
 	}
-	if !strings.Contains(out.String(), "MISSION 07: Permission to Deploy") || !strings.Contains(out.String(), "World 2/4") {
+	if !strings.Contains(out.String(), "MISSION 07: Permission to Deploy") || !strings.Contains(out.String(), "World 2/5") {
 		t.Fatalf("world jump started the wrong stage:\n%s", out.String())
 	}
 

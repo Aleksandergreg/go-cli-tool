@@ -1,7 +1,7 @@
 <!-- Rendered export for the player mission map; edit the matching Excalidraw source. -->
-<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="860" viewBox="0 0 1500 860" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="1815" height="860" viewBox="0 0 1815 860" role="img" aria-labelledby="title desc">
   <title id="title">OpsQuest learning journey</title>
-  <desc id="desc">Two-lane curriculum overview showing four Linux worlds with twenty-three missions and three independent Docker worlds with sixteen missions.</desc>
+  <desc id="desc">Two-lane curriculum overview showing five Linux worlds with twenty-six missions and three independent Docker worlds with sixteen missions.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#2563eb"/></marker>
     <marker id="arrowPurple" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#7c3aed"/></marker>
@@ -11,12 +11,12 @@
       .lane{font:700 14px Inter,system-ui,sans-serif;letter-spacing:.12em}.world{font:700 20px Inter,system-ui,sans-serif}.campaign{font:700 17px Inter,system-ui,sans-serif}.body{font:400 14px Inter,system-ui,sans-serif}.tag{font:700 12px Inter,system-ui,sans-serif}.step{font:600 13px Inter,system-ui,sans-serif;fill:#1d4ed8}
     </style>
   </defs>
-  <rect width="1500" height="860" fill="#f8fafc"/>
+  <rect width="1815" height="860" fill="#f8fafc"/>
   <text x="55" y="58" class="title">Learning journey</text>
   <text x="55" y="88" class="subtitle">Top-level mission numbers stay global; in-lab numeric jumps use current-world stages.</text>
 
-  <rect x="45" y="125" width="1410" height="405" rx="25" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
-  <text x="72" y="158" class="lane" fill="#1d4ed8">LINUX TRACK · 23 MISSIONS · DEFAULT</text>
+  <rect x="45" y="125" width="1725" height="405" rx="25" fill="#eff6ff" stroke="#93c5fd" stroke-width="2"/>
+  <text x="72" y="158" class="lane" fill="#1d4ed8">LINUX TRACK · 26 MISSIONS · DEFAULT</text>
 
   <line x1="360" y1="310" x2="425" y2="310" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
   <text x="395" y="292" text-anchor="middle" class="step">modify</text>
@@ -24,6 +24,8 @@
   <text x="725" y="292" text-anchor="middle" class="step">combine</text>
   <line x1="1020" y1="310" x2="1085" y2="310" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
   <text x="1055" y="292" text-anchor="middle" class="step">automate</text>
+  <line x1="1375" y1="310" x2="1440" y2="310" stroke="#2563eb" stroke-width="3" marker-end="url(#arrow)"/>
+  <text x="1405" y="292" text-anchor="middle" class="step">verify</text>
 
   <g filter="url(#shadow)">
     <rect x="85" y="195" width="275" height="270" rx="20" fill="#ffffff" stroke="#3b82f6" stroke-width="2"/>
@@ -69,8 +71,19 @@
     <text x="1100" y="410" class="body" fill="#334155">• executable shell scripts</text>
     <text x="1100" y="436" class="body" fill="#334155">• child-shell scope</text>
   </g>
+  <g filter="url(#shadow)">
+    <rect x="1430" y="195" width="300" height="270" rx="20" fill="#ffffff" stroke="#3b82f6" stroke-width="2"/>
+    <rect x="1430" y="195" width="300" height="54" rx="20" fill="#dbeafe"/><path d="M1430 229 h300 v20 h-300z" fill="#dbeafe"/>
+    <text x="1455" y="229" class="world" fill="#172554">World 5</text>
+    <text x="1455" y="278" class="campaign" fill="#1e3a8a">Audit Season</text>
+    <text x="1455" y="305" class="body" fill="#475569">Missions 40–42 · beginner → advanced</text>
+    <rect x="1455" y="329" width="88" height="25" rx="12" fill="#ccfbf1"/><text x="1499" y="346" text-anchor="middle" class="tag" fill="#115e59">VERIFY</text>
+    <text x="1455" y="384" class="body" fill="#334155">• delimited fields</text>
+    <text x="1455" y="410" class="body" fill="#334155">• exit status and command lists</text>
+    <text x="1455" y="436" class="body" fill="#334155">• normalized evidence boss</text>
+  </g>
 
-  <rect x="45" y="565" width="1410" height="220" rx="25" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="2"/>
+  <rect x="45" y="565" width="1725" height="220" rx="25" fill="#f5f3ff" stroke="#c4b5fd" stroke-width="2"/>
   <text x="72" y="598" class="lane" fill="#6d28d9">DOCKER TRACK · OPTIONAL · INDEPENDENT WORLD NUMBERING</text>
   <g filter="url(#shadow)">
     <rect x="90" y="625" width="390" height="125" rx="20" fill="#ffffff" stroke="#7c3aed" stroke-width="2"/>
@@ -80,7 +93,7 @@
   </g>
   <path d="M510 687 H635" stroke="#7c3aed" stroke-width="3" stroke-dasharray="8 6" marker-end="url(#arrowPurple)"/>
   <g>
-    <rect x="660" y="625" width="690" height="125" rx="20" fill="#ede9fe" stroke="#a78bfa" stroke-width="2" stroke-dasharray="7 5"/>
+    <rect x="660" y="625" width="1070" height="125" rx="20" fill="#ede9fe" stroke="#a78bfa" stroke-width="2" stroke-dasharray="7 5"/>
     <text x="690" y="660" class="campaign" fill="#4c1d95">Separate readiness and progress</text>
     <text x="690" y="690" class="body" fill="#5b21b6">Pinned local fixture · no automatic pull · Docker never blocks Linux</text>
     <text x="690" y="718" class="body" fill="#5b21b6">16 bounded missions · typed container and internal-network actions only.</text>
@@ -88,5 +101,5 @@
 
   <rect x="55" y="812" width="245" height="28" rx="14" fill="#172554"/><text x="177" y="831" text-anchor="middle" class="tag" fill="#ffffff">OUTCOME-BASED VALIDATION</text>
   <text x="320" y="831" class="body" fill="#475569">Any supported solution is accepted when the observable result is correct.</text>
-  <text x="1445" y="831" text-anchor="end" class="body" fill="#64748b">Editable source: learning-journey.excalidraw</text>
+  <text x="1770" y="831" text-anchor="end" class="body" fill="#64748b">Editable source: learning-journey.excalidraw</text>
 </svg>

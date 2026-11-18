@@ -235,3 +235,115 @@ func TestScriptMissionsAcceptAlternativesAndRejectIncompleteOutcomes(t *testing.
 		assertComplete(t, item, box, true)
 	})
 }
+
+func TestAuditSeasonMissionsRemainRouteIndependent(t *testing.T) {
+	catalog, err := mission.LoadCatalog()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(t *testing.T, missionID string, commands ...string) (mission.Mission, *sandbox.Sandbox, string) {
+		t.Helper()
+		item, found := catalog.Find(missionID)
+		if !found {
+			t.Fatalf("mission %q not found", missionID)
+		}
+		box, err := sandbox.New(item.Setup, item.StartDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		lastOutput := ""
+		for _, command := range commands {
+			result, err := box.Execute(command)
+			if err != nil {
+				t.Fatalf("Execute(%q) error = %v", command, err)
+			}
+			lastOutput = result.Output
+		}
+		return item, box, lastOutput
+	}
+	assertComplete := func(t *testing.T, item mission.Mission, box *sandbox.Sandbox, output string, want bool) {
+		t.Helper()
+		complete, err := Validate(item.Validation, box, output)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if complete != want {
+			t.Fatalf("mission complete = %v, want %v", complete, want)
+		}
+	}
+
+	t.Run("login audit accepts selecting fields before filtering", func(t *testing.T) {
+		item, box, output := run(t, "linux-who-can-log-in", `cut -d: -f1,7 /etc/passwd | grep '/bin/bash$' | cut -d: -f1`)
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("login audit rejects an unanchored bash match", func(t *testing.T) {
+		item, box, output := run(t, "linux-who-can-log-in", `grep bash /etc/passwd | cut -d: -f1`)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("login audit rejects whole passwd records", func(t *testing.T) {
+		item, box, output := run(t, "linux-who-can-log-in", `grep ':/bin/bash$' /etc/passwd`)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("silent checks accept sh with exit-status inspection", func(t *testing.T) {
+		item, box, output := run(t, "linux-silent-checks",
+			"cd /reports",
+			"sh /opt/checks/disk.sh; echo $?",
+			"sh /opt/checks/disk.sh || echo disk >> failing-checks.txt",
+			"sh /opt/checks/queue.sh && echo queue passed || echo queue >> failing-checks.txt",
+		)
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("silent checks reject verdicts judged from output", func(t *testing.T) {
+		item, box, output := run(t, "linux-silent-checks", `printf 'cert\ndisk\n' > /reports/failing-checks.txt`)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("silent checks reject overwriting earlier failures", func(t *testing.T) {
+		item, box, output := run(t, "linux-silent-checks",
+			"./disk.sh || echo disk > /reports/failing-checks.txt",
+			"./queue.sh || echo queue > /reports/failing-checks.txt",
+		)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("exit interview accepts case-insensitive filtering and counted verdicts", func(t *testing.T) {
+		item, box, output := run(t, "linux-exit-interview",
+			`grep -i ',prod$' inventory.csv | cut -d, -f1 | tr '[:upper:]' '[:lower:]' | sort | uniq > /reports/prod-hosts.txt`,
+			"cd /etc/fleet",
+			`grep -c '^tls=on$' api-01.conf cache-01.conf db-01.conf web-01.conf | sed 's/\.conf:1$/ PASS/' | sed 's/\.conf:0$/ FAIL/' > /reports/tls-audit.txt`,
+		)
+		assertComplete(t, item, box, output, true)
+	})
+
+	t.Run("exit interview rejects a host list that skips lowercasing", func(t *testing.T) {
+		item, box, output := run(t, "linux-exit-interview",
+			`grep ',prod$' inventory.csv | cut -d, -f1 | sort -u > /reports/prod-hosts.txt`,
+			`printf 'api-01 PASS\ncache-01 PASS\ndb-01 FAIL\nweb-01 FAIL\n' > /reports/tls-audit.txt`,
+		)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("exit interview rejects a staging host matched by name", func(t *testing.T) {
+		item, box, output := run(t, "linux-exit-interview",
+			`tr 'A-Z' 'a-z' < inventory.csv | grep prod | cut -d, -f1 | sort -u > /reports/prod-hosts.txt`,
+			`printf 'api-01 PASS\ncache-01 PASS\ndb-01 FAIL\nweb-01 FAIL\n' > /reports/tls-audit.txt`,
+		)
+		assertComplete(t, item, box, output, false)
+	})
+
+	t.Run("exit interview rejects a commented tls setting", func(t *testing.T) {
+		item, box, output := run(t, "linux-exit-interview",
+			`tr 'A-Z' 'a-z' < inventory.csv | grep ',prod$' | cut -d, -f1 | sort -u > /reports/prod-hosts.txt`,
+			`grep -q '^tls=on$' /etc/fleet/api-01.conf && echo 'api-01 PASS' >> /reports/tls-audit.txt || echo 'api-01 FAIL' >> /reports/tls-audit.txt`,
+			`grep -q '^tls=on$' /etc/fleet/cache-01.conf && echo 'cache-01 PASS' >> /reports/tls-audit.txt || echo 'cache-01 FAIL' >> /reports/tls-audit.txt`,
+			`grep -q '^tls=on$' /etc/fleet/db-01.conf && echo 'db-01 PASS' >> /reports/tls-audit.txt || echo 'db-01 FAIL' >> /reports/tls-audit.txt`,
+			`grep -q 'tls=on' /etc/fleet/web-01.conf && echo 'web-01 PASS' >> /reports/tls-audit.txt || echo 'web-01 FAIL' >> /reports/tls-audit.txt`,
+		)
+		assertComplete(t, item, box, output, false)
+	})
+}

@@ -16,10 +16,10 @@ Editable source: [`learning-journey.excalidraw`](diagrams/learning-journey.excal
 
 The curriculum has two independent tracks:
 
-- **Linux:** 23 missions across four ordered worlds. Bare `opsquest play` follows this track.
+- **Linux:** 26 missions across five ordered worlds. Bare `opsquest play` follows this track.
 - **Docker:** 16 optional missions across three worlds: It Works on My Machine, Container Triage, then Network Plumbing. Docker readiness never blocks Linux play.
 
-Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, Docker World 2 continues at Mission 30, and Docker World 3 at Mission 35. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
+Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, Docker World 2 continues at Mission 30, Docker World 3 at Mission 35, and Linux World 5 at Mission 40. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
 
 The [learning philosophy](../game/learning-philosophy.md) explains the incident
 loop and feedback model. [Mission authoring](../technical/mission-authoring.md)
@@ -85,6 +85,9 @@ The “tools” column records suggested commands, not a mandatory solution. Out
 | 37 | Docker W3.3 | Intermediate | Remove an unnecessary network path | `docker` | Batch isolated from ledger; required pairs still share networks; count equals |
 | 38 | Docker W3.4 | Intermediate | Move a pair of services onto a private network | `docker` | Pair shares a network; both isolated from api; gateway and api connected |
 | 39 | Docker W3.5 | Advanced | Segment a flat network and retire a stale one | `docker` | Tier pairs share networks; web isolated from db; legacy network and cron absent; services running |
+| 40 | Linux W5.1 | Beginner | Select delimited fields and anchor a match to one field | `cat`, `grep`, `cut` | Output contains every shell account and excludes decoys and raw records |
+| 41 | Linux W5.2 | Intermediate | Judge checks by exit status and act on it with command lists | `ls`, `cat`, `sh`, `echo` | Report lines equal |
+| 42 | Linux W5.3 | Advanced | Normalize inventory data and record per-host verdicts | `cat`, `tr`, `grep`, `cut`, `sort`, `echo` | Host list and verdict report lines equal |
 
 ## World progression
 
@@ -102,7 +105,11 @@ The third world reinforces text inspection, counting, and transformation while a
 
 ### Linux World 4: The Automation Shift
 
-The final Linux world moves from executing a supplied script to repairing reusable automation. It introduces the modal editor, executable virtual scripts, and the difference between child-shell scope and durable virtual state.
+The fourth Linux world moves from executing a supplied script to repairing reusable automation. It introduces the modal editor, executable virtual scripts, and the difference between child-shell scope and durable virtual state.
+
+### Linux World 5: Audit Season
+
+The final Linux world turns system data into evidence. It moves from selecting colon-delimited fields in `/etc/passwd`, through judging silent health checks by exit status with `$?`, `&&`, and `||`, to an advanced boss that normalizes a mixed-case inventory with `tr` and records a PASS or FAIL verdict per production host. Each stage includes a decoy that punishes matching a whole line or trusting output instead of status.
 
 ### Docker World 1: It Works on My Machine
 
@@ -118,7 +125,7 @@ Network Plumbing teaches that containers can only reach each other over a networ
 
 ## Curriculum evolution
 
-The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, beginner Docker lifecycle, Docker triage, and container networking gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
+The expanded map fills the early file-reading, focused log-preview, simple counting, supplied-script, beginner Docker lifecycle, Docker triage, container networking, and delimited-field and exit-status gaps. Later curriculum work can deepen those skills through new declarative missions without weakening existing outcome validators or widening the Docker boundary casually.
 
 Read [Missions, hints, and progress](missions-and-progress.md) for route,
 reward, and persistence behavior, and [Mission authoring](../technical/mission-authoring.md)
