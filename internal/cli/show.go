@@ -67,11 +67,11 @@ func (a *App) runShow(args []string) error {
 	fmt.Fprintf(a.out, "Status: %s · Outcome checks: %d · Hints: %s\n\n", styledStatus, len(item.Validation.All), hintStatus)
 	fmt.Fprintf(a.out, "%s\n%s\n\n", a.style.Section("INCIDENT"), item.Story)
 	fmt.Fprintf(a.out, "%s\n%s\n\n%s\n", a.style.Section("OBJECTIVE"), item.Objective, a.style.CommandGuide(item.SuggestedCommands))
-	if item.EffectiveEnvironment() == mission.EnvironmentDocker {
+	if item.EffectiveEnvironment() != mission.EnvironmentSimulated {
 		availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
 		fmt.Fprintln(a.out)
 		if availability.Available {
-			fmt.Fprintln(a.out, a.style.Success("Docker lab ready."))
+			fmt.Fprintln(a.out, a.style.Success(trackDisplayName(item.EffectiveTrack())+" lab ready."))
 		} else {
 			fmt.Fprintln(a.out, a.style.Warning(availability.Detail))
 		}

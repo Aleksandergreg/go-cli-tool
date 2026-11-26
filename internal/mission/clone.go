@@ -7,6 +7,7 @@ import (
 
 func cloneMission(item Mission) Mission {
 	cloned := item
+	cloned.Kubernetes = slices.Clone(item.Kubernetes)
 	cloned.SuggestedCommands = slices.Clone(item.SuggestedCommands)
 	cloned.Hints = slices.Clone(item.Hints)
 	cloned.Setup.Directories = slices.Clone(item.Setup.Directories)

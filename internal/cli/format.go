@@ -54,6 +54,8 @@ func trackDisplayName(track string) string {
 	switch track {
 	case mission.TrackDocker:
 		return "Docker"
+	case mission.TrackKubernetes:
+		return "Kubernetes"
 	case mission.TrackLinux:
 		return "Linux"
 	default:
@@ -65,6 +67,8 @@ func trackHeading(track string) string {
 	switch track {
 	case mission.TrackDocker:
 		return "DOCKER LABS"
+	case mission.TrackKubernetes:
+		return "KUBERNETES LABS"
 	case "all":
 		return "ALL MISSIONS"
 	default:

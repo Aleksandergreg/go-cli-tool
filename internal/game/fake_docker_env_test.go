@@ -12,6 +12,9 @@ import (
 )
 
 func canonicalMissionEnvironment(item mission.Mission) (Environment, error) {
+	if item.EffectiveEnvironment() == mission.EnvironmentKubernetes {
+		return newMissionKubernetesEnvironment(item), nil
+	}
 	if item.EffectiveEnvironment() == mission.EnvironmentDocker {
 		return newMissionDockerEnvironment(item), nil
 	}

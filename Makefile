@@ -31,6 +31,10 @@ smoke-test:
 docker-integration:
 	OPSQUEST_DOCKER_TEST=1 go test ./internal/dockerlab -run Integration -count=1
 
+.PHONY: kubernetes-integration
+kubernetes-integration:
+	OPSQUEST_KIND_TEST=1 go test ./internal/kubelab -run TestKindLifecycle -v -count=1
+
 orbstack-integration:
 	DOCKER_CONTEXT=orbstack OPSQUEST_DOCKER_TEST=1 go test ./internal/dockerlab -run Integration -count=1
 

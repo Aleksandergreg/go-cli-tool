@@ -9,6 +9,7 @@ import (
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
+	"github.com/aleksandergregersen/opsquest/internal/ownerproc"
 )
 
 func TestIntegrationRealDockerContainerCensus(t *testing.T) {
@@ -236,7 +237,7 @@ func TestIntegrationRealDockerOrphanSweep(t *testing.T) {
 	item, _ := catalog.Find("docker-quiet-worker")
 	deadPID := 0
 	for candidate := 4_000_000; candidate > 3_000_000; candidate-- {
-		if !processAlive(candidate) {
+		if !ownerproc.Alive(candidate) {
 			deadPID = candidate
 			break
 		}
@@ -350,7 +351,7 @@ func TestIntegrationRealDockerOrphanedNetworkSweep(t *testing.T) {
 	item, _ := catalog.Find("docker-need-to-know")
 	deadPID := 0
 	for candidate := 4_000_000; candidate > 3_000_000; candidate-- {
-		if !processAlive(candidate) {
+		if !ownerproc.Alive(candidate) {
 			deadPID = candidate
 			break
 		}

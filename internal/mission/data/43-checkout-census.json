@@ -1,0 +1,59 @@
+{
+  "id": "k8s-checkout-census",
+  "number": 43,
+  "track": "kubernetes",
+  "environment": "kind",
+  "title": "Who Serves Checkout?",
+  "campaign": "Checkout on Call",
+  "difficulty": "beginner",
+  "story": "Inventory and checkout share a namespace. The handoff identifies checkout by the label app=checkout.",
+  "objective": "List just the two checkout Pods for the next operator.",
+  "suggested_commands": [
+    "kubectl"
+  ],
+  "hints": [
+    "Pods can share an application label.",
+    "Use a label selector on the Pod listing.",
+    "Try kubectl get pods -l app=checkout."
+  ],
+  "explanation": "A label selector returns the matching Pods even when other applications share the namespace.",
+  "kubernetes": [
+    {
+      "kind": "Pod",
+      "name": "checkout-api",
+      "app": "checkout",
+      "log": "requests accepted"
+    },
+    {
+      "kind": "Pod",
+      "name": "checkout-worker",
+      "app": "checkout",
+      "log": "receipt queue paused"
+    },
+    {
+      "kind": "Pod",
+      "name": "inventory",
+      "app": "inventory",
+      "log": "stock synchronized"
+    }
+  ],
+  "validation": {
+    "all": [
+      {
+        "type": "output_contains_all",
+        "values": [
+          "checkout-api",
+          "checkout-worker"
+        ]
+      },
+      {
+        "type": "output_not_contains",
+        "value": "inventory"
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 60,
+    "hint_penalty": 10
+  }
+}

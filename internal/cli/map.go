@@ -59,7 +59,7 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 	displayedTracks := make(map[string]bool)
 	tracks := []string{filter.track}
 	if filter.track == "all" {
-		tracks = []string{mission.TrackLinux, mission.TrackDocker}
+		tracks = []string{mission.TrackLinux, mission.TrackDocker, mission.TrackKubernetes}
 	}
 	for _, currentTrack := range tracks {
 		worlds := a.catalog.Worlds(currentTrack)
@@ -84,8 +84,8 @@ func (a *App) listMissions(args []string, player profile.Profile, inMission bool
 	if shown > 0 {
 		a.printMapNavigation(filter.track, displayedTracks, inMission)
 	}
-	if filter.track == mission.TrackDocker {
-		a.printDockerReadiness()
+	if filter.track == mission.TrackDocker || filter.track == mission.TrackKubernetes {
+		a.printLabReadiness(filter.track)
 	}
 	return nil
 }
@@ -96,7 +96,7 @@ func (a *App) parseMapFilter(args []string) (mapFilter, bool, error) {
 	remainingOnly := flags.Bool("remaining", false, "show incomplete missions only")
 	showIDs := flags.Bool("ids", false, "show stable mission IDs")
 	campaign := flags.String("campaign", "", "filter by campaign name")
-	track := flags.String("track", mission.TrackLinux, "filter by track: linux, docker, or all")
+	track := flags.String("track", mission.TrackLinux, "filter by track: linux, docker, kubernetes, or all")
 	if help, err := parseFlags(flags, args); help || err != nil {
 		return mapFilter{}, help, err
 	}
@@ -110,8 +110,8 @@ func (a *App) parseMapFilter(args []string) (mapFilter, bool, error) {
 	if *campaign != "" && !flagProvided(flags, "track") {
 		selectedTrack = "all"
 	}
-	if selectedTrack != mission.TrackLinux && selectedTrack != mission.TrackDocker && selectedTrack != "all" {
-		return mapFilter{}, false, fmt.Errorf("unknown track %q; use linux, docker, or all", *track)
+	if selectedTrack != mission.TrackLinux && selectedTrack != mission.TrackDocker && selectedTrack != mission.TrackKubernetes && selectedTrack != "all" {
+		return mapFilter{}, false, fmt.Errorf("unknown track %q; use linux, docker, kubernetes, or all", *track)
 	}
 	return mapFilter{track: selectedTrack, campaign: *campaign, completedOnly: *completedOnly, remainingOnly: *remainingOnly, showIDs: *showIDs}, false, nil
 }
@@ -155,8 +155,10 @@ func (a *App) printMapNavigation(selectedTrack string, displayedTracks map[strin
 	}
 	follow, jump, ids := "opsquest play", "opsquest play --world N", "opsquest map --ids"
 	switch commandTrack {
-	case mission.TrackDocker:
-		follow, jump, ids = "opsquest play --track docker", "opsquest play --track docker --world N", "opsquest map --track docker --ids"
+	case mission.TrackDocker, mission.TrackKubernetes:
+		follow = "opsquest play --track " + commandTrack
+		jump = follow + " --world N"
+		ids = "opsquest map --track " + commandTrack + " --ids"
 	case "all":
 		follow, jump, ids = "opsquest play --track TRACK", "opsquest play --track TRACK --world N", "opsquest map --track all --ids"
 	}
@@ -164,13 +166,13 @@ func (a *App) printMapNavigation(selectedTrack string, displayedTracks map[strin
 		a.style.Accent(follow), a.style.Accent(jump), a.style.Accent(ids))
 }
 
-func (a *App) printDockerReadiness() {
-	item, found := a.catalog.FirstInTrack(mission.TrackDocker)
+func (a *App) printLabReadiness(track string) {
+	item, found := a.catalog.FirstInTrack(track)
 	if !found {
 		return
 	}
 	if availability := game.EnvironmentAvailability(a.ctx, a.factory, item); availability.Available {
-		fmt.Fprintln(a.out, a.style.Success("Docker labs ready."))
+		fmt.Fprintln(a.out, a.style.Success(trackDisplayName(track)+" labs ready."))
 	} else {
 		fmt.Fprintln(a.out, a.style.Warning(availability.Detail))
 	}

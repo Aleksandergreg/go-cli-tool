@@ -14,6 +14,9 @@ func TestEveryMissionHasAWorkingOutcome(t *testing.T) {
 		t.Fatal(err)
 	}
 	solutions := map[string][]string{
+		"k8s-checkout-census":   {"kubectl get pods -l app=checkout"},
+		"k8s-quiet-queue":       {"kubectl logs checkout-worker"},
+		"k8s-lunch-rush":        {"kubectl scale deployment/checkout-worker --replicas=3"},
 		"linux-orientation":     {"pwd"},
 		"linux-config-crawl":    {"cd /srv/web/config/live"},
 		"linux-read-handoff":    {"cat handoff.txt"},
@@ -158,6 +161,9 @@ func TestEveryMissionSuggestsCommandsSupportedByItsEnvironment(t *testing.T) {
 			supported := linuxCommands[command]
 			if item.EffectiveEnvironment() == mission.EnvironmentDocker {
 				supported = command == "docker"
+			}
+			if item.EffectiveEnvironment() == mission.EnvironmentKubernetes {
+				supported = command == "kubectl"
 			}
 			if !supported {
 				t.Errorf("mission %s suggests unsupported %s command %q", item.ID, item.EffectiveEnvironment(), command)

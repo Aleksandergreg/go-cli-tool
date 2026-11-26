@@ -168,6 +168,24 @@ Docker-specific ceilings include:
 
 The Docker-compatible engine remains a powerful external dependency; OpsQuest reduces exposure by constraining syntax, setup, runtime options, identity, and cleanup scope. It does not claim to turn an untrusted engine into a security boundary.
 
+## Kubernetes labs
+
+The kind control plane requires a trusted local Docker engine. Each attempt
+has a random cluster name, a dedicated bridge, and an API bound to loopback.
+The adapter freezes the local Docker endpoint and passes a private kubeconfig
+and explicit context to each Kubernetes operation. Setup uses fixed commands
+to import the pinned fixture into the verified node. Fixture workloads run as
+non-root, drop all capabilities, and have CPU and memory limits.
+
+Player operations impersonate a namespace-scoped service account. The parser
+accepts Pod listings, named fixture logs, Deployment listings, and scaling
+declared Deployments to 1–3 replicas. The namespace Role limits scale access
+to those Deployment names. The browser receives the standard read-only attempt
+projection. Cleanup locates the generated node and network by exact name and
+labels, then removes them by ID. A private ownership record enables recovery
+on the next Kubernetes attempt on the same host and Docker endpoint once the
+previous process has exited.
+
 ## Threat-to-control map
 
 | Threat | Primary controls | Evidence location |

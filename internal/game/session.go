@@ -140,7 +140,7 @@ func (s Session) begin() (*attempt, error) {
 		s.ErrOut = io.Discard
 	}
 	a := &attempt{Session: s, ctx: defaultContext(s.Context), factory: defaultFactory(s.Factory)}
-	environment, err := createManagedEnvironment(a.ctx, a.factory, s.Mission)
+	environment, err := a.prepareEnvironment()
 	if err != nil {
 		return nil, fmt.Errorf("prepare mission: %w", err)
 	}
@@ -221,4 +221,11 @@ func (a *attempt) report(eventType AttemptEventType, state string, unlocked []pr
 
 func (a *attempt) fail(message string) {
 	fmt.Fprintln(a.ErrOut, a.ErrorStyle.Failure(message))
+}
+
+func (a *attempt) prepareEnvironment() (*managedEnvironment, error) {
+	if a.Mission.EffectiveEnvironment() == mission.EnvironmentKubernetes {
+		fmt.Fprintln(a.Out, "Preparing a disposable Kubernetes cluster. This can take about a minute.")
+	}
+	return createManagedEnvironment(a.ctx, a.factory, a.Mission)
 }

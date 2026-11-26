@@ -50,6 +50,7 @@ nav:
       - Controls and commands: play/controls-and-commands.md
       - Mission map: play/mission-map.md
       - Docker Foundations: play/docker-foundations.md
+      - Checkout on Call: play/kubernetes.md
   - How OpsQuest works:
       - game/README.md
       - Learning philosophy: game/learning-philosophy.md

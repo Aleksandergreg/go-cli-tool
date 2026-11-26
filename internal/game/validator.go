@@ -101,6 +101,8 @@ func describeCondition(condition mission.Condition) string {
 		return fmt.Sprintf("Process %d is still running", condition.PID)
 	case mission.ConditionEnvironmentEquals:
 		return fmt.Sprintf("Environment contains %s", condition.Value)
+	case mission.ConditionDeploymentReady:
+		return fmt.Sprintf("Deployment %s has %d ready replicas", condition.Value, *condition.Count)
 	case mission.ConditionDockerContainerRunning:
 		return fmt.Sprintf("Container %s is running", condition.Container)
 	case mission.ConditionDockerContainerStopped:

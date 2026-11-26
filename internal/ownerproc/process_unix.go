@@ -1,15 +1,15 @@
 //go:build !windows
 
-package dockerlab
+package ownerproc
 
 import (
 	"errors"
 	"syscall"
 )
 
-// processAlive reports whether pid names a live process. Signal 0 performs
+// Alive reports whether pid names a live process. Signal 0 performs
 // only the existence and permission check; EPERM still proves existence.
-func processAlive(pid int) bool {
+func Alive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}

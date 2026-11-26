@@ -41,7 +41,7 @@ func (a *App) runHelp(args []string) error {
 }
 
 func (a *App) printPlayUsage(out io.Writer) {
-	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [--web] [MISSION]")
+	fmt.Fprintln(out, "Usage: opsquest play [--track linux|docker|kubernetes] [--world NUMBER] [--once] [--web] [MISSION]")
 	fmt.Fprintln(out, "Without a selector, resume the first incomplete mission and continue the recommended path.")
 	fmt.Fprintln(out, "A mission number or ID follows catalog order from that exact stage; --world stays inside one world.")
 	fmt.Fprintln(out, "Use --once to return after one completed mission.")
@@ -49,7 +49,7 @@ func (a *App) printPlayUsage(out io.Writer) {
 }
 
 func (a *App) printListUsage(out io.Writer) {
-	fmt.Fprintln(out, "Usage: opsquest map|list [--completed|--remaining] [--ids] [--campaign NAME] [--track linux|docker|all]")
+	fmt.Fprintln(out, "Usage: opsquest map|list [--completed|--remaining] [--ids] [--campaign NAME] [--track linux|docker|kubernetes|all]")
 }
 
 func (a *App) printProfileUsage(out io.Writer) {

@@ -40,7 +40,7 @@ function setConnection(state, label) {
 }
 
 function locationLabel(snapshot) {
-  const track = snapshot.track === "docker" ? "docker" : "linux";
+  const track = snapshot.track || "linux";
   if (!snapshot.world_number) return track;
   return `${track} | world ${snapshot.world_number}/${snapshot.world_total}: ${snapshot.world_name} | stage ${snapshot.stage_number}/${snapshot.stage_total}`;
 }

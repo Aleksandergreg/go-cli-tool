@@ -1,8 +1,10 @@
 package mission
 
 const (
-	TrackLinux  = "linux"
-	TrackDocker = "docker"
+	TrackLinux            = "linux"
+	TrackDocker           = "docker"
+	TrackKubernetes       = "kubernetes"
+	EnvironmentKubernetes = "kind"
 
 	EnvironmentSimulated = "simulated"
 	EnvironmentDocker    = "docker"
@@ -26,6 +28,7 @@ const (
 type ConditionType string
 
 const (
+	ConditionDeploymentReady           ConditionType = "deployment_ready"
 	ConditionOutputEquals              ConditionType = "output_equals"
 	ConditionOutputContains            ConditionType = "output_contains"
 	ConditionOutputContainsAll         ConditionType = "output_contains_all"
@@ -69,6 +72,7 @@ type Mission struct {
 	Hints             []string     `json:"hints"`
 	Explanation       string       `json:"explanation"`
 	Setup             Setup        `json:"setup"`
+	Kubernetes        []Workload   `json:"kubernetes,omitempty"`
 	Docker            *DockerSetup `json:"docker,omitempty"`
 	Validation        Validation   `json:"validation"`
 	Rewards           Rewards      `json:"rewards"`
@@ -90,6 +94,14 @@ func (m Mission) EffectiveEnvironment() string {
 		return EnvironmentSimulated
 	}
 	return m.Environment
+}
+
+// Workload is a single initialized Pod or a one-replica Deployment.
+type Workload struct {
+	Name string `json:"name"`
+	Kind string `json:"kind"`
+	App  string `json:"app"`
+	Log  string `json:"log"`
 }
 
 type Setup struct {

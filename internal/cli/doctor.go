@@ -19,7 +19,7 @@ func (a *App) runDoctor(args []string) error {
 	}
 	fmt.Fprintln(a.out, a.style.Header("OpsQuest diagnostics"))
 	check := a.style.Success("✓")
-	fmt.Fprintf(a.out, "  %s embedded catalog: %d missions (%d Linux, %d Docker)\n", check, len(a.catalog.All()), len(a.catalog.InTrack(mission.TrackLinux)), len(a.catalog.InTrack(mission.TrackDocker)))
+	fmt.Fprintf(a.out, "  %s embedded catalog: %d missions (%d Linux, %d Docker, %d Kubernetes)\n", check, len(a.catalog.All()), len(a.catalog.InTrack(mission.TrackLinux)), len(a.catalog.InTrack(mission.TrackDocker)), len(a.catalog.InTrack(mission.TrackKubernetes)))
 	// A broken profile is reported like any other failed check so the
 	// remaining diagnostics still run.
 	player, profileErr := a.loadPlayer()
@@ -39,6 +39,14 @@ func (a *App) runDoctor(args []string) error {
 		} else {
 			fmt.Fprintf(a.out, "  %s docker labs: unavailable · %s\n", a.style.Warning("!"), availability.Detail)
 		}
+	}
+	if item, found := a.catalog.FirstInTrack(mission.TrackKubernetes); found {
+		availability := game.EnvironmentAvailability(a.ctx, a.factory, item)
+		marker := check
+		if !availability.Available {
+			marker = a.style.Warning("!")
+		}
+		fmt.Fprintf(a.out, "  %s Kubernetes labs: %s\n", marker, availability.Detail)
 	}
 	cleanupErr := a.reportOrphanedLabs(*cleanup, dockerReady)
 	if profileErr != nil {

@@ -42,7 +42,7 @@ func (a *App) runProfile(args []string) error {
 		total     int
 	}
 	progress := make([]worldProgress, 0)
-	for _, track := range []string{mission.TrackLinux, mission.TrackDocker} {
+	for _, track := range []string{mission.TrackLinux, mission.TrackDocker, mission.TrackKubernetes} {
 		for _, world := range a.catalog.Worlds(track) {
 			item := worldProgress{name: world.Name, track: track, number: world.Number, completed: completedMissions(world.Missions, player), total: len(world.Missions)}
 			progress = append(progress, item)
@@ -79,7 +79,11 @@ func (a *App) runProfile(args []string) error {
 	dockerState := "readiness: run opsquest doctor"
 	fmt.Fprintf(a.out, "%s %s %3d%%  %s\n", a.style.Section("Docker"), styledProgressBar(a.style, dockerCompleted, dockerTotal, 20), percentage(dockerCompleted, dockerTotal), dockerState)
 	printWorlds(mission.TrackDocker)
-	fmt.Fprintf(a.out, "%s\n\n", a.style.Muted(fmt.Sprintf("K8s    %s  locked", progressBar(0, 20, 20))))
+	kube := a.catalog.InTrack(mission.TrackKubernetes)
+	done := completedMissions(kube, player)
+	fmt.Fprintf(a.out, "%s %s %3d%%\n", a.style.Section("Kubernetes"), styledProgressBar(a.style, done, len(kube), 20), percentage(done, len(kube)))
+	printWorlds(mission.TrackKubernetes)
+	fmt.Fprintln(a.out)
 	fmt.Fprintf(a.out, "Commands mastered: %d\n", len(game.PracticedCommands(player)))
 	fmt.Fprintf(a.out, "Missions completed: %d\n", completed)
 	completedHints, activeHints := player.HintsUsed(), player.ActiveHints()

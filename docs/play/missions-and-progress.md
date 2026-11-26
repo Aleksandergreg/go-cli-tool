@@ -43,6 +43,7 @@ mission and when `hint` runs out, at no extra cost.
 
 - Bare `opsquest play` resumes the first incomplete Linux mission.
 - `opsquest play --track docker` selects the first incomplete Docker mission.
+- `opsquest play --track kubernetes` selects the first incomplete Checkout on Call mission.
 - `opsquest play --world N` stays within one Linux world.
 - A global mission number or stable ID begins there and follows that track.
 - `--once` returns after one completed mission.

@@ -104,7 +104,7 @@ func (a *App) runPlay(args []string) (returnErr error) {
 
 func (a *App) parsePlayOptions(args []string) (playOptions, bool, error) {
 	flags := a.newFlagSet("play", func() { a.printPlayUsage(a.errOut) })
-	track := flags.String("track", mission.TrackLinux, "play the linux or docker track")
+	track := flags.String("track", mission.TrackLinux, "play the linux, docker, or kubernetes track")
 	worldNumber := flags.Int("world", 0, "start the next incomplete stage in a world")
 	once := flags.Bool("once", false, "return after one completed mission")
 	web := flags.Bool("web", false, "show mission guidance in a local browser companion")
@@ -113,7 +113,7 @@ func (a *App) parsePlayOptions(args []string) (playOptions, bool, error) {
 		return playOptions{}, help, err
 	}
 	if len(positionals) > 1 {
-		return playOptions{}, false, fmt.Errorf("usage: opsquest play [--track linux|docker] [--world NUMBER] [--once] [--web] [MISSION]")
+		return playOptions{}, false, fmt.Errorf("usage: opsquest play [--track linux|docker|kubernetes] [--world NUMBER] [--once] [--web] [MISSION]")
 	}
 	trackProvided, worldProvided := flagProvided(flags, "track"), flagProvided(flags, "world")
 	options := playOptions{
@@ -125,8 +125,8 @@ func (a *App) parsePlayOptions(args []string) (playOptions, bool, error) {
 	if len(positionals) == 1 {
 		options.mission = positionals[0]
 	}
-	if options.track != mission.TrackLinux && options.track != mission.TrackDocker {
-		return playOptions{}, false, fmt.Errorf("unknown track %q; use linux or docker", *track)
+	if options.track != mission.TrackLinux && options.track != mission.TrackDocker && options.track != mission.TrackKubernetes {
+		return playOptions{}, false, fmt.Errorf("unknown track %q; use linux, docker, or kubernetes", *track)
 	}
 	if worldProvided && options.worldNumber < 1 {
 		return playOptions{}, false, fmt.Errorf("world number must be positive")
