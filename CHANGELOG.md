@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.15.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.14.0...v0.15.0) (2026-11-26)
+
+
+### Features
+
+* Implemented **Checkout on Call**, the first Kubernetes world. P… ([#62](https://github.com/Aleksandergreg/go-cli-tool/issues/62)) ([42d23aa](https://github.com/Aleksandergreg/go-cli-tool/commit/42d23aa07f49384cdfd8a31e0a8bf8033c1f1b44))
+
 ## [0.14.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.13.0...v0.14.0) (2026-11-18)
 
 
