@@ -14,12 +14,13 @@ OpsQuest teaches operational problem-solving through incidents rather than isola
 
 Editable source: [`learning-journey.excalidraw`](diagrams/learning-journey.excalidraw)
 
-The curriculum has two independent tracks:
+The curriculum has three independent tracks:
 
 - **Linux:** 26 missions across five ordered worlds. Bare `opsquest play` follows this track.
 - **Docker:** 16 optional missions across three worlds: It Works on My Machine, Container Triage, then Network Plumbing. Docker readiness never blocks Linux play.
+- **Kubernetes:** 3 optional missions in Checkout on Call, covering label selectors, application logs, and Deployment scaling. See the [Kubernetes setup guide](kubernetes.md).
 
-Display numbers are global across both tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, Docker World 2 continues at Mission 30, Docker World 3 at Mission 35, and Linux World 5 at Mission 40. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
+Display numbers are global across all tracks: Docker World 1 occupies Missions 20–25, Linux World 4 resumes at Mission 26, Docker World 2 continues at Mission 30, Docker World 3 at Mission 35, Linux World 5 at Mission 40, and Kubernetes World 1 at Mission 43. World and stage positions are derived separately inside each track. Persisted completions use stable mission IDs rather than display numbers, so profiles created before this expansion remain compatible.
 
 The [learning philosophy](../game/learning-philosophy.md) explains the incident
 loop and feedback model. [Mission authoring](../technical/mission-authoring.md)
@@ -88,6 +89,9 @@ The “tools” column records suggested commands, not a mandatory solution. Out
 | 40 | Linux W5.1 | Beginner | Select delimited fields and anchor a match to one field | `cat`, `grep`, `cut` | Output contains every shell account and excludes decoys and raw records |
 | 41 | Linux W5.2 | Intermediate | Judge checks by exit status and act on it with command lists | `ls`, `cat`, `sh`, `echo` | Report lines equal |
 | 42 | Linux W5.3 | Advanced | Normalize inventory data and record per-host verdicts | `cat`, `tr`, `grep`, `cut`, `sort`, `echo` | Host list and verdict report lines equal |
+| 43 | Kubernetes W1.1 | Beginner | Identify checkout Pods by label | `kubectl` | Output includes both checkout Pods and excludes inventory |
+| 44 | Kubernetes W1.2 | Beginner | Explain why receipts have stopped | `kubectl` | Worker diagnostic in output |
+| 45 | Kubernetes W1.3 | Intermediate | Scale the worker for the lunch rush | `kubectl` | Worker has three ready replicas and API has one |
 
 ## World progression
 

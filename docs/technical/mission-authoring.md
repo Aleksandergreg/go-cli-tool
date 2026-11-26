@@ -114,3 +114,17 @@ The implementation lives in
 [`internal/mission`](https://github.com/Aleksandergreg/go-cli-tool/tree/main/internal/mission).
 Use the repository's `$add-mission` workflow for the complete authoring and
 validation sequence.
+
+## Authoring Kubernetes fixtures
+
+Set `track` to `kubernetes`, `environment` to `kind`, and `kubernetes` to
+an array of one to four workloads. Each workload declares its `kind`
+(`Pod` or `Deployment`), unique `name`, `app` label, and one printable
+`log` line. A Deployment starts with one replica. The adapter supplies the
+image, process, permissions, resources, namespace, and cleanup rules.
+
+Use output conditions for discovery and diagnostics. For a rollout, use
+`deployment_ready` with the declared Deployment name in `value` and the target
+replica count in `count` (1–3). Include a condition for each Deployment whose
+size matters to the incident. Run `make kubernetes-integration` to check the
+real controller and RBAC alongside the deterministic catalog tests.

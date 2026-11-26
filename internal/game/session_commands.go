@@ -67,7 +67,7 @@ func (a *attempt) restart() error {
 	if err := a.environment.close(); err != nil {
 		return fmt.Errorf("restart mission: close current environment: %w", err)
 	}
-	environment, err := createManagedEnvironment(a.ctx, a.factory, a.Mission)
+	environment, err := a.prepareEnvironment()
 	a.environment = environment
 	if err != nil {
 		return fmt.Errorf("restart mission: %w", err)

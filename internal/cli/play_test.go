@@ -227,7 +227,7 @@ func TestPlayCanJumpToAndCompleteOneWorld(t *testing.T) {
 		want string
 	}{
 		{args: []string{"play", "--world", "0"}, want: "world number must be positive"},
-		{args: []string{"play", "--track", "mainframe"}, want: "use linux or docker"},
+		{args: []string{"play", "--track", "mainframe"}, want: "use linux, docker, or kubernetes"},
 		{args: []string{"play", "--world", "1", "3"}, want: "MISSION cannot be combined"},
 	} {
 		app, _, _ = testApp(t, "", store)

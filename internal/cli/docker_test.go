@@ -59,7 +59,7 @@ func TestListDockerTrackAndRejectsUnknownTrack(t *testing.T) {
 	}
 
 	app, _, _ = testApp(t, "", store)
-	if err := app.Run([]string{"list", "--track", "mainframe"}); err == nil || !strings.Contains(err.Error(), "use linux, docker, or all") {
+	if err := app.Run([]string{"list", "--track", "mainframe"}); err == nil || !strings.Contains(err.Error(), "use linux, docker, kubernetes, or all") {
 		t.Fatalf("unknown track error = %v", err)
 	}
 }

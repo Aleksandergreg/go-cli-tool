@@ -128,6 +128,7 @@ done
 
 mission_total=0
 docker_count=0
+kube_count=0
 docker_numbers=()
 while IFS= read -r mission_file; do
   mission_total=$((mission_total + 1))
@@ -135,9 +136,11 @@ while IFS= read -r mission_file; do
     docker_count=$((docker_count + 1))
     mission_number="$(sed -nE 's/^[[:space:]]*"number":[[:space:]]*([0-9]+),?/\1/p' "${mission_file}")"
     docker_numbers+=("${mission_number}")
+  elif grep -Fq '"track": "kubernetes"' "${mission_file}"; then
+    kube_count=$((kube_count + 1))
   fi
 done < <(find "${REPO_ROOT}/internal/mission/data" -type f -name '*.json' -print | sort)
-linux_count=$((mission_total - docker_count))
+linux_count=$((mission_total - docker_count - kube_count))
 
 require_text "${REPO_ROOT}/README.md" "${linux_count} Linux missions"
 require_text "${REPO_ROOT}/README.md" "${docker_count} optional"
@@ -146,6 +149,8 @@ require_text "${REPO_ROOT}/AGENTS.md" "${docker_count} optional"
 require_text "${PUBLIC_ROOT}/README.md" "${linux_count} Linux missions"
 require_text "${PUBLIC_ROOT}/README.md" "${docker_count} optional"
 require_text "${PUBLIC_ROOT}/play/mission-map.md" "**Linux:** ${linux_count} missions"
+require_text "${REPO_ROOT}/README.md" "${kube_count} optional Kubernetes missions"
+require_text "${PUBLIC_ROOT}/play/mission-map.md" "**Kubernetes:** ${kube_count} optional"
 require_text "${PUBLIC_ROOT}/play/mission-map.md" "**Docker:** ${docker_count} optional"
 
 diagram_source="${PUBLIC_ROOT}/play/diagrams/learning-journey.excalidraw"
@@ -183,8 +188,9 @@ if ((failures > 0)); then
   exit 1
 fi
 
-printf 'docs: validated %d public pages, %d Linux missions, %d Docker missions, and Go %s\n' \
+printf 'docs: validated %d public pages, %d Linux missions, %d Docker missions, %d Kubernetes missions, and Go %s\n' \
   "$(wc -l <"${temp_dir}/public-pages" | tr -d ' ')" \
   "${linux_count}" \
   "${docker_count}" \
+  "${kube_count}" \
   "${go_version}"

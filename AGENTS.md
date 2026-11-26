@@ -1,6 +1,6 @@
 # OpsQuest agent guide
 
-OpsQuest is a Go 1.26 CLI game with 26 in-memory Linux missions and 16 optional Docker labs across three worlds. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. Kubernetes remains future scope unless a task explicitly adds it.
+OpsQuest is a Go 1.26 CLI game with 26 in-memory Linux missions and 16 optional Docker labs across three worlds. Linux player commands stay inside the teaching shell. Docker input is parsed into a deliberately small command subset that can affect only disposable, OpsQuest-labeled resources. The three optional Kubernetes missions run in one world using a fresh, local kind cluster per attempt. Player actions are namespace-scoped and accept only the teaching subset.
 
 ## Repository map
 
@@ -12,6 +12,7 @@ OpsQuest is a Go 1.26 CLI game with 26 in-memory Linux missions and 16 optional 
 - `internal/mission`: JSON schema, strict embedded catalog loading, track-local world/stage derivation, integrity checks, and `data/` mission content.
 - `internal/sandbox`: parser, dispatcher, virtual filesystem, virtual processes, archives, and the supported command subset.
 - `internal/dockerlab`: optional Docker capability detection, typed teaching commands, isolated resource lifecycle, and Docker observations.
+- `internal/kubelab`: private kind cluster lifecycle, declarative workloads, restricted teaching commands, and rollout observations.
 - `internal/webapp`: loopback-only web companion, one-time browser pairing, sanitized attempt projection, and embedded static assets.
 - `internal/profile`: versioned profile model and atomic JSON persistence.
 - `scripts`: deterministic repository checks used by both Make and CI.
@@ -29,7 +30,7 @@ OpsQuest is a Go 1.26 CLI game with 26 in-memory Linux missions and 16 optional 
 3. Run `make check` before handing off ordinary changes. Run `make check-all` for release-sized, concurrency-sensitive, persistence, parser, or sandbox work.
 4. Review `git diff` and `git status`, then report the behavior changed and every validation command actually observed.
 
-Safe local edits, tests, builds, and documentation updates within the requested scope are authorized. Do not contact external services, publish changes, generate mission content, expand Docker gameplay, or begin Kubernetes gameplay without explicit scope.
+Safe local edits, tests, builds, and documentation updates within the requested scope are authorized. Do not contact external services, publish changes, generate mission content, expand Docker gameplay, or expand Kubernetes gameplay without explicit scope.
 
 ## Project invariants
 
@@ -54,6 +55,7 @@ Safe local edits, tests, builds, and documentation updates within the requested 
 - Agent harness structure: `make check-agent-docs`.
 - Deterministic CLI path: `make smoke-test`.
 - Real Docker lifecycle (for Docker changes when prerequisites are available): `make docker-integration`; use `make orbstack-integration` to force OrbStack's Docker context.
+- Real Kubernetes lifecycle: `make kubernetes-integration` with local kind, kubectl, Docker, and preloaded images.
 - GoReleaser configuration and local packages (for release automation changes): `make release-check` and `make release-snapshot`.
 - Hosted documentation: install `requirements-docs.txt`, then run `make docs-check`.
 - Normal local gate: `make check`.

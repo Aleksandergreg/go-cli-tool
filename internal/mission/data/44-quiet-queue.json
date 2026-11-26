@@ -1,0 +1,46 @@
+{
+  "id": "k8s-quiet-queue",
+  "number": 44,
+  "track": "kubernetes",
+  "environment": "kind",
+  "title": "The Quiet Worker",
+  "campaign": "Checkout on Call",
+  "difficulty": "beginner",
+  "story": "Checkout accepts orders but receipts have stopped arriving. Both Pods are running.",
+  "objective": "Find the worker log entry that explains the missing receipts.",
+  "suggested_commands": [
+    "kubectl"
+  ],
+  "hints": [
+    "Running describes a Pod, not the work the application is doing.",
+    "List Pods and look for the receipt worker.",
+    "Read its output with kubectl logs checkout-worker."
+  ],
+  "explanation": "Application logs distinguish a paused queue from a failed Pod.",
+  "kubernetes": [
+    {
+      "kind": "Pod",
+      "name": "checkout-api",
+      "app": "checkout",
+      "log": "requests accepted"
+    },
+    {
+      "kind": "Pod",
+      "name": "checkout-worker",
+      "app": "checkout",
+      "log": "receipt queue paused"
+    }
+  ],
+  "validation": {
+    "all": [
+      {
+        "type": "output_contains",
+        "value": "receipt queue paused"
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 75,
+    "hint_penalty": 10
+  }
+}

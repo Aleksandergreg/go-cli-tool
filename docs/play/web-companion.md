@@ -12,7 +12,7 @@ environment, while a local browser page shows the incident, objective,
 suggested tools, progressive hints, live outcome checks, rewards, and the
 completion explanation.
 
-Start any Linux or Docker route with `--web`:
+Start any Linux, Docker, or Kubernetes route with `--web`:
 
 ```console
 $ opsquest play --web

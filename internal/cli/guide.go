@@ -69,6 +69,7 @@ func (a *App) printGuide() {
 	fmt.Fprintf(a.out, "  %s Delimited fields, exit status, and command lists\n", a.style.World("World 5 · Audit Season —"))
 	fmt.Fprintf(a.out, "  Run %s to resume the recommended path, or %s to inspect and jump between worlds.\n",
 		a.style.Accent("opsquest play"), a.style.Accent("opsquest map"))
+	fmt.Fprintln(a.out, "  Checkout on Call teaches Pod discovery, logs, and scaling. Start with opsquest play --track kubernetes.")
 	fmt.Fprintln(a.out, "  At the top level, a mission number or ID walks forward from that exact mission.")
 	fmt.Fprintln(a.out, "  Inside a lab, play STAGE resolves within the current world; use a stable ID to jump across worlds.")
 	fmt.Fprintln(a.out, "  Completed stages remain replayable, and explicit jumps never snap back to your latest progress.")

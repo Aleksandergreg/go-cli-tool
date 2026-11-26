@@ -1,6 +1,6 @@
 //go:build windows
 
-package dockerlab
+package ownerproc
 
 import (
 	"errors"
@@ -12,9 +12,9 @@ const (
 	processStillActive             = 259
 )
 
-// processAlive reports whether pid names a live process. Uncertain results
+// Alive reports whether pid names a live process. Uncertain results
 // report alive so orphan cleanup stays conservative.
-func processAlive(pid int) bool {
+func Alive(pid int) bool {
 	if pid <= 0 {
 		return false
 	}

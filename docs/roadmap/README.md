@@ -49,8 +49,7 @@ Possible follow-ups include:
 ## Curriculum and product ideas
 
 Longer-term ideas include external mission packs, streaks, efficiency medals,
-and generated daily incidents. Kubernetes remains future scope and would need
-an isolated disposable cluster plus a separate safety design.
+and generated daily incidents.
 
 When a proposal ships, remove it from this page and update its canonical
 current guide in the same change.

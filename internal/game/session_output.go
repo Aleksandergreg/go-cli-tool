@@ -59,6 +59,8 @@ func displayTrackName(track string) string {
 	switch track {
 	case mission.TrackDocker:
 		return "Docker"
+	case mission.TrackKubernetes:
+		return "Kubernetes"
 	case mission.TrackLinux:
 		return "Linux"
 	default:

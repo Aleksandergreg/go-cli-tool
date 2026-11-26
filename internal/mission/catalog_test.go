@@ -10,8 +10,8 @@ func TestEmbeddedCatalog(t *testing.T) {
 		t.Fatalf("LoadCatalog() error = %v", err)
 	}
 	items := catalog.All()
-	if len(items) != 42 {
-		t.Fatalf("len(All()) = %d, want 42", len(items))
+	if len(items) != 45 {
+		t.Fatalf("len(All()) = %d, want 45", len(items))
 	}
 	for index, item := range items {
 		if item.Number != index+1 {

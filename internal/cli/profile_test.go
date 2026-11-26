@@ -34,7 +34,7 @@ func TestProfileRenameShowAndDoctor(t *testing.T) {
 	if err := app.Run([]string{"doctor"}); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(out.String(), "42 missions (26 Linux, 16 Docker)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
+	if !strings.Contains(out.String(), "45 missions (26 Linux, 16 Docker, 3 Kubernetes)") || !strings.Contains(out.String(), "Linux labs: in-memory; no host shell or filesystem access") {
 		t.Fatalf("doctor output = %s", out.String())
 	}
 }

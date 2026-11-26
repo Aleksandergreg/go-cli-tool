@@ -20,6 +20,7 @@ const (
 )
 
 var allowedConditionFields = map[ConditionType]conditionFields{
+	ConditionDeploymentReady:           conditionValue | conditionCount,
 	ConditionOutputEquals:              conditionValue,
 	ConditionOutputContains:            conditionValue,
 	ConditionOutputContainsAll:         conditionValues,
@@ -107,6 +108,10 @@ func checkConditionFields(condition Condition, allowed conditionFields) error {
 // environment rules.
 func validateConditionValues(condition Condition, environment string) error {
 	switch condition.Type {
+	case ConditionDeploymentReady:
+		if environment != EnvironmentKubernetes || condition.Count == nil || *condition.Count < 1 || *condition.Count > MaxReplicas {
+			return fmt.Errorf("deployment_ready requires a kind environment and count from 1 to %d", MaxReplicas)
+		}
 	case ConditionOutputEquals, ConditionFileExists, ConditionDirectoryExists, ConditionPathMissing, ConditionFileContentEquals:
 		return nil
 	case ConditionOutputContains, ConditionOutputNotContains, ConditionFileContentContains:

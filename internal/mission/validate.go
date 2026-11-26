@@ -29,18 +29,24 @@ func validateIdentity(item Mission) error {
 		return fmt.Errorf("id %q must use lowercase words separated by hyphens", item.ID)
 	}
 	track := item.EffectiveTrack()
+	var expectedEnvironment string
 	switch track {
-	case TrackLinux, TrackDocker:
+	case TrackLinux:
+		expectedEnvironment = EnvironmentSimulated
+	case TrackDocker:
+		expectedEnvironment = EnvironmentDocker
+	case TrackKubernetes:
+		expectedEnvironment = EnvironmentKubernetes
 	default:
 		return fmt.Errorf("unknown track %q", track)
 	}
 	environment := item.EffectiveEnvironment()
 	switch environment {
-	case EnvironmentSimulated, EnvironmentDocker:
+	case EnvironmentSimulated, EnvironmentDocker, EnvironmentKubernetes:
 	default:
 		return fmt.Errorf("unknown environment %q", environment)
 	}
-	if (track == TrackDocker) != (environment == EnvironmentDocker) {
+	if environment != expectedEnvironment {
 		return fmt.Errorf("track %q cannot use environment %q", track, environment)
 	}
 	for name, value := range map[string]string{
@@ -94,6 +100,15 @@ func validateGuidance(item Mission) error {
 // validateLab checks that the setup matches the mission's environment:
 // simulated missions declare a virtual lab, Docker missions a Docker setup.
 func validateLab(item Mission) error {
+	if item.EffectiveEnvironment() == EnvironmentKubernetes {
+		if item.StartDir != "" || item.Docker != nil || !setupEmpty(item.Setup) {
+			return fmt.Errorf("kind mission requires only Kubernetes fixtures")
+		}
+		return ValidateWorkloads(item.Kubernetes)
+	}
+	if item.Kubernetes != nil {
+		return fmt.Errorf("Kubernetes fixtures require a kind environment")
+	}
 	if item.EffectiveEnvironment() == EnvironmentSimulated {
 		if item.Docker != nil {
 			return fmt.Errorf("simulated mission cannot define docker setup")
@@ -124,6 +139,9 @@ func validateOutcomes(item Mission) error {
 	for index, condition := range item.Validation.All {
 		if err := validateCondition(condition, item.EffectiveEnvironment()); err != nil {
 			return fmt.Errorf("validation condition %d: %w", index+1, err)
+		}
+		if condition.Type == ConditionDeploymentReady && !item.HasWorkload("Deployment", condition.Value) {
+			return fmt.Errorf("unknown deployment %q", condition.Value)
 		}
 		if err := validateConditionReferences(condition, item.Docker); err != nil {
 			return fmt.Errorf("validation condition %d: %w", index+1, err)

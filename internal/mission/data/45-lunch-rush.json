@@ -1,0 +1,52 @@
+{
+  "id": "k8s-lunch-rush",
+  "number": 45,
+  "track": "kubernetes",
+  "environment": "kind",
+  "title": "Boss Battle: The Lunch Rush",
+  "campaign": "Checkout on Call",
+  "difficulty": "intermediate",
+  "story": "Receipts are moving again. One worker cannot drain the lunchtime backlog.",
+  "objective": "Bring checkout-worker to three ready replicas and keep checkout-api at one. Verify the rollout.",
+  "suggested_commands": [
+    "kubectl"
+  ],
+  "hints": [
+    "A Deployment controls how many Pods should run.",
+    "List Deployments to compare desired and ready replicas.",
+    "Use kubectl scale deployment/checkout-worker --replicas=3, then kubectl get deployments to check readiness."
+  ],
+  "explanation": "Scaling sets the desired count. The controller observes that change and starts Pods until the ready count catches up.",
+  "kubernetes": [
+    {
+      "kind": "Deployment",
+      "name": "checkout-api",
+      "app": "checkout",
+      "log": "processing orders"
+    },
+    {
+      "kind": "Deployment",
+      "name": "checkout-worker",
+      "app": "checkout",
+      "log": "processing orders"
+    }
+  ],
+  "validation": {
+    "all": [
+      {
+        "type": "deployment_ready",
+        "value": "checkout-worker",
+        "count": 3
+      },
+      {
+        "type": "deployment_ready",
+        "value": "checkout-api",
+        "count": 1
+      }
+    ]
+  },
+  "rewards": {
+    "xp": 100,
+    "hint_penalty": 10
+  }
+}

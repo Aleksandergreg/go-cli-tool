@@ -74,7 +74,7 @@ func TestListCampaignFilterUsesCampaignTotal(t *testing.T) {
 	if !strings.Contains(out.String(), "0/6 missions complete") {
 		t.Fatalf("campaign-filtered total missing:\n%s", out.String())
 	}
-	if strings.Contains(out.String(), "0/42 missions complete") || strings.Contains(out.String(), "Production Friday") {
+	if strings.Contains(out.String(), "0/45 missions complete") || strings.Contains(out.String(), "Production Friday") {
 		t.Fatalf("campaign filter used catalog-wide scope:\n%s", out.String())
 	}
 }

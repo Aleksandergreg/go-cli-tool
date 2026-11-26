@@ -31,6 +31,7 @@ OpsQuest validates the result, not a prescribed command. Equivalent supported so
 
 - 26 Linux missions across five ordered learning worlds
 - 16 optional, disposable Docker missions across three worlds: It Works on My Machine, Container Triage, and Network Plumbing
+- 3 optional Kubernetes missions in Checkout on Call, using a disposable local kind cluster
 - An isolated in-memory filesystem, environment, process table, and archives
 - Quote-aware globs and variables, pipelines, redirection, `;`/`&&`/`||` command lists, and command history
 - A compact virtual `vi` and bounded virtual shell scripts
@@ -93,6 +94,19 @@ removes them on demand. See
 Docker Engine, and OrbStack setup, plus the teaching subset and isolation
 boundary.
 
+## Optional Kubernetes world
+
+In **Checkout on Call**, identify the checkout Pods, diagnose a paused worker
+from its logs, and scale its Deployment to three ready replicas. Install kind
+and kubectl, start local Docker, and preload both pinned images. The
+[setup and command guide](docs/play/kubernetes.md) lists the exact pulls.
+
+```console
+$ opsquest doctor
+$ opsquest map --track kubernetes
+$ opsquest play --track kubernetes --world 1
+```
+
 ## Safety model
 
 Player-entered Linux commands—including virtual scripts—are parsed and executed by OpsQuest. They never reach a host shell, host process, or host path. The teaching shell operates only on bounded in-memory state.
@@ -127,6 +141,7 @@ internal/mission/   Strict embedded catalog, worlds, and mission JSON
 internal/profile/   XP, ranks, achievements, and atomic persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands
 internal/dockerlab/ Optional, label-scoped Docker adapter
+internal/kubelab/   Disposable local Kubernetes cluster adapter
 internal/webapp/    Loopback-only mission companion and embedded browser UI
 docs/               Zensical documentation source and diagrams
 project/            Repository-only decisions and delivery history
@@ -141,6 +156,7 @@ $ make check             # tests, mission validation, vet, build, and smoke test
 $ make check-all         # normal gate plus race detection
 $ make check-docs        # dependency-free documentation consistency checks
 $ make docker-integration
+$ make kubernetes-integration
 $ make orbstack-integration
 $ make docs-check        # strict Zensical build and link validation
 $ make tofu-check        # GitHub governance formatting and schema validation
@@ -168,8 +184,7 @@ and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 ## Roadmap
 
 Docker campaign increments, distribution improvements, and longer-term ideas
-are tracked in the [roadmap](docs/roadmap/README.md). Kubernetes remains future
-scope.
+are tracked in the [roadmap](docs/roadmap/README.md).
 
 ## License
 

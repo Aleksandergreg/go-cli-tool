@@ -22,5 +22,6 @@ This archive stays in the repository and is intentionally excluded from the Zens
 | [14](iterations/iteration-14.md) | Hosted Zensical documentation and GitHub Pages delivery |
 | [15](iterations/iteration-15.md) | Behavior-preserving non-Docker codebase simplification |
 | [16](iterations/iteration-16.md) | Beginner Linux and Docker mission expansion |
+| [17](iterations/iteration-17.md) | First Kubernetes world and disposable kind lab lifecycle |
 
 New reports use the supplied iteration template and a zero-padded `iteration-NN.md` filename.

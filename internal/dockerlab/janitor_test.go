@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/aleksandergregersen/opsquest/internal/game"
+	"github.com/aleksandergregersen/opsquest/internal/ownerproc"
 )
 
 func orphanLabels(session, pid, host string) map[string]string {
@@ -186,12 +187,12 @@ func TestJanitorRejectsMalformedListing(t *testing.T) {
 }
 
 func TestProcessAlive(t *testing.T) {
-	if !processAlive(os.Getpid()) {
+	if !ownerproc.Alive(os.Getpid()) {
 		t.Fatal("current process reported dead")
 	}
 	for _, pid := range []int{0, -1} {
-		if processAlive(pid) {
-			t.Errorf("processAlive(%d) = true", pid)
+		if ownerproc.Alive(pid) {
+			t.Errorf("ownerproc.Alive(%d) = true", pid)
 		}
 	}
 }

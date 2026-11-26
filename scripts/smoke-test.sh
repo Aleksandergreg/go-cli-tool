@@ -132,6 +132,13 @@ assert_contains "docker list" "${docker_list_output}" "0/16 missions complete"
 assert_contains "docker list" "${docker_list_output}" "Continue: opsquest play --track docker"
 assert_contains "docker list" "${docker_list_output}" "Jump: opsquest play --track docker --world N"
 
+kube_list_output="$(run_opsquest list --track kubernetes --ids)"
+assert_contains "Kubernetes map" "${kube_list_output}" "WORLD 1/1 · Checkout on Call"
+assert_contains "Kubernetes map" "${kube_list_output}" "Stage 3/3 · #45"
+assert_contains "Kubernetes map" "${kube_list_output}" "k8s-lunch-rush"
+assert_contains "Kubernetes map" "${kube_list_output}" "0/3 missions complete"
+assert_contains "Kubernetes map" "${kube_list_output}" "opsquest play --track kubernetes --world N"
+
 show_output="$(run_opsquest show 1)"
 assert_no_ansi "show" "${show_output}"
 assert_contains "show" "${show_output}" "MISSION 01: Where Am I?"
@@ -154,7 +161,7 @@ assert_contains "profile initialization" "${profile_output}" "Operator: Smoke Op
 
 doctor_output="$(run_opsquest doctor)"
 assert_no_ansi "doctor" "${doctor_output}"
-assert_contains "doctor" "${doctor_output}" "embedded catalog: 42 missions (26 Linux, 16 Docker)"
+assert_contains "doctor" "${doctor_output}" "embedded catalog: 45 missions (26 Linux, 16 Docker, 3 Kubernetes)"
 assert_contains "doctor" "${doctor_output}" "profile path: ${PROFILE_HOME}/profile.json"
 assert_contains "doctor" "${doctor_output}" "Linux labs: in-memory; no host shell or filesystem access"
 assert_contains "doctor" "${doctor_output}" "docker labs:"
@@ -191,4 +198,4 @@ assert_no_ansi "completed profile" "${final_profile}"
 assert_contains "completed profile" "${final_profile}" "Missions completed: 1"
 assert_contains "completed profile" "${final_profile}" "40 XP"
 
-printf 'smoke-test: onboarding, replay hints, sticky selected routes, continuous and one-shot play, worlds, world-local stages, Linux and Docker discovery, profile, doctor, and in-mission navigation passed\n'
+printf 'smoke-test: onboarding, replay hints, sticky selected routes, continuous and one-shot play, worlds, world-local stages, Linux, Docker, and Kubernetes discovery, profile, doctor, and in-mission navigation passed\n'

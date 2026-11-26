@@ -4,6 +4,8 @@ import (
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/aleksandergregersen/opsquest/internal/ownerproc"
 )
 
 // Every engine resource an attempt creates carries these labels. Cleanup and
@@ -35,7 +37,7 @@ func currentProcessOwner() processOwner {
 	if err != nil {
 		host = ""
 	}
-	return processOwner{pid: os.Getpid(), host: host, alive: processAlive, now: time.Now}
+	return processOwner{pid: os.Getpid(), host: host, alive: ownerproc.Alive, now: time.Now}
 }
 
 // ownershipLabels returns the --label arguments for one attempt resource
