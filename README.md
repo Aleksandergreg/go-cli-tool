@@ -119,7 +119,7 @@ Read [Sandbox and safety](docs/technical/sandbox-and-safety.md) for trust bounda
 
 ## Documentation
 
-The hosted site is published at [aleksandergreg.github.io/go-cli-tool](https://aleksandergreg.github.io/go-cli-tool/). Its source is organized by purpose:
+The [hosted site](https://aleksandergreg.github.io/go-cli-tool/) follows the latest OpsQuest release. Each release publishes the documentation from the same tag as the downloadable game. Its source is organized by purpose:
 
 - [Play OpsQuest](docs/play/README.md) — player setup, missions, controls, worlds, and Docker
 - [How OpsQuest works](docs/game/README.md) — learning philosophy, architecture, and safety

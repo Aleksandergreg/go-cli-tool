@@ -3,7 +3,7 @@
 Status: the Zensical site, intent-based content split, strict build, and GitHub
 Pages workflow are implemented and live at
 [aleksandergreg.github.io/go-cli-tool](https://aleksandergreg.github.io/go-cli-tool/).
-Deployment runs from `main` through GitHub Actions.
+GitHub Actions deploys the site from each new game release tag.
 
 ## Recommendation
 
@@ -68,7 +68,7 @@ contributor and build complexity when it is not truly needed.
 GitHub Pages is the natural first host because the source and release workflow already live on GitHub and every candidate produces static files. Use a custom Actions workflow with separate build and deploy jobs:
 
 1. Pull requests run a pinned documentation build in strict mode and a link check, but never deploy.
-2. Merges to `main` rebuild the same artifact and deploy it to the protected `github-pages` environment.
+2. After GoReleaser attaches the binaries, the release workflow builds the site from the same Release Please tag and deploys it to the protected `github-pages` environment.
 3. Start at the repository Pages URL. Add a custom `docs.*` domain only after the navigation and content stabilize.
 4. Keep search local to the static artifact. Add analytics only when there is a concrete question to answer and a privacy decision has been made.
 
@@ -96,7 +96,7 @@ GitHub's [custom Pages workflow](https://docs.github.com/en/pages/getting-starte
    and no custom theme code is required.
 3. **Player content pass — complete:** quick start, mission mechanics, controls, Linux worlds, and Docker Foundations have dedicated pages; the root README remains concise.
 4. **Technical content pass — complete:** mission content, profile compatibility, and contribution workflows have focused pages alongside architecture and safety.
-5. **Publish — complete:** pull requests build in strict mode; `main` builds, uploads, and deploys the GitHub Pages artifact. The first deployment completed successfully on July 22, 2026, and the public HTTPS endpoint returned the expected OpsQuest site.
+5. **Publish — complete:** the first deployment from `main` completed successfully on July 22, 2026, and the public HTTPS endpoint returned the expected OpsQuest site.
 6. **Reassess after use — future:** remain on Zensical if the pinned build is reliable; use the same content with Material if alpha churn is costly; consider Starlight only if custom interactive presentation becomes a product goal.
 
 This structure keeps the information model independent from the renderer:
