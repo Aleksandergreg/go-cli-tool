@@ -69,7 +69,7 @@ installed, the official pinned container can run the same site check:
 $ docker run --rm -v "$PWD:/docs" zensical/zensical:0.0.51 build --clean --strict
 ```
 
-The Pages workflow runs the same Make target on documentation pull requests. Merges to `main` upload the static artifact and deploy through the protected `github-pages` environment.
+Documentation pull requests and manual runs of the Documentation workflow run `make docs-check` for validation. When Release Please creates a release and GoReleaser finishes attaching the binaries, the release workflow builds the site from the same tag and deploys it through the protected `github-pages` environment. Docs-only changes go live with the next game release.
 
 ## Documentation lifecycle
 

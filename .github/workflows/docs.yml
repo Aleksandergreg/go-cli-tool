@@ -1,22 +1,12 @@
 name: Documentation
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - ".github/workflows/docs.yml"
-      - "docs/**"
-      - "mkdocs.yml"
-      - "requirements-docs.txt"
-      - "Makefile"
-      - "README.md"
-      - "scripts/check-docs.sh"
   pull_request:
     branches:
       - main
     paths:
       - ".github/workflows/docs.yml"
+      - ".github/workflows/release.yml"
       - "docs/**"
       - "mkdocs.yml"
       - "requirements-docs.txt"
@@ -24,12 +14,18 @@ on:
       - "README.md"
       - "scripts/check-docs.sh"
   workflow_dispatch:
+  workflow_call:
+    inputs:
+      release_tag:
+        description: Tag published by Release Please
+        required: true
+        type: string
 
 permissions:
   contents: read
 
 concurrency:
-  group: documentation-${{ github.event.pull_request.number || github.ref }}
+  group: documentation-${{ inputs.release_tag || github.event.pull_request.number || github.ref }}
   cancel-in-progress: false
 
 jobs:
@@ -44,6 +40,7 @@ jobs:
       - name: Check out repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
         with:
+          ref: ${{ inputs.release_tag && format('refs/tags/{0}', inputs.release_tag) || github.sha }}
           persist-credentials: false
       - name: Set up Python
         uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
@@ -54,17 +51,17 @@ jobs:
       - name: Build and validate documentation
         run: make docs-check
       - name: Configure GitHub Pages
-        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        if: ${{ inputs.release_tag != '' }}
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6
       - name: Upload GitHub Pages artifact
-        if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+        if: ${{ inputs.release_tag != '' }}
         uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5
         with:
           path: site
 
   deploy:
     name: Deploy GitHub Pages
-    if: ${{ github.ref == 'refs/heads/main' && github.event_name != 'pull_request' }}
+    if: ${{ inputs.release_tag != '' }}
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 10
