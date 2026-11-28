@@ -10,6 +10,7 @@ import (
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/sandbox"
+	"github.com/aleksandergregersen/opsquest/internal/terminal"
 )
 
 // SandboxFactory preserves the existing in-memory Linux environment behind
@@ -72,7 +73,11 @@ func (e *sandboxEnvironment) Execute(ctx context.Context, line string) (Executio
 		execution.Interactive = &InteractiveAction{
 			Command: request.Command,
 			Run: func(reader CommandLineReader) error {
-				return reader.Edit(request, e.box.SaveEditorFile)
+				return reader.Edit(terminal.EditorRequest{
+					Path:        request.Path,
+					DisplayPath: request.DisplayPath,
+					Content:     request.Content,
+				}, e.box.SaveEditorFile)
 			},
 		}
 	}

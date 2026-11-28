@@ -136,7 +136,8 @@ cmd/opsquest/       Composition root and executable entry point
 internal/buildinfo/ Release Please-managed executable version
 internal/cli/       Top-level commands, routes, and presentation
 internal/ui/        Terminal-aware ANSI styles and color policy
-internal/game/      Mission sessions, input/editor integration, and validation
+internal/game/      Mission sessions, navigation, progression, and outcome validation
+internal/terminal/  Input readers, completion mechanics, key bindings, and virtual vi
 internal/mission/   Strict embedded catalog, worlds, and mission JSON
 internal/profile/   XP, ranks, achievements, and atomic persistence
 internal/sandbox/   Virtual filesystem, shell parser, and commands

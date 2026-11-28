@@ -24,7 +24,7 @@ func TestIntegrationRealDockerContainerCensus(t *testing.T) {
 	if !found {
 		t.Fatal("docker-container-census mission is not in the embedded catalog")
 	}
-	factory := NewFactory(game.SandboxFactory{})
+	factory := NewFactory()
 	availability := factory.Availability(context.Background(), item)
 	if !availability.Available {
 		t.Fatalf("Docker integration prerequisite unavailable: %s", availability.Detail)
@@ -83,7 +83,7 @@ func TestIntegrationRealDockerDiagnosticsAndStop(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	factory := NewFactory(game.SandboxFactory{})
+	factory := NewFactory()
 
 	t.Run("diagnostic logs and exit status", func(t *testing.T) {
 		item, found := catalog.Find("docker-last-broadcast")
@@ -148,7 +148,7 @@ func TestIntegrationRealDockerContainerTriage(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	factory := NewFactory(game.SandboxFactory{})
+	factory := NewFactory()
 	run := func(t *testing.T, created game.Environment, line string) string {
 		t.Helper()
 		result, err := created.Execute(context.Background(), line)
@@ -246,11 +246,11 @@ func TestIntegrationRealDockerOrphanSweep(t *testing.T) {
 		t.Skip("no unused PID found to simulate an exited owner")
 	}
 	// Simulate an OpsQuest process that exited without closing its attempt.
-	crashed := NewFactory(game.SandboxFactory{})
+	crashed := NewFactory()
 	crashed.owner.pid = deadPID
 	abandoned := createRealDockerEnvironment(t, crashed, item).(*environment)
 
-	janitor := NewFactory(game.SandboxFactory{})
+	janitor := NewFactory()
 	live := createRealDockerEnvironment(t, janitor, item).(*environment)
 	for _, tracked := range abandoned.snapshotContainers() {
 		if _, exists, err := abandoned.inspectReferenceUnchecked(context.Background(), tracked.id); err != nil || exists {
@@ -275,7 +275,7 @@ func TestIntegrationRealDockerNetworks(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	factory := NewFactory(game.SandboxFactory{})
+	factory := NewFactory()
 	run := func(t *testing.T, created game.Environment, line string) string {
 		t.Helper()
 		result, err := created.Execute(context.Background(), line)
@@ -359,11 +359,11 @@ func TestIntegrationRealDockerOrphanedNetworkSweep(t *testing.T) {
 	if deadPID == 0 {
 		t.Skip("no unused PID found to simulate an exited owner")
 	}
-	crashed := NewFactory(game.SandboxFactory{})
+	crashed := NewFactory()
 	crashed.owner.pid = deadPID
 	abandoned := createRealDockerEnvironment(t, crashed, item).(*environment)
 
-	janitor := NewFactory(game.SandboxFactory{})
+	janitor := NewFactory()
 	createRealDockerEnvironment(t, janitor, item)
 	for _, network := range abandoned.snapshotNetworks() {
 		if _, exists, err := inspectNetworkReference(context.Background(), abandoned.runner, network.id); err != nil || exists {

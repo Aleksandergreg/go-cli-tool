@@ -1,16 +1,14 @@
-package game
+package terminal
 
 import (
 	"bytes"
 	"io"
 	"strings"
 	"testing"
-
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
 )
 
 func TestViRendererSanitizesFileAndStatusControlBytes(t *testing.T) {
-	editor, err := newViEditor(sandbox.EditorRequest{
+	editor, err := newViEditor(EditorRequest{
 		Path:        "/work/file",
 		DisplayPath: "bad\x1bname",
 		Content:     "safe\x1b[31m\tend CLIPPED_MARKER",
@@ -74,7 +72,7 @@ func TestDisplayViWindowClipsWithoutLosingSpecialCharacterColumns(t *testing.T) 
 }
 
 func BenchmarkRenderViLongLine(b *testing.B) {
-	editor, err := newViEditor(sandbox.EditorRequest{
+	editor, err := newViEditor(EditorRequest{
 		Path:        "/work/long.txt",
 		DisplayPath: "long.txt",
 		Content:     strings.Repeat("x", maxViFileBytes),

@@ -8,9 +8,6 @@ import (
 	"syscall"
 
 	"github.com/aleksandergregersen/opsquest/internal/cli"
-	"github.com/aleksandergregersen/opsquest/internal/dockerlab"
-	"github.com/aleksandergregersen/opsquest/internal/game"
-	"github.com/aleksandergregersen/opsquest/internal/kubelab"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 	"github.com/aleksandergregersen/opsquest/internal/ui"
@@ -45,7 +42,7 @@ func run() error {
 		ErrOut:  os.Stderr,
 		Catalog: catalog,
 		Store:   store,
-		Factory: dockerlab.NewFactory(kubelab.Factory{Fallback: game.SandboxFactory{}}),
+		Factory: newEnvironmentRouter(),
 	})
 	return app.Run(os.Args[1:])
 }

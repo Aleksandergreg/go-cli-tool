@@ -4,9 +4,10 @@ OpsQuest is a Go 1.26 CLI game with 26 in-memory Linux missions and 16 optional 
 
 ## Repository map
 
-- `cmd/opsquest`: process entry point, dependency construction, and exit reporting.
+- `cmd/opsquest`: process entry point, environment routing, dependency construction, and exit reporting.
 - `internal/buildinfo`: Release Please-managed executable version metadata.
 - `internal/cli`: public CLI commands, flags, help, and presentation.
+- `internal/terminal`: interactive and piped input, key decoding, line completion, and the virtual vi editor.
 - `internal/ui`: terminal-aware ANSI styling and the shared color policy for presentation.
 - `internal/game`: mission sessions, rewards, and observable-outcome validation.
 - `internal/mission`: JSON schema, strict embedded catalog loading, track-local world/stage derivation, integrity checks, and `data/` mission content.

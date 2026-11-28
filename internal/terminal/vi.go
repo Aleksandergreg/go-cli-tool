@@ -1,11 +1,9 @@
-package game
+package terminal
 
 import (
 	"errors"
 	"fmt"
 	"io"
-
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
 )
 
 const maxViFileBytes = 256 * 1024
@@ -15,11 +13,17 @@ var (
 	ErrUnsupportedEditorFile = errors.New("unsupported editor file")
 )
 
-type viSaveFunc func(path, content string) error
+type EditorRequest struct {
+	Path        string
+	DisplayPath string
+	Content     string
+}
+
+type SaveFunc func(path, content string) error
 
 type viSizeFunc func() (width, height int)
 
-func runViEditor(input *terminalKeyReader, output io.Writer, request sandbox.EditorRequest, save viSaveFunc, size viSizeFunc) error {
+func runViEditor(input *terminalKeyReader, output io.Writer, request EditorRequest, save SaveFunc, size viSizeFunc) error {
 	editor, err := newViEditor(request)
 	if err != nil {
 		return err

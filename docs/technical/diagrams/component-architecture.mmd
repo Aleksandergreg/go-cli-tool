@@ -7,6 +7,8 @@ flowchart TB
     PROFILE["internal/profile<br/>progress and atomic storage"]
     SANDBOX["internal/sandbox<br/>in-memory teaching shell"]
     DOCKER["internal/dockerlab<br/>typed Docker adapter"]
+    KUBE["internal/kubelab<br/>local kind clusters"]
+    TERMINAL["internal/terminal<br/>input and virtual vi"]
     WEB["internal/webapp<br/>loopback companion"]
     UI["internal/ui<br/>terminal-aware styling"]
     BUILD["internal/buildinfo<br/>release version"]
@@ -15,6 +17,7 @@ flowchart TB
     MAIN --> MISSION
     MAIN --> PROFILE
     MAIN --> GAME
+    MAIN --> KUBE
     MAIN --> DOCKER
     MAIN --> UI
 
@@ -27,12 +30,16 @@ flowchart TB
 
     GAME --> MISSION
     GAME --> PROFILE
+    CLI --> TERMINAL
+    GAME --> TERMINAL
     GAME --> SANDBOX
     GAME --> UI
 
     SANDBOX --> MISSION
     DOCKER --> GAME
     DOCKER --> MISSION
+    KUBE --> GAME
+    KUBE --> MISSION
     WEB --> GAME
 
     classDef entry fill:#172554,color:#ffffff,stroke:#172554,stroke-width:2px
@@ -44,5 +51,5 @@ flowchart TB
     class MAIN entry
     class CLI,GAME orchestration
     class MISSION,PROFILE domain
-    class SANDBOX,DOCKER adapter
-    class UI,BUILD,WEB support
+    class SANDBOX,DOCKER,KUBE adapter
+    class UI,BUILD,WEB,TERMINAL support

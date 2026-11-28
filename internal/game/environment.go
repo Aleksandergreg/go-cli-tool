@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
+	"github.com/aleksandergregersen/opsquest/internal/terminal"
 )
 
 // Execution is the environment-neutral result of one player command. Output
@@ -40,19 +41,8 @@ type InteractiveAction struct {
 	Run     func(CommandLineReader) error
 }
 
-// CompletionCandidate is one environment-provided token candidate. Directory
-// candidates retain a trailing slash and do not close a quoted token.
-type CompletionCandidate struct {
-	Value     string
-	Directory bool
-}
-
-// CompletionSource supplies the environment-specific part of terminal
-// completion. Mission navigation and controls are added by the game itself.
-type CompletionSource interface {
-	CommandNames() []string
-	PathCandidates(prefix string) []CompletionCandidate
-}
+type CompletionCandidate = terminal.CompletionCandidate
+type CompletionSource = terminal.CompletionSource
 
 // Environment is one isolated mission attempt. Implementations execute only
 // their supported teaching subset, observe declarative outcomes, and release

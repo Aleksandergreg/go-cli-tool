@@ -1,18 +1,16 @@
-package game
+package terminal
 
 import (
 	"bytes"
 	"errors"
 	"strings"
 	"testing"
-
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
 )
 
 func viTestEditor(t *testing.T, content string) *viEditor {
 	t.Helper()
-	editor, err := newViEditor(sandbox.EditorRequest{
-		Command:     "vi",
+	editor, err := newViEditor(EditorRequest{
+
 		Path:        "/work/note.txt",
 		DisplayPath: "note.txt",
 		Content:     content,
@@ -27,7 +25,7 @@ func viRune(char rune) viKey {
 	return viKey{kind: viRuneKey, rune: char}
 }
 
-func enterViCommand(editor *viEditor, command string, save viSaveFunc) {
+func enterViCommand(editor *viEditor, command string, save SaveFunc) {
 	editor.handle(viRune(':'), save)
 	for _, char := range command {
 		editor.handle(viRune(char), save)
@@ -191,11 +189,11 @@ func TestViReportsUnsupportedCommandsAndWriteFailures(t *testing.T) {
 }
 
 func TestViRejectsOversizeAndNonUTF8Content(t *testing.T) {
-	request := sandbox.EditorRequest{DisplayPath: "large.txt", Content: strings.Repeat("x", maxViFileBytes+1)}
+	request := EditorRequest{DisplayPath: "large.txt", Content: strings.Repeat("x", maxViFileBytes+1)}
 	if _, err := newViEditor(request); err == nil || !errors.Is(err, ErrUnsupportedEditorFile) || !strings.Contains(err.Error(), "teaching-editor limit") {
 		t.Fatalf("oversize error = %v", err)
 	}
-	request = sandbox.EditorRequest{DisplayPath: "binary.dat", Content: string([]byte{0xff})}
+	request = EditorRequest{DisplayPath: "binary.dat", Content: string([]byte{0xff})}
 	if _, err := newViEditor(request); err == nil || !errors.Is(err, ErrUnsupportedEditorFile) || !strings.Contains(err.Error(), "UTF-8") {
 		t.Fatalf("UTF-8 error = %v", err)
 	}
@@ -247,8 +245,8 @@ func TestRunViEditorSavesACompleteModalSequence(t *testing.T) {
 	input := newTerminalKeyReader(strings.NewReader("ihello\x1b:wq\r"))
 	output := &bytes.Buffer{}
 	var saved string
-	err := runViEditor(input, output, sandbox.EditorRequest{
-		Command: "vi", Path: "/work/new.txt", DisplayPath: "new.txt",
+	err := runViEditor(input, output, EditorRequest{
+		Path: "/work/new.txt", DisplayPath: "new.txt",
 	}, func(_ string, content string) error {
 		saved = content
 		return nil
@@ -268,8 +266,8 @@ func TestRunViEditorTreatsBracketedPasteAsLiteralInsertText(t *testing.T) {
 	input := newTerminalKeyReader(strings.NewReader("i" + bracketedPasteStart + "dd\n:q!" + bracketedPasteEnd + "\x1b:wq\r"))
 	output := &bytes.Buffer{}
 	var saved string
-	err := runViEditor(input, output, sandbox.EditorRequest{
-		Command: "vi", Path: "/work/new.txt", DisplayPath: "new.txt",
+	err := runViEditor(input, output, EditorRequest{
+		Path: "/work/new.txt", DisplayPath: "new.txt",
 	}, func(_ string, content string) error {
 		saved = content
 		return nil
@@ -285,7 +283,7 @@ func TestRunViEditorTreatsBracketedPasteAsLiteralInsertText(t *testing.T) {
 func TestRunViEditorIgnoresBracketedPasteInNormalMode(t *testing.T) {
 	input := newTerminalKeyReader(strings.NewReader(bracketedPasteStart + "dd:q!" + bracketedPasteEnd + ":q\r"))
 	output := &bytes.Buffer{}
-	request := sandbox.EditorRequest{Command: "vi", Path: "/work/note", DisplayPath: "note", Content: "keep"}
+	request := EditorRequest{Path: "/work/note", DisplayPath: "note", Content: "keep"}
 	if err := runViEditor(input, output, request, func(string, string) error {
 		t.Fatal("normal-mode paste unexpectedly wrote the file")
 		return nil

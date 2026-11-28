@@ -1,4 +1,4 @@
-package game
+package terminal
 
 import (
 	"fmt"
@@ -6,8 +6,6 @@ import (
 	"strings"
 	"unicode"
 	"unicode/utf8"
-
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
 )
 
 type viMode uint8
@@ -19,7 +17,7 @@ const (
 )
 
 type viEditor struct {
-	request      sandbox.EditorRequest
+	request      EditorRequest
 	lines        [][]rune
 	row          int
 	column       int
@@ -33,7 +31,7 @@ type viEditor struct {
 	byteSize     int
 }
 
-func newViEditor(request sandbox.EditorRequest) (*viEditor, error) {
+func newViEditor(request EditorRequest) (*viEditor, error) {
 	if len(request.Content) > maxViFileBytes {
 		return nil, fmt.Errorf("%w: %s exceeds the %d KiB teaching-editor limit", ErrUnsupportedEditorFile, request.DisplayPath, maxViFileBytes/1024)
 	}
@@ -61,7 +59,7 @@ func (e *viEditor) content() string {
 	return strings.Join(parts, "\n")
 }
 
-func (e *viEditor) handle(key viKey, save viSaveFunc) {
+func (e *viEditor) handle(key viKey, save SaveFunc) {
 	switch e.mode {
 	case viInsertMode:
 		e.handleInsert(key)
@@ -245,7 +243,7 @@ func (e *viEditor) insertDelete() {
 	e.removeRuneAtCursor()
 }
 
-func (e *viEditor) handleCommand(key viKey, save viSaveFunc) {
+func (e *viEditor) handleCommand(key viKey, save SaveFunc) {
 	switch key.kind {
 	case viEscapeKey, viInterruptKey:
 		e.mode = viNormalMode
@@ -266,7 +264,7 @@ func (e *viEditor) handleCommand(key viKey, save viSaveFunc) {
 	}
 }
 
-func (e *viEditor) executeCommand(save viSaveFunc) {
+func (e *viEditor) executeCommand(save SaveFunc) {
 	command := string(e.command)
 	e.command = nil
 	e.mode = viNormalMode
@@ -292,7 +290,7 @@ func (e *viEditor) executeCommand(save viSaveFunc) {
 	}
 }
 
-func (e *viEditor) write(save viSaveFunc) bool {
+func (e *viEditor) write(save SaveFunc) bool {
 	content := e.content()
 	if err := save(e.request.Path, content); err != nil {
 		e.message = fmt.Sprintf("E212: cannot write %s: %v", e.request.DisplayPath, err)

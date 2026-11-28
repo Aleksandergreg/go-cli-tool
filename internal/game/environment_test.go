@@ -11,6 +11,7 @@ import (
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
 	"github.com/aleksandergregersen/opsquest/internal/sandbox"
+	"github.com/aleksandergregersen/opsquest/internal/terminal"
 )
 
 func TestObjectiveRecallsSuggestedCommandsWithoutUsingHint(t *testing.T) {
@@ -61,7 +62,7 @@ func TestSandboxEnvironmentPreservesInteractiveVi(t *testing.T) {
 	if execution.Interactive == nil || execution.Interactive.Command != "vi" || execution.Interactive.Run == nil {
 		t.Fatalf("interactive execution = %#v", execution.Interactive)
 	}
-	reader := &seamReader{edit: func(request sandbox.EditorRequest, save viSaveFunc) error {
+	reader := &seamReader{edit: func(request terminal.EditorRequest, save terminal.SaveFunc) error {
 		updated := strings.Replace(request.Content, "LOG_LEVEL=debug", "LOG_LEVEL=info", 1)
 		return save(request.Path, updated)
 	}}
