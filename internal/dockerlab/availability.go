@@ -16,7 +16,7 @@ func (f *Factory) Availability(ctx context.Context, item mission.Mission) game.A
 		ctx = context.Background()
 	}
 	if item.EffectiveEnvironment() != mission.EnvironmentDocker {
-		return game.EnvironmentAvailability(ctx, f.fallback, item)
+		return game.Availability{Detail: fmt.Sprintf("Docker factory does not support environment %q", item.EffectiveEnvironment())}
 	}
 	if item.Docker == nil {
 		return game.Availability{Available: false, Detail: fmt.Sprintf("Docker mission %s has no Docker setup", item.ID)}

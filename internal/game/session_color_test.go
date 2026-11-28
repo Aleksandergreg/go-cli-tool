@@ -11,7 +11,7 @@ import (
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 	"github.com/aleksandergregersen/opsquest/internal/profile"
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
+	"github.com/aleksandergregersen/opsquest/internal/terminal"
 	"github.com/aleksandergregersen/opsquest/internal/ui"
 )
 
@@ -31,8 +31,8 @@ func (r *colorSessionReader) ReadLine(prompt string, _ CompletionSource) (string
 	return line, nil
 }
 
-func (r *colorSessionReader) Edit(_ sandbox.EditorRequest, _ viSaveFunc) error {
-	return ErrInteractiveEditor
+func (r *colorSessionReader) Edit(_ terminal.EditorRequest, _ terminal.SaveFunc) error {
+	return terminal.ErrInteractiveEditor
 }
 
 func TestSessionColorsChromeWithoutColoringSandboxOutput(t *testing.T) {

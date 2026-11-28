@@ -6,14 +6,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
 
 func TestAvailabilityDistinguishesOptionalDockerFailures(t *testing.T) {
 	item := testDockerMission()
 	t.Run("CLI missing", func(t *testing.T) {
-		factory := newFactory(game.SandboxFactory{}, nil, execNotFoundError{}, nil)
+		factory := newFactory(nil, execNotFoundError{}, nil)
 		availability := factory.Availability(context.Background(), item)
 		if availability.Available || !strings.Contains(availability.Detail, "executable not found") || !strings.Contains(availability.Detail, "OrbStack") || !strings.Contains(availability.Detail, "Linux missions remain available") {
 			t.Fatalf("availability = %#v", availability)
@@ -87,46 +86,6 @@ func TestAvailabilityDistinguishesOptionalDockerFailures(t *testing.T) {
 			t.Fatalf("availability = %#v", availability)
 		}
 	})
-}
-
-type fallbackEnvironment struct{}
-
-func (fallbackEnvironment) PromptLabel() string { return "/fallback" }
-
-func (fallbackEnvironment) Execute(context.Context, string) (game.Execution, error) {
-	return game.Execution{}, nil
-}
-
-func (fallbackEnvironment) Observe(context.Context, mission.Condition) (bool, error) {
-	return false, nil
-}
-
-func (fallbackEnvironment) CompletionSource() game.CompletionSource { return fallbackCompletion{} }
-
-func (fallbackEnvironment) Close() error { return nil }
-
-type fallbackCompletion struct{}
-
-func (fallbackCompletion) CommandNames() []string { return nil }
-
-func (fallbackCompletion) PathCandidates(string) []game.CompletionCandidate {
-	return nil
-}
-
-func TestFactoryDelegatesSimulatedMissionsWithoutDocker(t *testing.T) {
-	called := false
-	fallback := game.FactoryFunc(func(_ context.Context, item mission.Mission) (game.Environment, error) {
-		called = true
-		return fallbackEnvironment{}, nil
-	})
-	factory := newFactory(fallback, nil, execNotFoundError{}, nil)
-	created, err := factory.Create(context.Background(), mission.Mission{ID: "linux", Environment: mission.EnvironmentSimulated})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !called || created.PromptLabel() != "/fallback" {
-		t.Fatalf("fallback called = %v, environment = %#v", called, created)
-	}
 }
 
 func TestInvalidDockerSetupNeverReachesRunner(t *testing.T) {

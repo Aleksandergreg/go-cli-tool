@@ -6,7 +6,7 @@ status: current
 
 # OpsQuest architecture
 
-OpsQuest separates product flow, declarative mission content, isolated execution, and durable player progress. The central seam is [`game.Environment`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/environment.go): a mission session can execute commands and observe outcomes without knowing whether the attempt uses the in-memory Linux simulator or the optional Docker adapter.
+OpsQuest separates product flow, declarative mission content, isolated execution, and durable player progress. The central seam is [`game.Environment`](https://github.com/Aleksandergreg/go-cli-tool/blob/main/internal/game/environment.go): a mission session can execute commands and observe outcomes without knowing whether the attempt uses the in-memory Linux simulator or a disposable Docker or Kubernetes lab.
 
 ## System landscape
 
@@ -22,7 +22,7 @@ There are four materially different state domains:
 | Domain | Owner | Lifetime | Host interaction |
 | --- | --- | --- | --- |
 | Mission definition | `internal/mission` | Embedded in the binary | Reads embedded JSON only |
-| Mission attempt | `internal/sandbox` or `internal/dockerlab` | One attempt or restart | In-memory for Linux; exact labeled Docker resources for Docker labs |
+| Mission attempt | `internal/sandbox`, `internal/dockerlab`, or `internal/kubelab` | One attempt or restart | Virtual Linux state, attempt-owned Docker resources, or a disposable kind cluster |
 | Player progress | `internal/profile` | Across processes | Atomic `profile.json` replacement in the platform config directory |
 | Companion projection | `internal/webapp` | One `play --web` process | Loopback HTTP only; no durable writes or command execution |
 
@@ -38,16 +38,18 @@ Editable source: [`component-architecture.mmd`](diagrams/component-architecture.
 | --- | --- | --- |
 | `cmd/opsquest` | Process entry point and dependency construction | Wires concrete adapters; contains no gameplay rules |
 | `internal/cli` | Public commands, flags, route selection, and presentation | Owns profile loading/reset and chooses missions; delegates attempts to `game.Session` |
-| `internal/game` | Attempt orchestration, terminal input/editor integration, progression, and outcome evaluation | Depends on the `Environment` and `Factory` contracts, not on Docker details |
+| `internal/game` | Attempt orchestration, navigation, progression, and outcome evaluation | Depends on the `Environment` and `Factory` contracts, not on Docker details |
+| `internal/terminal` | Input readers, key decoding, line completion, and virtual vi | The session supplies control names and the environment supplies completion candidates and the save callback |
 | `internal/mission` | Strict schema, embedded catalog, tracks, worlds, and defensive copies | Content stays declarative; rejects invalid catalogs before play starts |
 | `internal/sandbox` | Teaching-shell lexer, parser, dispatcher, virtual filesystem/processes/archives | Never invokes a host shell or accesses host paths |
-| `internal/dockerlab` | Optional Docker-compatible engine availability, typed teaching actions, fixtures, observations, and cleanup | Only this adapter may launch the Docker CLI, using constructed arguments and tracked resource IDs |
+| `internal/dockerlab` | Optional Docker-compatible engine availability, typed teaching actions, fixtures, observations, and cleanup | Uses constructed Docker arguments and tracked resource IDs |
+| `internal/kubelab` | Local kind cluster lifecycle and teaching commands | Player actions use the namespace-scoped service account |
 | `internal/webapp` | Optional embedded mission companion, one-time pairing, current snapshot, and server-sent events | Serves a read-only projection on IPv4 loopback; accepts no command or completion input |
 | `internal/profile` | Versioned progress model and atomic JSON storage | The only normal durable state written by the application |
 | `internal/ui` | Terminal capability detection and semantic ANSI roles | Styling stays out of execution results and validators |
 | `internal/buildinfo` | Release-managed executable version | Updated by release automation |
 
-Dependencies point toward contracts and data. In particular, `dockerlab` implements interfaces declared by `game`, while `game` does not import `dockerlab`. The composition root selects `dockerlab.NewFactory(game.SandboxFactory{})`, making the simulated environment the safe default and Docker an optional branch.
+The executable registers the simulated, Docker, and Kubernetes factories in `cmd/opsquest/environments.go`. Both readiness checks and attempt creation select a factory by `Mission.EffectiveEnvironment()`. An omitted environment selects the in-memory Linux simulator. The router delegates orphan reporting and cleanup to the same Docker factory used for play.
 
 OrbStack does not introduce a second execution backend. On macOS it is selected through its official `orbstack` Docker context, while availability checks, fixed Docker CLI arguments, ownership verification, resource limits, and cleanup all remain on the same adapter path. Context inspection changes only provider-specific readiness guidance; a failed context inspection does not reject an otherwise reachable engine.
 
@@ -164,6 +166,8 @@ Changing one of these requires explicit compatibility reasoning even when the Go
 | Add or revise a mission | `internal/mission/data` | Catalog integrity and `internal/game/missions_test.go` |
 | Add a simulated command or flag | `internal/sandbox` | Command help, regression/hardening tests, README command list |
 | Add a validation outcome | `internal/mission`, `internal/game`, environment adapters | Strict schema checks and canonical mission coverage |
+| Change a key binding or editor motion | `internal/terminal` | Key decoding and editor tests beside the implementation |
+| Wire an execution environment | `cmd/opsquest/environments.go` | Availability, creation, partial setup cleanup, and doctor capabilities |
 | Change attempt controls or progression | `internal/game` | `internal/cli` routes and profile persistence |
 | Add a top-level command | `internal/cli` | Smoke test and README examples |
 | Change the browser companion or projection | `internal/webapp`, `internal/game` | Pairing/HTTP isolation, lifecycle ordering, CLI fallback, and race tests |

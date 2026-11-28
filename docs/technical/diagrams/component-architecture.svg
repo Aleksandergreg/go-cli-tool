@@ -1,7 +1,7 @@
 <!-- Rendered export; edit the matching Mermaid source. -->
 <svg xmlns="http://www.w3.org/2000/svg" width="1400" height="920" viewBox="0 0 1400 920" role="img" aria-labelledby="title desc">
   <title id="title">OpsQuest component architecture</title>
-  <desc id="desc">Package dependency diagram showing the composition root, CLI and game orchestration, mission and profile domains, sandbox and Docker adapters, and UI, web companion, and build information support packages.</desc>
+  <desc id="desc">Package dependency diagram showing the composition root, CLI and game orchestration, mission and profile domains, sandbox, Docker and Kubernetes adapters, and terminal input, UI, web companion, and build information support packages.</desc>
   <defs>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto" markerUnits="strokeWidth">
       <path d="M0,0 L0,6 L9,3 z" fill="#64748b"/>
@@ -40,6 +40,22 @@
   <path class="edge" d="M1090 680 C1130 540 1090 430 1000 370"/>
   <path class="edge" d="M430 370 C520 500 650 610 735 700"/>
   <path class="edge" d="M795 700 C870 590 925 470 935 370"/>
+
+  <path class="wire" d="M900 160 C1140 168 1260 280 1260 410"/>
+  <path class="edge" d="M1160 410 L1050 370"/>
+  <path class="edge" d="M1160 496 C1110 530 1050 570 1010 595"/>
+  <path class="edge" d="M800 370 C740 390 690 410 650 442"/>
+  <path class="edge" d="M495 370 L550 442"/>
+  <g filter="url(#shadow)">
+    <rect x="490" y="442" width="230" height="84" rx="16" fill="#f1f5f9" stroke="#64748b"/>
+    <text x="605" y="477" text-anchor="middle" class="name" fill="#334155">internal/terminal</text>
+    <text x="605" y="503" text-anchor="middle" class="body" fill="#475569">input · completion · virtual vi</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="1100" y="410" width="250" height="86" rx="16" fill="#fef3c7" stroke="#d97706" stroke-width="2"/>
+    <text x="1225" y="447" text-anchor="middle" class="name" fill="#78350f">internal/kubelab</text>
+    <text x="1225" y="473" text-anchor="middle" class="body" fill="#92400e">disposable kind clusters</text>
+  </g>
 
   <g filter="url(#shadow)">
     <rect x="500" y="118" width="400" height="84" rx="18" fill="#172554" stroke="#172554" stroke-width="2"/>

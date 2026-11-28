@@ -9,8 +9,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/aleksandergregersen/opsquest/internal/game"
 )
 
 // sameCleanupCalls compares Docker invocations per resource. Close cleans
@@ -256,7 +254,7 @@ func TestConcurrentSessionsCleanOnlyTheirOwnContainers(t *testing.T) {
 	commandRunner := newFakeDockerRunner()
 	sessions := []string{strings.Repeat("a", 24), strings.Repeat("d", 24)}
 	index := 0
-	factory := newFactory(game.SandboxFactory{}, commandRunner, nil, func() (string, error) {
+	factory := newFactory(commandRunner, nil, func() (string, error) {
 		value := sessions[index]
 		index++
 		return value, nil

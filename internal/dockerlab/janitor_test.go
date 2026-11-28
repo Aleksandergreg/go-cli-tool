@@ -169,7 +169,7 @@ func TestSweepFailureDoesNotBlockSetup(t *testing.T) {
 }
 
 func TestJanitorReportsMissingDocker(t *testing.T) {
-	factory := newFactory(game.SandboxFactory{}, nil, execNotFoundError{}, nil)
+	factory := newFactory(nil, execNotFoundError{}, nil)
 	if _, err := factory.OrphanedResources(context.Background()); err == nil || !strings.Contains(err.Error(), "not found") {
 		t.Fatalf("OrphanedResources() error = %v", err)
 	}

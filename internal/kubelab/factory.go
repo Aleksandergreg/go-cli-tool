@@ -24,7 +24,7 @@ const (
 	namespace    = "checkout"
 )
 
-type Factory struct{ Fallback game.Factory }
+type Factory struct{}
 
 type environment struct {
 	item            mission.Mission
@@ -78,7 +78,7 @@ func prerequisites(ctx context.Context) (string, error) {
 
 func (f Factory) Availability(ctx context.Context, item mission.Mission) game.Availability {
 	if item.EffectiveEnvironment() != mission.EnvironmentKubernetes {
-		return game.EnvironmentAvailability(ctx, f.Fallback, item)
+		return game.Availability{Detail: fmt.Sprintf("Kubernetes factory does not support environment %q", item.EffectiveEnvironment())}
 	}
 	if _, err := prerequisites(ctx); err != nil {
 		return game.Availability{Detail: err.Error()}
@@ -88,10 +88,7 @@ func (f Factory) Availability(ctx context.Context, item mission.Mission) game.Av
 
 func (f Factory) Create(ctx context.Context, item mission.Mission) (game.Environment, error) {
 	if item.EffectiveEnvironment() != mission.EnvironmentKubernetes {
-		if f.Fallback == nil {
-			return (game.SandboxFactory{}).Create(ctx, item)
-		}
-		return f.Fallback.Create(ctx, item)
+		return nil, fmt.Errorf("Kubernetes factory does not support environment %q", item.EffectiveEnvironment())
 	}
 	if err := mission.ValidateWorkloads(item.Kubernetes); err != nil {
 		return nil, err

@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/aleksandergregersen/opsquest/internal/profile"
+	"github.com/aleksandergregersen/opsquest/internal/terminal"
 )
 
 // execute runs one command in the mission environment, records practice, and
@@ -84,7 +85,7 @@ func (a *attempt) runCommand(line string) (Execution, bool, error) {
 		return Execution{}, false, fmt.Errorf("run %s: interactive action has no runner", result.Interactive.Command)
 	}
 	if err := result.Interactive.Run(a.reader); err != nil {
-		if errors.Is(err, ErrInteractiveEditor) || errors.Is(err, ErrUnsupportedEditorFile) {
+		if errors.Is(err, terminal.ErrInteractiveEditor) || errors.Is(err, terminal.ErrUnsupportedEditorFile) {
 			a.fail(fmt.Sprintf("%s: %v", result.Interactive.Command, err))
 			return Execution{}, false, nil
 		}

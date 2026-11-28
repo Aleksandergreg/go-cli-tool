@@ -1,4 +1,4 @@
-package game
+package terminal
 
 import (
 	"sort"
@@ -7,13 +7,28 @@ import (
 	"unicode/utf8"
 )
 
-func terminalCompleter(completions CompletionSource) func(string, int, rune) (string, int, bool) {
+// CompletionCandidate is one environment-provided token candidate. Directory
+// candidates retain a trailing slash and do not close a quoted token.
+type CompletionCandidate struct {
+	Value     string
+	Directory bool
+}
+
+// CompletionSource supplies the environment-specific part of terminal
+// completion. Mission navigation and controls are added by the game itself.
+type CompletionSource interface {
+	CommandNames() []string
+	PathCandidates(prefix string) []CompletionCandidate
+}
+
+// Completer builds the editing callback for a command line.
+func Completer(completions CompletionSource, controls []string) func(string, int, rune) (string, int, bool) {
 	return func(line string, position int, key rune) (string, int, bool) {
 		switch key {
 		case terminalKeyDeleteForward:
 			return deleteRuneAtCursor(line, position)
 		case '\t':
-			return completeLine(line, position, completions)
+			return completeLine(line, position, completions, controls)
 		default:
 			return line, position, false
 		}
@@ -31,7 +46,7 @@ func deleteRuneAtCursor(line string, position int) (string, int, bool) {
 	return line[:position] + line[position+size:], position, true
 }
 
-func completeLine(line string, position int, completions CompletionSource) (string, int, bool) {
+func completeLine(line string, position int, completions CompletionSource, controls []string) (string, int, bool) {
 	if invalidCursorPosition(line, position) {
 		return line, position, true
 	}
@@ -44,7 +59,7 @@ func completeLine(line string, position int, completions CompletionSource) (stri
 
 	var candidates []CompletionCandidate
 	if commandPosition(line[:start]) && !scriptPathCompletion(typed) {
-		candidates = commandCandidates(completions, typed)
+		candidates = commandCandidates(completions, controls, typed)
 	} else if completions != nil {
 		candidates = completions.PathCandidates(typed)
 	}
@@ -157,12 +172,12 @@ func commandPosition(beforeToken string) bool {
 	return trimmed == "" || strings.HasSuffix(trimmed, "|")
 }
 
-func commandCandidates(completions CompletionSource, prefix string) []CompletionCandidate {
+func commandCandidates(completions CompletionSource, controls []string, prefix string) []CompletionCandidate {
 	commands := make([]string, 0)
 	if completions != nil {
 		commands = append(commands, completions.CommandNames()...)
 	}
-	commands = append(commands, "?", ":q", "exit", "guide", "hint", "list", "map", "missions", "next", "objective", "opsquest", "play", "prev", "previous", "quit", "restart", "status", "world", "worlds")
+	commands = append(commands, controls...)
 	sort.Strings(commands)
 	candidates := make([]CompletionCandidate, 0)
 	last := ""

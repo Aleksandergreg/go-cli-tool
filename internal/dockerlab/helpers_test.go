@@ -7,7 +7,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/aleksandergregersen/opsquest/internal/game"
 	"github.com/aleksandergregersen/opsquest/internal/mission"
 )
 
@@ -60,7 +59,7 @@ func testDiagnosticDockerMission() mission.Mission {
 }
 
 func testFactory(commandRunner runner) *Factory {
-	factory := newFactory(game.SandboxFactory{}, commandRunner, nil, func() (string, error) {
+	factory := newFactory(commandRunner, nil, func() (string, error) {
 		return strings.Repeat("a", 24), nil
 	})
 	factory.owner = testOwner(func(pid int) bool { return pid == testOwnerPID })

@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/aleksandergregersen/opsquest/internal/mission"
-	"github.com/aleksandergregersen/opsquest/internal/sandbox"
+	"github.com/aleksandergregersen/opsquest/internal/terminal"
 )
 
 type seamCompletionSource struct {
@@ -68,7 +68,7 @@ type seamReader struct {
 	endErr      error
 	prompts     []string
 	completions []CompletionSource
-	edit        func(sandbox.EditorRequest, viSaveFunc) error
+	edit        func(terminal.EditorRequest, terminal.SaveFunc) error
 }
 
 func (r *seamReader) ReadLine(prompt string, completions CompletionSource) (string, error) {
@@ -85,9 +85,9 @@ func (r *seamReader) ReadLine(prompt string, completions CompletionSource) (stri
 	return line, nil
 }
 
-func (r *seamReader) Edit(request sandbox.EditorRequest, save viSaveFunc) error {
+func (r *seamReader) Edit(request terminal.EditorRequest, save terminal.SaveFunc) error {
 	if r.edit == nil {
-		return ErrInteractiveEditor
+		return terminal.ErrInteractiveEditor
 	}
 	return r.edit(request, save)
 }
