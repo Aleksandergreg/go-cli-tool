@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.1](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.16.0...v0.16.1) (2026-11-28)
+
+
+### Bug Fixes
+
+* Implemented release-only documentation publishing. Once merged, … ([#66](https://github.com/Aleksandergreg/go-cli-tool/issues/66)) ([f6a494e](https://github.com/Aleksandergreg/go-cli-tool/commit/f6a494e319a5330e8169cb4aef61e1513e2c0a62))
+
 ## [0.16.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.15.0...v0.16.0) (2026-11-28)
 
 
