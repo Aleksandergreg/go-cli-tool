@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.16.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.15.0...v0.16.0) (2026-11-28)
+
+
+### Features
+
+* Implemented the refactor in the working tree. OpsQuest remains … ([#64](https://github.com/Aleksandergreg/go-cli-tool/issues/64)) ([175c4e6](https://github.com/Aleksandergreg/go-cli-tool/commit/175c4e6b916078e4195390bbacf7b926c824fe14))
+
 ## [0.15.0](https://github.com/Aleksandergreg/go-cli-tool/compare/v0.14.0...v0.15.0) (2026-11-26)
 
 
